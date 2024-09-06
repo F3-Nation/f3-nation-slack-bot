@@ -254,7 +254,7 @@ def populate_users(client: WebClient, team_id: str):
             email=u["profile"].get("email") or u["id"],
             avatar_url=u["profile"]["image_192"],
             slack_team_id=team_id,
-            is_admin=u.get("is_admin"),
+            is_admin=u.get("is_admin") or False,
         )
         for u in users
     ]
