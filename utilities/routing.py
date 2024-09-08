@@ -15,11 +15,8 @@ from utilities.slack import actions
 
 COMMAND_MAPPER = {
     "/backblast": (backblast.backblast_middleware, True),
-    "/slackblast": (backblast.backblast_middleware, True),
-    # "/preblast": (preblast.build_preblast_form, True),
     "/preblast": (event_preblast.build_event_preblast_select_form, True),
-    "/config-welcome-message": (welcome.build_welcome_message_form, True),
-    "/config-slackblast": (config.build_config_form, True),
+    "/f3-nation-settings": (config.build_config_form, True),
     "/tag-achievement": (weaselbot.build_achievement_form, True),
     "/send-announcement": (announcements.send, False),
     "/calendar": (home.build_home_form, True),

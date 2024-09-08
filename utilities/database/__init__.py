@@ -8,6 +8,7 @@ from sqlalchemy import and_, create_engine, pool
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
+import sqlalchemy
 
 from utilities import constants
 from utilities.database.orm import BaseClass
@@ -30,8 +31,18 @@ def get_engine(echo=False, schema=None) -> Engine:
     passwd = os.environ[constants.ADMIN_DATABASE_PASSWORD]
     database = schema or os.environ[constants.ADMIN_DATABASE_SCHEMA]
     # db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
-    db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
-    return create_engine(db_url, echo=echo, poolclass=pool.NullPool)
+    # db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
+    
+    engine = sqlalchemy.create_engine(
+        sqlalchemy.engine.url.URL.create(
+            drivername="postgresql+pg8000",
+            username=user,
+            password=passwd,
+            database=database,
+            query={"unix_sock": f"{host}/.s.PGSQL.5432"},
+        ),
+    )
+    return engine
 
 
 def get_session(echo=False, schema=None):
