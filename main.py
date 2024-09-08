@@ -13,7 +13,7 @@ from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
-    get_oauth_flow,
+    # get_oauth_flow,
     get_region_record,
     get_request_type,
     safe_get,
@@ -31,7 +31,7 @@ if LOCAL_DEVELOPMENT:
 
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
-    oauth_flow=get_oauth_flow(),
+    # oauth_flow=get_oauth_flow(),
 )
 
 
@@ -100,5 +100,5 @@ app.view_closed(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.event(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 
 if __name__ == "__main__":
-    app.start(3000)
+    app.start(8080)
     update_local_region_records()

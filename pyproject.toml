@@ -41,9 +41,9 @@ pillow-heif = "^0.15.0"
 sqlalchemy-utils = "^0.41.1"
 psycopg2-binary = "^2.9.9"
 functions-framework = "^3.8.1"
+boto3 = "^1.34.68"
 
 [tool.poetry.group.dev.dependencies]
-boto3 = "^1.34.68"
 dataframe-image = "^0.2.3"
 pandas = "^2.2.2"
 playwright = "^1.44.0"

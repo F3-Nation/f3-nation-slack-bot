@@ -1,0 +1,9 @@
+[_]
+schema-version = "0.2"
+
+[[build.env]]
+    name = "GOOGLE_FUNCTION_TARGET"
+    value = "handler"
+[[build.env]]
+    name = "ENV_SLACK_STATE_S3_BUCKET_NAME"
+    value = "slack-state-bucket"
