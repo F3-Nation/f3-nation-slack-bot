@@ -52,8 +52,8 @@ def get_engine(echo=False, schema=None) -> Engine:
             driver="pg8000",
             user=user,
             password=passwd,
-            database=database,
-            ip_types=IPTypes.PUBLIC,
+            db=database,
+            ip_type=IPTypes.PUBLIC,
         )
         return conn
 
