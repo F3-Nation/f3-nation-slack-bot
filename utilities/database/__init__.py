@@ -2,13 +2,15 @@ import os
 from dataclasses import dataclass
 from typing import List, Tuple, TypeVar
 
-from sqlalchemy import and_, create_engine, pool
+import pg8000
+import sqlalchemy
+from google.cloud.sql.connector import Connector, IPTypes
+from sqlalchemy import and_
 
 # from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
-import sqlalchemy
 
 from utilities import constants
 from utilities.database.orm import BaseClass
@@ -32,16 +34,30 @@ def get_engine(echo=False, schema=None) -> Engine:
     database = schema or os.environ[constants.ADMIN_DATABASE_SCHEMA]
     # db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
     # db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
-    
-    engine = sqlalchemy.create_engine(
-        sqlalchemy.engine.url.URL.create(
-            drivername="postgresql+pg8000",
-            username=user,
+
+    # engine = sqlalchemy.create_engine(
+    #     sqlalchemy.engine.url.URL.create(
+    #         drivername="postgresql+pg8000",
+    #         username=user,
+    #         password=passwd,
+    #         database=database,
+    #         query={"unix_sock": f"{host}/.s.PGSQL.5432"},
+    #     ),
+    # )
+    connector = Connector()
+
+    def get_connection():
+        conn: pg8000.dbapi.Connection = connector.connect(
+            instance_connection_string=host,
+            driver="pg8000",
+            user=user,
             password=passwd,
             database=database,
-            query={"unix_sock": f"{host}/.s.PGSQL.5432"},
-        ),
-    )
+            ip_types=IPTypes.PUBLIC,
+        )
+        return conn
+
+    engine = sqlalchemy.create_engine("postgresql+pg8000://", creator=get_connection, echo=echo)
     return engine
 
 

@@ -43,6 +43,7 @@ psycopg2-binary = "^2.9.9"
 functions-framework = "^3.8.1"
 boto3 = "^1.34.68"
 pg8000 = "^1.31.2"
+cloud-sql-python-connector = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
 dataframe-image = "^0.2.3"

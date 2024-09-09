@@ -32,6 +32,7 @@ if LOCAL_DEVELOPMENT:
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
     # oauth_flow=get_oauth_flow(),
+    # oauth_settings=SlackSettings,
 )
 
 

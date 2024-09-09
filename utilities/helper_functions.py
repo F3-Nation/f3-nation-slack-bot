@@ -8,6 +8,8 @@ import requests
 from PIL import Image
 from slack_bolt.adapter.aws_lambda.lambda_s3_oauth_flow import LambdaS3OAuthFlow
 from slack_bolt.oauth.oauth_settings import OAuthSettings
+from slack_sdk.oauth.installation_store import FileInstallationStore
+from slack_sdk.oauth.state_store import FileOAuthStateStore
 from slack_sdk.web import WebClient
 
 from utilities import constants
@@ -40,6 +42,16 @@ def get_oauth_flow():
                 scopes=os.environ[constants.SLACK_SCOPES].split(","),
             ),
         )
+
+
+def get_oauth_settings():
+    return OAuthSettings(
+        client_id=os.environ[constants.SLACK_CLIENT_ID],
+        client_secret=os.environ[constants.SLACK_CLIENT_SECRET],
+        scopes=os.environ[constants.SLACK_SCOPES].split(","),
+        installation_store=FileInstallationStore(base_dir="/oauth_installations"),
+        state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="/oauth_states"),
+    )
 
 
 def safe_get(data, *keys):
