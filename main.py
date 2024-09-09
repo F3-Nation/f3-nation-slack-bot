@@ -25,9 +25,9 @@ from utilities.slack.actions import LOADING_ID
 # SlackRequestHandler.clear_all_log_handlers()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-if LOCAL_DEVELOPMENT:
-    handler = logging.StreamHandler()
-    logger.addHandler(handler)
+# if LOCAL_DEVELOPMENT:
+handler = logging.StreamHandler()
+logger.addHandler(handler)
 
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
@@ -55,6 +55,7 @@ def main_response(body, logger, client, ack, context):
     logger.info(json.dumps(body, indent=4))
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
+    logger.info(f"region_record: {region_record}")
 
     request_type, request_id = get_request_type(body)
     lookup: Tuple[Callable, bool] = safe_get(safe_get(MAIN_MAPPER, request_type), request_id)
