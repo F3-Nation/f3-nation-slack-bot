@@ -1,5 +1,4 @@
 # import json
-import json
 import logging
 import re
 import traceback
@@ -26,11 +25,12 @@ from utilities.slack.actions import LOADING_ID
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 # if LOCAL_DEVELOPMENT:
-handler = logging.StreamHandler()
-logger.addHandler(handler)
+# handler = logging.StreamHandler()
+# logger.addHandler(handler)
 
 app = App(
-    process_before_response=not LOCAL_DEVELOPMENT,
+    process_before_response=True,
+    # process_before_response=not LOCAL_DEVELOPMENT,
     # oauth_flow=get_oauth_flow(),
     # oauth_settings=SlackSettings,
 )
@@ -52,10 +52,10 @@ def handler(request):
 
 def main_response(body, logger, client, ack, context):
     ack()
-    logger.info(json.dumps(body, indent=4))
+    # logger.info(json.dumps(body, indent=4))
+    logger.info(body)
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
-    logger.info(f"region_record: {region_record}")
 
     request_type, request_id = get_request_type(body)
     lookup: Tuple[Callable, bool] = safe_get(safe_get(MAIN_MAPPER, request_type), request_id)
