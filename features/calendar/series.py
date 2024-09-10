@@ -122,7 +122,7 @@ def build_series_add_form(
         ao: Org = DbManager.get_record(Org, safe_convert(safe_get(form_data, action_id), int))
         default_event_type = DbManager.find_records(
             EventType_x_Org,
-            [EventType_x_Org.org_id == safe_get(form_data, action_id), EventType_x_Org.is_default],
+            [EventType_x_Org.org_id == safe_convert(safe_get(form_data, action_id), int), EventType_x_Org.is_default],
         )
         if ao:
             if ao.default_location_id:
