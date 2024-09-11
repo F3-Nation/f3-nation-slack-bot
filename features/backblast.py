@@ -138,6 +138,8 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     action_id = safe_get(body, "actions", 0, "action_id")
     if action_id == actions.BACKBLAST_FILL_SELECT:
         event_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+    elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
+        event_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
     else:
         event_id = safe_get(backblast_metadata, "event_id")
 
@@ -175,7 +177,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     event_type_records: List[Tuple[EventType, EventType_x_Org]] = DbManager.find_join_records2(
         EventType,
         EventType_x_Org,
-        filters=[EventType_x_Org.org_id == region_record.id],
+        filters=[EventType_x_Org.org_id == region_record.org_id],
     )
     event_type_options = slack_orm.as_selector_options(
         [r[0].name for r in event_type_records], [str(r[0].id) for r in event_type_records]

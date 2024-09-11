@@ -220,6 +220,7 @@ MSG_EVENT_PREBLAST_TITLE = "event_preblast_title_dm"
 MSG_EVENT_PREBLAST_MOLESKINE = "event_preblast_moleskine_dm"
 MSG_EVENT_PREBLAST_SUBMIT = "event_preblast_submit_dm"
 MSG_EVENT_PREBLAST_BUTTON = "event_preblast_button_dm"
+MSG_EVENT_BACKBLAST_BUTTON = "event_backblast_button_dm"
 
 REGION_NAME = "region_name"
 REGION_DESCRIPTION = "region_description"
