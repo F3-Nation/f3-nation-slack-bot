@@ -47,6 +47,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     event_type_name = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_NEW)
     event_type_id = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_SELECT)
     event_category_id = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY)
+    event_type_acronym = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM)
 
     if event_type_id:
         DbManager.create_record(
@@ -62,6 +63,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
             EventType(
                 name=event_type_name,
                 category_id=event_category_id,
+                acronym=event_type_acronym or event_type_name[:2],
             )
         )
         DbManager.create_record(

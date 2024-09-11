@@ -41,7 +41,8 @@ def build_location_add_form(
         if edit_location.lat and edit_location.lon:
             form.set_initial_values(
                 {
-                    actions.CALENDAR_ADD_LOCATION_GOOGLE: f"{edit_location.lat}, {edit_location.lon}",
+                    actions.CALENDAR_ADD_LOCATION_LAT: edit_location.lat,
+                    actions.CALENDAR_ADD_LOCATION_LON: edit_location.lon,
                 }
             )
         title_text = "Edit Location"
@@ -73,21 +74,15 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
     form_data = LOCATION_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
 
-    google_lat_long = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_GOOGLE)
-    if google_lat_long:
-        google_lat, google_long = google_lat_long.split(",")
-        google_lat = google_lat.strip()
-        google_long = google_long.strip()
-    else:
-        google_lat = None
-        google_long = None
+    lat = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LAT), float)
+    lon = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LON), float)
 
     location: Location = Location(
         name=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_NAME),
         description=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_DESCRIPTION),
         is_active=True,
-        lat=google_lat,
-        lon=google_long,
+        lat=lat,
+        lon=lon,
         org_id=region_record.org_id,
     )
 
@@ -184,11 +179,27 @@ LOCATION_FORM = orm.BlockView(
                 multiline=True,
             ),
         ),
+        # orm.InputBlock(
+        #     label="Google Lat/Long",
+        #     action=actions.CALENDAR_ADD_LOCATION_GOOGLE,
+        #     element=orm.PlainTextInputElement(placeholder="ie '34.0522, -118.2437'"),
+        #     hint="To get Google's Lat/Long, long press to create a pin, then bring up the context menu and select the coordinates to copy them.",  # noqa
+        # ),
         orm.InputBlock(
-            label="Google Lat/Long",
-            action=actions.CALENDAR_ADD_LOCATION_GOOGLE,
-            element=orm.PlainTextInputElement(placeholder="ie '34.0522, -118.2437'"),
-            hint="To get Google's Lat/Long, long press to create a pin, then bring up the context menu and select the coordinates to copy them.",  # noqa
+            label="Latitude",
+            action=actions.CALENDAR_ADD_LOCATION_LAT,
+            element=orm.NumberInputElement(
+                placeholder="ie 34.0522", min_value=-90, max_value=90, is_decimal_allowed=True
+            ),
+            optional=False,
+        ),
+        orm.InputBlock(
+            label="Longitude",
+            action=actions.CALENDAR_ADD_LOCATION_LON,
+            element=orm.NumberInputElement(
+                placeholder="ie -118.2437", min_value=-180, max_value=180, is_decimal_allowed=True
+            ),
+            optional=False,
         ),
     ]
 )
