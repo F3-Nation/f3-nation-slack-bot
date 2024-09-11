@@ -31,7 +31,7 @@ from utilities.helper_functions import (
     replace_user_channel_ids,
     safe_convert,
     safe_get,
-    upload_files_to_s3,
+    upload_files_to_storage,
 )
 from utilities.slack import actions, forms
 from utilities.slack import orm as slack_orm
@@ -239,7 +239,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list = upload_files_to_s3(files=files, user_id=user_id, logger=logger, client=client)
+    file_list, file_send_list = upload_files_to_storage(files=files, user_id=user_id, logger=logger, client=client)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_id = safe_get(metadata, "event_id")
     if (

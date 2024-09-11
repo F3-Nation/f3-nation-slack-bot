@@ -477,6 +477,57 @@ def time_str_to_int(time: str) -> int:
     return int(time.replace(":", ""))
 
 
+def upload_files_to_storage(
+    files: List[Dict[str, str]], user_id: str, client: WebClient, logger: Logger
+) -> Tuple[List[str], List[Dict[str, Any]]]:
+    file_list = []
+    file_send_list = []
+    for file in files or []:
+        try:
+            r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
+            r.raise_for_status()
+
+            file_name = f"{file['id']}.{file['filetype']}"
+            file_path = f"/mnt/backblast-images/{file_name}"
+            file_mimetype = file["mimetype"]
+
+            if file["filetype"] == "heic":
+                file_path_heic = "/tmp/" + file_name
+                with open(file_path_heic, "wb") as f:
+                    f.write(r.content)
+                heic_img = Image.open(file_path_heic)
+                x, y = heic_img.size
+                coeff = min(constants.MAX_HEIC_SIZE / max(x, y), 1)
+                heic_img = heic_img.resize((int(x * coeff), int(y * coeff)))
+                heic_img.save(file_path.replace(".heic", ".png"), quality=95, optimize=True, format="PNG")
+                os.remove(file_path_heic)
+
+                file_path = file_path.replace(".heic", ".png")
+                file_name = file_name.replace(".heic", ".png")
+                file_mimetype = "image/png"
+            else:
+                with open(file_path, "wb") as f:
+                    f.write(r.content)
+
+            # TODO: if LOCAL_DEVELOPMENT, upload to google storage
+
+            file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name}")
+            file_send_list.append(
+                {
+                    "filepath": file_path,
+                    "meta": {
+                        "filename": file_name,
+                        "maintype": file_mimetype.split("/")[0],
+                        "subtype": file_mimetype.split("/")[1],
+                    },
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error uploading file: {e}")
+
+    return file_list, file_send_list
+
+
 def upload_files_to_s3(
     files: List[Dict[str, str]], user_id: str, client: WebClient, logger: Logger
 ) -> Tuple[List[str], List[Dict[str, Any]]]:
