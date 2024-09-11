@@ -509,44 +509,30 @@ def upload_files_to_s3(
             # read first line of file to determine if it's an image
             with open(file_path, "rb") as f:
                 try:
-                    first_line = f.readline().decode("utf-8")
+                    f.readline().decode("utf-8")
                 except Exception as e:
                     logger.info(f"Error reading photo as text: {e}")
-                    first_line = ""
-            if first_line[:9] == "<!DOCTYPE":
-                logger.debug(f"File {file_name} is not an image, skipping")
-                msg = "To enable boybands, you will need to reinstall Slackblast with some new permissions."
-                msg += " To to this, simply use this link: "
-                msg += "https://n1tbdh3ak9.execute-api.us-east-2.amazonaws.com/Prod/slack/install."
-                msg += " You can edit your backblast and upload a boyband once this is complete."
-                client.chat_postMessage(
-                    text=msg,
-                    channel=user_id,
+            if constants.LOCAL_DEVELOPMENT:
+                s3_client = boto3.client(
+                    "s3",
+                    aws_access_key_id=os.environ[constants.AWS_ACCESS_KEY_ID],
+                    aws_secret_access_key=os.environ[constants.AWS_SECRET_ACCESS_KEY],
                 )
             else:
-                if constants.LOCAL_DEVELOPMENT:
-                    s3_client = boto3.client(
-                        "s3",
-                        aws_access_key_id=os.environ[constants.AWS_ACCESS_KEY_ID],
-                        aws_secret_access_key=os.environ[constants.AWS_SECRET_ACCESS_KEY],
-                    )
-                else:
-                    s3_client = boto3.client("s3")
-                with open(file_path, "rb") as f:
-                    s3_client.upload_fileobj(
-                        f, "slackblast-images", file_name, ExtraArgs={"ContentType": file_mimetype}
-                    )
-                file_list.append(f"https://slackblast-images.s3.amazonaws.com/{file_name}")
-                file_send_list.append(
-                    {
-                        "filepath": file_path,
-                        "meta": {
-                            "filename": file_name,
-                            "maintype": file_mimetype.split("/")[0],
-                            "subtype": file_mimetype.split("/")[1],
-                        },
-                    }
-                )
+                s3_client = boto3.client("s3")
+            with open(file_path, "rb") as f:
+                s3_client.upload_fileobj(f, "slackblast-images", file_name, ExtraArgs={"ContentType": file_mimetype})
+            file_list.append(f"https://slackblast-images.s3.amazonaws.com/{file_name}")
+            file_send_list.append(
+                {
+                    "filepath": file_path,
+                    "meta": {
+                        "filename": file_name,
+                        "maintype": file_mimetype.split("/")[0],
+                        "subtype": file_mimetype.split("/")[1],
+                    },
+                }
+            )
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
 

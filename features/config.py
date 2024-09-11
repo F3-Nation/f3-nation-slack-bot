@@ -33,7 +33,7 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
         client=client,
         view_id=update_view_id,
         callback_id=actions.CONFIG_CALLBACK_ID,
-        title_text="Slackblast Settings",
+        title_text="F3 Nation Settings",
         submit_button_text="None",
     )
 

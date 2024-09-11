@@ -105,14 +105,14 @@ def build_custom_field_menu(
             client=client,
             view_id=update_view_id,
             callback_id=actions.CUSTOM_FIELD_MENU_CALLBACK_ID,
-            title_text="Custom Slackblast fields",
+            title_text="Custom Backblast fields",
         )
     else:
         view.post_modal(
             client=client,
             trigger_id=trigger_id,
             callback_id=actions.CUSTOM_FIELD_MENU_CALLBACK_ID,
-            title_text="Custom Slackblast fields",
+            title_text="Custom Backblast fields",
             new_or_add="add",
         )
 

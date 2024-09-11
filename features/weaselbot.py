@@ -44,7 +44,7 @@ def build_achievement_form(body: dict, client: WebClient, logger: Logger, contex
             error_form.update_modal(
                 client=client,
                 view_id=update_view_id,
-                title_text="Slackblast Error",
+                title_text="F3 Nation Error",
                 submit_button_text="None",
                 callback_id="error-id",
             )

@@ -1,4 +1,5 @@
 # import json
+import json
 import logging
 import re
 import traceback
@@ -24,9 +25,9 @@ from utilities.slack.actions import LOADING_ID
 # SlackRequestHandler.clear_all_log_handlers()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-# if LOCAL_DEVELOPMENT:
-# handler = logging.StreamHandler()
-# logger.addHandler(handler)
+if LOCAL_DEVELOPMENT:
+    handler = logging.StreamHandler()
+    logger.addHandler(handler)
 
 app = App(
     process_before_response=True,
@@ -52,8 +53,8 @@ def handler(request):
 
 def main_response(body, logger, client, ack, context):
     ack()
-    # logger.info(json.dumps(body, indent=4))
-    logger.info(body)
+    logger.info(json.dumps(body, indent=4))
+    # logger.info(body)
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
 
@@ -102,5 +103,6 @@ app.view_closed(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.event(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 
 if __name__ == "__main__":
-    app.start(8080)
+    port = 3000 if LOCAL_DEVELOPMENT else 8080
+    app.start(port=port)
     update_local_region_records()

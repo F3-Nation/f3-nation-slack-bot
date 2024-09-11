@@ -1,7 +1,7 @@
 from datetime import date, datetime, time
 from typing import Any, Optional
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, func
+from sqlalchemy import DateTime, Double, ForeignKey, Integer, String, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import BYTEA, DATE, JSONB, TEXT, TIME
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry
 from typing_extensions import Annotated
@@ -26,7 +26,7 @@ dt_update = Annotated[
 str45pk = Annotated[str, mapped_column(String(45), primary_key=True)]
 datepk = Annotated[date, mapped_column(DATE, primary_key=True)]
 bytea = Annotated[bytes, BYTEA]
-dec16_6 = Annotated[float, mapped_column(Integer)]
+dec16_6 = Annotated[float, mapped_column(Double(precision=16, decimal_return_scale=6))]
 time_notz = Annotated[time, TIME]
 
 

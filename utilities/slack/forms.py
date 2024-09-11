@@ -216,7 +216,7 @@ CONFIG_FORM = orm.BlockView(
 CONFIG_EMAIL_FORM = orm.BlockView(
     [
         orm.InputBlock(
-            label="Slackblast Email",
+            label="Backblast Email",
             action=actions.CONFIG_EMAIL_ENABLE,
             optional=False,
             element=orm.RadioButtonsElement(
@@ -572,7 +572,7 @@ NO_WEASELBOT_CONFIG_FORM = orm.BlockView(
 CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(
-            label="You must be a Slack admin to access your Slackblast region settings. Your local Slack admin can follow <https://slack.com/help/articles/218124397-Change-a-members-role|these instructions> to grant you admin access.",  # noqa: E501
+            label="You must be a Slack admin to access your F3 Nation region settings. Your local Slack admin can follow <https://slack.com/help/articles/218124397-Change-a-members-role|these instructions> to grant you admin access.",  # noqa: E501
         )
     ]
 )

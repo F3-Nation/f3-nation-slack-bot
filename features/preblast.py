@@ -166,7 +166,7 @@ def handle_preblast_post(body: dict, client: WebClient, logger: Logger, context:
         client.chat_postMessage(
             channel=chan,
             text=msg,
-            username=f"{q_name} (via Slackblast)",
+            username=f"{q_name} (via F3 Nation)",
             icon_url=q_url,
             blocks=blocks,
             metadata={"event_type": "backblast", "event_payload": preblast_data},
@@ -178,7 +178,7 @@ def handle_preblast_post(body: dict, client: WebClient, logger: Logger, context:
             channel=message_channel,
             ts=message_ts,
             text=msg,
-            username=f"{q_name} (via Slackblast)",
+            username=f"{q_name} (via F3 Nation)",
             icon_url=q_url,
             blocks=blocks,
         )

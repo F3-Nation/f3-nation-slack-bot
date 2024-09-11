@@ -44,20 +44,25 @@ def get_engine(echo=False, schema=None) -> Engine:
     #         query={"unix_sock": f"{host}/.s.PGSQL.5432"},
     #     ),
     # )
-    connector = Connector()
 
-    def get_connection():
-        conn: pg8000.dbapi.Connection = connector.connect(
-            instance_connection_string=host,
-            driver="pg8000",
-            user=user,
-            password=passwd,
-            db=database,
-            ip_type=IPTypes.PUBLIC,
-        )
-        return conn
+    if constants.LOCAL_DEVELOPMENT:
+        db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
+        engine = sqlalchemy.create_engine(db_url, echo=echo)
+    else:
+        connector = Connector()
 
-    engine = sqlalchemy.create_engine("postgresql+pg8000://", creator=get_connection, echo=echo)
+        def get_connection():
+            conn: pg8000.dbapi.Connection = connector.connect(
+                instance_connection_string=host,
+                driver="pg8000",
+                user=user,
+                password=passwd,
+                db=database,
+                ip_type=IPTypes.PUBLIC,
+            )
+            return conn
+
+        engine = sqlalchemy.create_engine("postgresql+pg8000://", creator=get_connection, echo=echo)
     return engine
 
 

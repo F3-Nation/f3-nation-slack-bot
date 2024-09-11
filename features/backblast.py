@@ -365,7 +365,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         res = client.chat_postMessage(
             channel=destination_channel,
             text=text,
-            username=f"{q_name} (via Slackblast)",
+            username=f"{q_name} (via F3 Nation)",
             icon_url=q_url,
             blocks=blocks,
             metadata={"event_type": "backblast", "event_payload": backblast_data},
@@ -423,7 +423,7 @@ COUNT: {count}
             channel=message_channel,
             ts=message_ts,
             text=text,
-            username=f"{q_name} (via Slackblast)",
+            username=f"{q_name} (via F3 Nation)",
             icon_url=q_url,
             blocks=blocks,
             metadata={"event_type": "backblast", "event_payload": backblast_data},

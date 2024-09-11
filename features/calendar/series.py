@@ -209,7 +209,9 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 event_type_id=event_type_id,
                 event_tag_id=event_tag_id,
                 start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
-                start_time=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"),
+                start_time=datetime.strptime(
+                    safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
+                ).time(),
                 end_time=end_time,
                 is_series=False,
                 is_active=True,
@@ -344,14 +346,14 @@ def build_series_list_form(
             # Event.start_date >= datetime.now(),
         ],
     )
-    series_records = [x[0] for x in series_records][:40]
+    series_records: list[Event] = [x[0] for x in series_records][:40]
 
     # TODO: separate into weekly / non-weekly series?
     # TODO: add an AO filter
     blocks = []
     for s in series_records:
         if is_series:
-            label = f"{s.name} ({constants.DAY_OF_WEEK_OPTIONS['names'][s.day_of_week-1]} @ {datetime.strftime(s.start_time), '%H%M'})"[  # noqa
+            label = f"{s.name} ({constants.DAY_OF_WEEK_OPTIONS['names'][s.day_of_week-1]} @ {s.start_time.strftime('%H%M')})"[  # noqa
                 :50
             ]
         else:

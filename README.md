@@ -170,7 +170,7 @@ settings:
 5. Initialize your local database by running the script:
 ```sh
 cd f3-nation-slack-bot # if not already in the f3-nation-slack-bot subdirectory
-source ../.env && poetry run python utilities/database/create_clear_local_db.py
+source .env && poetry run python utilities/database/create_clear_local_db.py --reset
 ```
 6. Run Ngrok with the following command from your terminal:
 ```sh
@@ -181,7 +181,7 @@ ngrok http 3000
 9. You are now ready to roll! This would be a good time to make sure you're on your own branch :)
 10. To run the app with "hot reload" (restarts anytime you save a file), run from the f3-nation-slack-bot subdirectory:
 ```sh
-source ../.env && nodemon --exec "poetry run python app.py" -e py
+source .env && nodemon --exec "poetry run python main.py" -e py
 ```
 11. Use ctrl-C to stop both Ngrok and nodemon
 12. Repeat steps 6-11 whenever you stop and want to come back to your app

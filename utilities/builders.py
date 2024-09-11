@@ -37,7 +37,7 @@ def send_error_response(body: dict, client: WebClient, error: str) -> None:
         error_form.update_modal(
             client=client,
             view_id=update_view_id,
-            title_text="Slackblast Error",
+            title_text="F3 Nation Error",
             submit_button_text="None",
             callback_id="error-id",
         )

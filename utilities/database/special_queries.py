@@ -29,7 +29,7 @@ def home_schedule_query(
     subquery = (
         select(
             Attendance.event_id,
-            func.group_concat(case((Attendance.attendance_type_id.in_([2, 3]), User.f3_name), else_=None)).label(
+            func.string_agg(case((Attendance.attendance_type_id.in_([2, 3]), User.f3_name), else_=None), ",").label(
                 "planned_qs"
             ),
             func.max(case((Attendance.user_id == user_id, 1), else_=0)).label("user_attending"),

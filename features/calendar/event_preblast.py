@@ -261,7 +261,7 @@ def handle_event_preblast_edit(
                 blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
-                username=f"{q_name} (via Slackblast)",
+                username=f"{q_name} (via F3 Nation)",
                 icon_url=q_url,
             )
         else:
@@ -271,7 +271,7 @@ def handle_event_preblast_edit(
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
                 unfurl_links=False,
-                username=f"{q_name} (via Slackblast)",
+                username=f"{q_name} (via F3 Nation)",
                 icon_url=q_url,
             )
             DbManager.update_record(Event, event_id, {Event.preblast_ts: float(res["ts"])})
@@ -349,7 +349,7 @@ def build_preblast_info(
 
     event_details = f"*Preblast: {event_record.event.name}*"
     event_details += f"\n*Date:* {event_record.event.start_date.strftime('%A, %B %d')}"
-    event_details += f"\n*Time:* {datetime.datetime.strftime(event_record.event.start_time, '%H%M')}"
+    event_details += f"\n*Time:* {event_record.event.start_time.strftime('%H%M')}"
     event_details += f"\n*Where:* {location}"
     event_details += f"\n*Event Type:* {event_record.event_type.name}"
     if event_record.event_tag:
@@ -439,7 +439,7 @@ def handle_event_preblast_action(
                 blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
-                username=f"{q_name} (via Slackblast)",
+                username=f"{q_name} (via F3 Nation)",
                 icon_url=q_url,
             )
         build_event_preblast_form(
@@ -485,7 +485,7 @@ def handle_event_preblast_action(
                 blocks=[b.as_form_field() for b in blocks],
                 text="Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
-                username=f"{q_name} (via Slackblast)",
+                username=f"{q_name} (via F3 Nation)",
                 icon_url=q_url,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:

@@ -25,7 +25,7 @@ def create_tables():
     logger.info("Creating schemas and tables...")
 
     schema_table_map = {
-        "slackblast": [
+        "f3": [
             orm.OrgType,
             orm.Org,
             orm.EventCategory,
@@ -111,10 +111,10 @@ def initialize_tables():
     ]
 
     org_type_list = [
-        orm.OrgType(id=1, name="AO"),
-        orm.OrgType(id=2, name="Region"),
-        orm.OrgType(id=3, name="Area"),
-        orm.OrgType(id=4, name="Sector"),
+        orm.OrgType(name="AO"),
+        orm.OrgType(name="Region"),
+        orm.OrgType(name="Area"),
+        orm.OrgType(name="Sector"),
     ]
 
     event_category_list = [
@@ -155,7 +155,7 @@ def initialize_tables():
     session.commit()
     session.close()
 
-    session = get_session(schema="slackblast")
+    session = get_session(schema="f3")
     session.add_all(org_type_list)
     session.add_all(event_category_list)
     session.add_all(event_type_list)
@@ -175,8 +175,7 @@ def drop_database():
     engine = get_engine(schema="postgres")
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
         connection.execute(text("DROP DATABASE IF EXISTS f3devregion WITH (FORCE);"))
-        connection.execute(text("DROP DATABASE IF EXISTS paxminer WITH (FORCE);"))
-        connection.execute(text("DROP DATABASE IF EXISTS slackblast WITH (FORCE);"))
+        connection.execute(text("DROP DATABASE IF EXISTS f3 WITH (FORCE);"))
 
 
 if __name__ == "__main__":
