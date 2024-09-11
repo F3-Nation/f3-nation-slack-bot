@@ -1,3 +1,8 @@
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import List
@@ -17,7 +22,7 @@ from utilities.database.orm import (
 )
 from utilities.slack import actions, orm
 
-MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa
+MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa
 
 
 @dataclass
@@ -96,7 +101,9 @@ for preblast in preblast_list.items:
         event_ao=preblast.org.name,
     )
 
-    slack_bot_token = preblast.parent_org.slack_app_settings.get("bot_access_token")
+    slack_bot_token = preblast.parent_org.slack_app_settings.get("bot_token")
+    print(slack_bot_token)
+    print(preblast.slack_user_id)
     if slack_bot_token and preblast.slack_user_id:
         slack_client = WebClient(slack_bot_token)
         blocks: List[orm.BaseBlock] = [
@@ -137,4 +144,5 @@ for preblast in preblast_list.items:
             # ),
         ]
         blocks = [b.as_form_field() for b in blocks]
+        print("sending message")
         slack_client.chat_postMessage(channel=preblast.slack_user_id, text=msg, blocks=blocks)

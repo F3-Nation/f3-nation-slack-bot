@@ -40,7 +40,7 @@ def build_home_form(
     if action_id == actions.CALENDAR_HOME_DATE_FILTER and not safe_get(body, "actions", 0, "selected_date"):
         return
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
-    user_id = get_user(slack_user_id, region_record, client, logger).id
+    user_id = get_user(slack_user_id, region_record, client, logger).user_id
 
     ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id])
     event_types = DbManager.find_join_records2(
@@ -225,7 +225,7 @@ def build_home_form(
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     event_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    user_id = get_user(safe_get(body, "user", "id"), region_record, client, logger).id
+    user_id = get_user(safe_get(body, "user", "id"), region_record, client, logger).user_id
     view_id = safe_get(body, "view", "id")
     update_post = False
 
