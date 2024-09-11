@@ -30,7 +30,7 @@ if LOCAL_DEVELOPMENT:
     logger.addHandler(handler)
 
 app = App(
-    process_before_response=True,
+    process_before_response=not LOCAL_DEVELOPMENT,
     # process_before_response=not LOCAL_DEVELOPMENT,
     # oauth_flow=get_oauth_flow(),
     # oauth_settings=SlackSettings,
@@ -84,15 +84,18 @@ def main_response(body, logger, client, ack, context):
         )
 
 
-if LOCAL_DEVELOPMENT:
-    ARGS = [main_response]
-    LAZY_KWARGS = {}
-else:
-    ARGS = []
-    LAZY_KWARGS = {
-        "ack": lambda ack: ack(),
-        "lazy": [main_response],
-    }
+ARGS = [main_response]
+LAZY_KWARGS = {}
+
+# if LOCAL_DEVELOPMENT:
+#     ARGS = [main_response]
+#     LAZY_KWARGS = {}
+# else:
+#     ARGS = []
+#     LAZY_KWARGS = {
+#         "ack": lambda ack: ack(),
+#         "lazy": [main_response],
+#     }
 
 
 MATCH_ALL_PATTERN = re.compile(".*")
