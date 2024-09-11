@@ -160,11 +160,11 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     end_date = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_DATE), datetime.strptime, ["%Y-%m-%d"])
 
     if safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_TIME):
-        end_time = datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_TIME), "%H:%M")
+        end_time = datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_TIME), "%H:%M").time()
     else:
-        end_time = datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M") + timedelta(
-            hours=1
-        )
+        end_time = (
+            datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M") + timedelta(hours=1)
+        ).time()
 
     # Slack won't return the selection for location and event type after being defaulted, so we need to get the initial value # noqa
     view_blocks = safe_get(body, "view", "blocks")
@@ -229,7 +229,9 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 event_tag_id=event_tag_id,
                 start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
                 end_date=end_date,
-                start_time=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"),
+                start_time=datetime.strptime(
+                    safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
+                ).time(),
                 end_time=end_time,
                 recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY)
                 or edit_series_record.recurrence_pattern,
