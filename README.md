@@ -1,6 +1,6 @@
 # F3 Nation Slack Bot
 
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
 F3 Nation is a Slack bot you can install to your workspace to help you with all things F3, including scheduling, region / AO managment, attendance tracking, and more. This bot is meant to eventually replace paxminer/slackblast, qsignups, and weaselbot.
 
@@ -16,46 +16,31 @@ To get started, use the `/f3-nation-settings` command to start setting your sche
                                                                          
 # Slack App Configuration
 
-F3 Nation has a number of region-configurable settings. To access and set these, use the `/f3-nation-settings` command.
-
-## Strava Integration
-
-When enabled, F3 Nation will put a "Connect to Strava" button backblasts, which tagged users can use to connect the backblast to an existing Strava activity. When clicked, the following process is used:
-- If the user has not used this button before, they will be prompted to allow F3 Nation access to their Strava account
-- Otherwise, a list of recent Strava activities will be shown to the user, which they select
-- On the next screen, the user can modify the title / text of the Strava activity, which defaults to the title / moleskine of the backblast post
-- After closing / submitting, F3 Nation will make a callout in the post thread, recording how far the PAX traveled and how many calories they burned
-
-## Custom Fields
-
-F3 Nation allows regions to add fields to backblasts for other things they might want to track. For example, you could track the distance traveled, calories burned, or the category of F3 activity the post is for. This information will be stored in JSON format alongside the backblast, which can later be queried with MySQL's JSON functions (https://dev.mysql.com/doc/refman/8.0/en/json.html). I'll provide some examples / tutorials soon.
-
-To get started, click the Enable / Edit Custom Fields button in `/f3-nation-settings`. This will bring up a secondary menu where you can add / delete / edit / enable new fields. Once added and enabled, Custom Fields will be added to the bottom of your F3 Nation forms.
-
-## Create Posts by email
-
-Wordpress allows you to send a post to a special address via email and it will convert it to a post. If you are not using hosted wordpress, then you can create a dedicated gmail or other account and use this address. The `/f3-nation-settings` menu allows you to set a email server, port, address, and password to the email account you would like the email to come from (gmail is probably best), as well as the email-to-post address you would like it to go to. For those using Postie, you can also enable a format so that users are tagged and the AO is used as a category.
-
-## Lock Editing of Backblasts
-
-If enabled, this will lock down editing of backblasts to the Q / Co-Qs, the original poster, or Slack admins.
-
-## Moleskine Templates
-
-These templates will serve as the default when your users start a new backblast or preblast.
-
-## FNG Welcome Message
-
-F3 Nation now has functionality to welcome new users (FNGs) into your region's Slack Space! This will trigger automatically as soon as new users join. There are two things to enable:
-
-1. **Welcome DMs:** These will be sent to the user via a direct message. You can set your region's template in the editor. This is a good place to help your FNG navigate your Slack space, where to go for help, terminology, etc.
-2. **Channel Welcome Posts:** These are shout-outs in a channel of your choosing. When enabled, this will welcome your user in a fun message, letting the rest of your guys welcome them as well.
-
-<img src="assets/Slackblast-Welcome-Demo.png" width="500">
+F3 Nation has a number of region-configurable settings. To access and set these, use the `/f3-nation-settings` command. TBD docs link
 
 # Contributing
 
 The F3 Nation Slack Bot is in active development, and I welcome any and all help or contributions! Feel free to leave an [Issue](https://github.com/F3-Nation/f3-nation-slack-bot/issues) with bugs or feature requests, or even better leave us a [Pull Request](https://github.com/F3-Nation/f3-nation-slack-bot/pulls).
+
+## Active todo list:
+
+### New functionality
+- Special Events Page - settings in place, need to build script
+- Nearby Regions
+- Achievements
+- Add ability for not using the calendar
+- My stats command
+
+### Preblast and Backblast reminders
+- Need to incorporate reminder settings
+
+### Attendance
+- Want to make it unique to user_id and event_id... will require some logic changes
+
+### Adding location on AO screen
+- doesn't seem to pick up default location_id
+
+**Figure out migration :)**
 
 ## Local Development
 
@@ -83,7 +68,7 @@ If you don’t have a development environment of choice, I’m going to make two
       - Gitlens
       - Error Lens
       - Ruff
-      - Black Formatter
+      - Database Client JDBC
 
 ### Project setup
 
@@ -169,7 +154,6 @@ settings:
 4. Copy `.env.example`, replacing `ADMIN_DATABASE_PASSWORD` with the one you used to set up Postgresql, `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above, and save the new file as `.env` in the base directory. There are several secrets you will need from Moneyball.
 5. Initialize your local database by running the script:
 ```sh
-cd f3-nation-slack-bot # if not already in the f3-nation-slack-bot subdirectory
 source .env && poetry run python utilities/database/create_clear_local_db.py --reset
 ```
 6. Run Ngrok with the following command from your terminal:
@@ -187,7 +171,7 @@ source .env && nodemon --exec "poetry run python main.py" -e py
 12. Repeat steps 6-11 whenever you stop and want to come back to your app
 
 > [!NOTE]
-> If you want to access your db through dbeaver, you can set it up like a normal db connection. Note, if using WSL, your WSL's IP address CAN CHANGE, meaning you would need to edit your connection when it does. I got the Server Host port number by running `wsl hostname -I` from Powershell from Windows.
+> If you want to access your db, there's an excellent vscode extension called [Database Client JDBC](https://marketplace.visualstudio.com/items?itemName=cweijan.dbclient-jdbc). Note, if using WSL, your WSL's IP address CAN CHANGE, meaning you would need to edit your connection when it does. I got the Server Host port number by running `wsl hostname -I` from Powershell.
 
 <img src="assets/local_setup.png" width="500">
 
