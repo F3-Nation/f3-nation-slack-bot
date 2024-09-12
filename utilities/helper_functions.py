@@ -379,7 +379,7 @@ def replace_user_channel_ids(
     Returns:
         str: text with slack ids replaced
     """
-    channel_records = None
+
     USER_PATTERN = r"<@([A-Z0-9]+)>"
     CHANNEL_PATTERN = r"<#([A-Z0-9]+)(?:\|[A-Za-z\d]+)?>"
 
@@ -391,7 +391,7 @@ def replace_user_channel_ids(
     text = text.format(*slack_user_names)
 
     slack_channel_ids = re.findall(CHANNEL_PATTERN, text or "")
-    slack_channel_names = get_channel_names(slack_channel_ids, logger, client, channel_records=channel_records)
+    slack_channel_names = get_channel_names(slack_channel_ids, logger, client)
 
     text = re.sub(CHANNEL_PATTERN, "{}", text)
     text = text.format(*slack_channel_names)
