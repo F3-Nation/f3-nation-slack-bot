@@ -181,11 +181,11 @@ CONFIG_FORM = orm.BlockView(
         orm.ActionsBlock(
             elements=[
                 orm.ButtonElement(
-                    label=":gear: General Settings",
+                    label=":gear: Backblast & Preblast Settings",
                     action=actions.CONFIG_GENERAL,
                 ),
                 orm.ButtonElement(
-                    label=":email: Email Settings",
+                    label=":email: Backblast Email Settings",
                     action=actions.CONFIG_EMAIL,
                 ),
                 orm.ButtonElement(
@@ -197,7 +197,7 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.CONFIG_WELCOME_MESSAGE,
                 ),
                 # orm.ButtonElement(
-                #     label=":robot_face: Weaselbot Settings",
+                #     label=":robot_face: Achievement Settings",
                 #     action=actions.CONFIG_WEASELBOT,
                 # ),
                 orm.ButtonElement(
@@ -207,6 +207,10 @@ CONFIG_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":world_map: Region Info",
                     action=actions.REGION_INFO_BUTTON,
+                ),
+                orm.ButtonElement(
+                    label=":tada: Special Event Settings",
+                    action=actions.CONFIG_SPECIAL_EVENTS,
                 ),
             ],
         ),
@@ -340,6 +344,25 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             action=actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE,
             optional=True,
             element=orm.RichTextInputElement(),
+        ),
+        orm.DividerBlock(),
+        orm.InputBlock(
+            label="Preblast Reminder Days Before",
+            action=actions.CONFIG_PREBLAST_REMINDER_DAYS,
+            optional=True,
+            element=orm.NumberInputElement(
+                placeholder="Enter the number of days...", is_decimal_allowed=False, min_value=0, max_value=7
+            ),
+            hint="This will send a reminder to the Q and CoQs this many days before the workout to send a preblast. If set to 0, no reminder will be sent. Defaults to 1.",  # noqa
+        ),
+        orm.InputBlock(
+            label="Backblast Reminder Count",
+            action=actions.CONFIG_BACKBLAST_REMINDER_DAYS,
+            optional=True,
+            element=orm.NumberInputElement(
+                placeholder="Enter the number of days...", is_decimal_allowed=False, min_value=0, max_value=7
+            ),
+            hint="This sets the number of reminders a Q will get until they complete their backblast. If set to 0, no reminders will be sent. Defaults to 5.",  # noqa
         ),
     ]
 )

@@ -94,8 +94,8 @@ def build_series_add_form(
                 edit_event.start_date, datetime.strftime, ["%Y-%m-%d"]
             ),
             actions.CALENDAR_ADD_SERIES_END_DATE: safe_convert(edit_event.end_date, datetime.strftime, ["%Y-%m-%d"]),
-            actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, datetime.strftime, ["%H:%M"]),
-            actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, datetime.strftime, ["%H:%M"]),
+            actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t.strftime("%H:%M")),
+            actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t.strftime("%H:%M")),
             actions.CALENDAR_ADD_SERIES_DOW: [str(edit_event.day_of_week)],
             actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern,
             actions.CALENDAR_ADD_SERIES_INTERVAL: edit_event.recurrence_interval,
@@ -200,7 +200,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         day_of_weeks = [str(edit_series_record.day_of_week)]
 
     # day_of_weeks will be None if this is a one-time event
-    if not day_of_weeks:
+    if not day_of_weeks or day_of_weeks == ["None"]:
         series_records = [
             Event(
                 name=series_name,
@@ -420,29 +420,6 @@ def handle_series_edit_delete(
 SERIES_FORM = orm.BlockView(
     blocks=[
         orm.InputBlock(
-            label="Series Name",
-            action=actions.CALENDAR_ADD_SERIES_NAME,
-            element=orm.PlainTextInputElement(placeholder="Enter the series name"),
-            hint="If left blank, will default to the AO name + event type.",
-        ),
-        orm.InputBlock(
-            label="Description",
-            action=actions.CALENDAR_ADD_SERIES_DESCRIPTION,
-            element=orm.PlainTextInputElement(
-                placeholder="Enter a description",
-                multiline=True,
-            ),
-            optional=True,
-        ),
-        orm.InputBlock(
-            label="Highlight on Special Events Page?",
-            action=actions.CALENDAR_ADD_SERIES_HIGHLIGHT,
-            element=orm.CheckboxInputElement(
-                options=orm.as_selector_options(names=["Yes"], values=["True"]),
-            ),
-            hint="Primarily used for 2nd F events, convergences, etc.",
-        ),
-        orm.InputBlock(
             label="AO",
             action=actions.CALENDAR_ADD_SERIES_AO,
             element=orm.StaticSelectElement(placeholder="Select an AO"),
@@ -528,16 +505,20 @@ SERIES_FORM = orm.BlockView(
             optional=True,
             hint="For example, Index=2 and Frequency=Monthly would mean the second week of the month. If left blank, the index will assumed to be 1.",  # noqa
         ),
-    ]
-)
-
-EVENT_FORM = orm.BlockView(
-    blocks=[
         orm.InputBlock(
-            label="Event Name",
+            label="Series Name",
             action=actions.CALENDAR_ADD_SERIES_NAME,
-            element=orm.PlainTextInputElement(placeholder="Enter the event name"),
+            element=orm.PlainTextInputElement(placeholder="Enter the series name"),
             hint="If left blank, will default to the AO name + event type.",
+        ),
+        orm.InputBlock(
+            label="Description",
+            action=actions.CALENDAR_ADD_SERIES_DESCRIPTION,
+            element=orm.PlainTextInputElement(
+                placeholder="Enter a description",
+                multiline=True,
+            ),
+            optional=True,
         ),
         orm.InputBlock(
             label="Highlight on Special Events Page?",
@@ -547,6 +528,11 @@ EVENT_FORM = orm.BlockView(
             ),
             hint="Primarily used for 2nd F events, convergences, etc.",
         ),
+    ]
+)
+
+EVENT_FORM = orm.BlockView(
+    blocks=[
         orm.InputBlock(
             label="AO",
             action=actions.CALENDAR_ADD_EVENT_AO,
@@ -587,6 +573,20 @@ EVENT_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_SERIES_END_TIME,
             element=orm.TimepickerElement(placeholder="Enter the end time"),
             hint="If no end time is provided, the event will be defaulted to be one hour long.",
+        ),
+        orm.InputBlock(
+            label="Event Name",
+            action=actions.CALENDAR_ADD_SERIES_NAME,
+            element=orm.PlainTextInputElement(placeholder="Enter the event name"),
+            hint="If left blank, will default to the AO name + event type.",
+        ),
+        orm.InputBlock(
+            label="Highlight on Special Events Page?",
+            action=actions.CALENDAR_ADD_SERIES_HIGHLIGHT,
+            element=orm.CheckboxInputElement(
+                options=orm.as_selector_options(names=["Yes"], values=["True"]),
+            ),
+            hint="Primarily used for 2nd F events, convergences, etc.",
         ),
     ]
 )

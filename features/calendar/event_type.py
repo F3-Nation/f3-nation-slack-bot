@@ -13,17 +13,22 @@ def build_event_type_form(body: dict, client: WebClient, logger: Logger, context
     form = copy.deepcopy(EVENT_TYPE_FORM)
 
     # get event types that are not already in EventType_x_Org
-    event_types = DbManager.find_records(EventType, [True])  # TODO: order by popularity, take out existing?
+    event_types: list[EventType] = DbManager.find_records(EventType, [True])
     event_types_org = DbManager.find_records(EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id])
     event_types_org = [event_type_org.event_type_id for event_type_org in event_types_org]
-    event_types = [event_type for event_type in event_types if event_type.id not in event_types_org]
+    event_types_other_org = [event_type for event_type in event_types if event_type.id not in event_types_org]
+    event_types_in_org = [event_type for event_type in event_types if event_type.id in event_types_org]
+    if not event_types_other_org:
+        form.blocks.pop(0)
+        form.blocks.pop(0)
+        form.blocks[0].label = "Create a new event type"
 
     event_categories = DbManager.find_records(EventCategory, [True])
     form.set_options(
         {
             actions.CALENDAR_ADD_EVENT_TYPE_SELECT: orm.as_selector_options(
-                names=[event_type.name for event_type in event_types],
-                values=[str(event_type.id) for event_type in event_types],
+                names=[event_type.name for event_type in event_types_other_org],
+                values=[str(event_type.id) for event_type in event_types_other_org],
             ),
             actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY: orm.as_selector_options(
                 names=[event_category.name for event_category in event_categories],
@@ -32,6 +37,9 @@ def build_event_type_form(body: dict, client: WebClient, logger: Logger, context
             ),
         }
     )
+
+    event_type_labels = [f" - {event_type.name}: {event_type.acronym}" for event_type in event_types_in_org]
+    form.blocks[-1].label = "Event types in use:\n\n" + "\n".join(event_type_labels)
 
     form.post_modal(
         client=client,
@@ -103,6 +111,10 @@ EVENT_TYPE_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM,
             optional=True,
             hint="This is used for the calendar view to save on space. Defaults to first two letters of event type name. Make sure it's unique!",  # noqa
+        ),
+        orm.SectionBlock(
+            label="Event types in use:\n\n",
+            action=actions.CALENDAR_ADD_EVENT_TYPE_LIST,
         ),
     ]
 )

@@ -13,6 +13,7 @@ from utilities.database.orm import (
     SlackSettings,
 )
 from utilities.helper_functions import (
+    safe_convert,
     safe_get,
     update_local_region_records,
 )
@@ -85,6 +86,8 @@ def build_config_general_form(
             actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE: region_record.preblast_moleskin_template
             or constants.DEFAULT_PREBLAST_MOLESKINE_TEMPLATE,
             actions.CONFIG_ENABLE_STRAVA: "enable" if region_record.strava_enabled == 1 else "disable",
+            actions.CONFIG_PREBLAST_REMINDER_DAYS: region_record.preblast_reminder_days,
+            actions.CONFIG_BACKBLAST_REMINDER_DAYS: region_record.backblast_reminder_days,
         }
     )
 
@@ -147,10 +150,15 @@ def handle_config_general_post(
         SlackSettings.backblast_moleskin_template: safe_get(config_data, actions.CONFIG_BACKBLAST_MOLESKINE_TEMPLATE),
         SlackSettings.preblast_moleskin_template: safe_get(config_data, actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE),
         SlackSettings.strava_enabled: 1 if safe_get(config_data, actions.CONFIG_ENABLE_STRAVA) == "enable" else 0,
+        SlackSettings.preblast_reminder_days: safe_convert(
+            safe_get(config_data, actions.CONFIG_PREBLAST_REMINDER_DAYS), int
+        ),
+        SlackSettings.backblast_reminder_days: safe_convert(
+            safe_get(config_data, actions.CONFIG_BACKBLAST_REMINDER_DAYS), int
+        ),
     }
 
     region = region_record._update(fields)
-    print(region.to_json())
     DbManager.update_record(cls=Org, id=region_record.org_id, fields={Org.slack_app_settings: region.to_json()})
 
     update_local_region_records()

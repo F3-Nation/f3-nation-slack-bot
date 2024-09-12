@@ -102,6 +102,11 @@ class SlackSettings(BaseClass, GetDBClass):
     org_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("orgs.id"))
     calendar_image_current: Mapped[Optional[str255]]
     calendar_image_next: Mapped[Optional[str255]]
+    preblast_reminder_days: Mapped[Optional[int]]
+    backblast_reminder_days: Mapped[Optional[int]]
+    special_events_enabled: Mapped[Optional[smallint]]
+    special_events_channel: Mapped[Optional[str100]]
+    special_events_post_days: Mapped[Optional[int]]
     created: Mapped[dt_create]
     updated: Mapped[dt_update]
 
