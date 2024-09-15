@@ -77,12 +77,18 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
     lat = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LAT), float)
     lon = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LON), float)
 
+    # TODO: some kind of validation of either lat/long or address?
+
     location: Location = Location(
         name=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_NAME),
         description=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_DESCRIPTION),
         is_active=True,
         lat=lat,
         lon=lon,
+        address_street=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET),
+        address_city=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_CITY),
+        address_state=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STATE),
+        address_zip=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_ZIP),
         org_id=region_record.org_id,
     )
 
@@ -172,19 +178,13 @@ LOCATION_FORM = orm.BlockView(
             hint="Use the actual name of the location, ie park name, etc. You will define the F3 AO name when you create AOs.",  # noqa
         ),
         orm.InputBlock(
-            label="Description / Address",
+            label="Description",
             action=actions.CALENDAR_ADD_LOCATION_DESCRIPTION,
             element=orm.PlainTextInputElement(
-                placeholder="Enter a description and / or address",
+                placeholder="Notes about the meetup spot, ie 'Meet at the flagpole near the entrance'",  # noqa
                 multiline=True,
             ),
         ),
-        # orm.InputBlock(
-        #     label="Google Lat/Long",
-        #     action=actions.CALENDAR_ADD_LOCATION_GOOGLE,
-        #     element=orm.PlainTextInputElement(placeholder="ie '34.0522, -118.2437'"),
-        #     hint="To get Google's Lat/Long, long press to create a pin, then bring up the context menu and select the coordinates to copy them.",  # noqa
-        # ),
         orm.InputBlock(
             label="Latitude",
             action=actions.CALENDAR_ADD_LOCATION_LAT,
@@ -200,6 +200,30 @@ LOCATION_FORM = orm.BlockView(
                 placeholder="ie -118.2437", min_value=-180, max_value=180, is_decimal_allowed=True
             ),
             optional=False,
+        ),
+        orm.InputBlock(
+            label="Location Street Address",
+            action=actions.CALENDAR_ADD_LOCATION_STREET,
+            element=orm.PlainTextInputElement(placeholder="ie 123 Main St."),
+            optional=True,
+        ),
+        orm.InputBlock(
+            label="Location City",
+            action=actions.CALENDAR_ADD_LOCATION_CITY,
+            element=orm.PlainTextInputElement(placeholder="ie Los Angeles"),
+            optional=True,
+        ),
+        orm.InputBlock(
+            label="Location State",
+            action=actions.CALENDAR_ADD_LOCATION_STATE,
+            element=orm.PlainTextInputElement(placeholder="ie CA"),
+            optional=True,
+        ),
+        orm.InputBlock(
+            label="Location Zip",
+            action=actions.CALENDAR_ADD_LOCATION_ZIP,
+            element=orm.PlainTextInputElement(placeholder="ie 90210"),
+            optional=True,
         ),
     ]
 )
