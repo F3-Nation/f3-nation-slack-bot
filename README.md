@@ -14,9 +14,9 @@ Installation to your Slack workspace is simple:
 
 To get started, use the `/f3-nation-settings` command to start setting your schedule and preferences.
                                                                          
-# Slack App Configuration
+# Calendar
 
-F3 Nation has a number of region-configurable settings. To access and set these, use the `/f3-nation-settings` command. TBD docs link
+To set your schedule, use the calendar menu in `/f3-nation-settings`. Once your schedule is up, you can visit the calendar by using the `/calendar` command.
 
 # Contributing
 
@@ -25,22 +25,22 @@ The F3 Nation Slack Bot is in active development, and I welcome any and all help
 ## Active todo list:
 
 ### New functionality
-- Special Events Page - settings in place, need to build script
-- Nearby Regions
-- Achievements
-- Add ability for not using the calendar
-- My stats command
+- [ ] Nearby Regions
+- [ ] Achievements
+- [ ] Add ability for not using the calendar
+- [ ] My stats command
 
-### Preblast and Backblast reminders
-- Need to incorporate reminder settings
+### Preblast and Backblast
+- [ ] Settings for default channel not yet working
+- [ ] Need to incorporate reminder settings
 
 ### Attendance
-- Want to make it unique to user_id and event_id... will require some logic changes
+- [ ] Want to make it unique to user_id and event_id... will require some logic changes
 
 ### Adding location on AO screen
-- doesn't seem to pick up default location_id
+- [ ] doesn't seem to pick up default location_id
 
-**Figure out migration :)**
+- [ ] **Figure out migration :)**
 
 ## Local Development
 
