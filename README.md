@@ -178,3 +178,14 @@ source .env && nodemon --exec "poetry run python main.py" -e py
 > [!NOTE]
 > if you add or change packages via `poetry add ...`, you will need to also add it to `f3-nation-slack-bot/requirements.txt`. You can make sure that this file fully reflects the poetry virtual environment via: `poetry export -f requirements.txt -o requirements.txt --without-hashes`
 
+## Codebase Structure
+
+This codebase utilizes the slack-bolt python sdk throughout, and will eventually be hosted on a Google Cloud Run function. Here is a high-level walkthrough of the most important components:
+
+- `main.py` - this is the sole entrypoint. When any event is received, it will attept to look up the appropriate feature function to call via `utilities/routing.py`. If the route has not been set up, it will do nothing
+- `utilities/routing.py` - this is a mapping of action id to a particular feature function. These functions must all take the same arguments, and are not expected to return anything
+- `utilities/slack/actions.py` - this is where I store the constant values of the various action ids used throughout
+- `features/` - this is where the meat of the functionality lives. Functions are generally either "building" a Slack form / modal, and / or responding "handling" an action or submission of a form. The design pattern I've been moving to is including the build function, the handle function, and the UI form layout for a particular menu / feature in a single file
+- `utilities/slack/orm.py` - this is where I've defined most of the Slack API UI elements in python class form, that is then used throughout. The ORM defines "blocks", that can then be converted to Slack's required json format via the `.as_form_field()` method
+- `utilities/database/orm/__init__.py` - this is where the SQLAlchemy ORM classes are defined
+- `utilities/database/create_clear_local_db.py` - this can be run to drop the database and recreate it using the ORM definition in the file above
