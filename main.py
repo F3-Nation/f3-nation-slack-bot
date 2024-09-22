@@ -7,9 +7,9 @@ import traceback
 from typing import Callable, Tuple
 
 import functions_framework
+import google.cloud.logging
 from flask import Request, Response
-from google.cloud.logging.handlers import CloudLoggingHandler
-from google.cloud.logging_v2.handlers import setup_logging
+from google.cloud.logging_v2.handlers import StructuredLogHandler, setup_logging
 from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
@@ -27,16 +27,19 @@ from utilities.helper_functions import (
 from utilities.routing import MAIN_MAPPER
 from utilities.slack.actions import LOADING_ID
 
-# SlackRequestHandler.clear_all_log_handlers()
-logger = logging.getLogger()
-logger.setLevel(logging.INFO)
+logging_level = logging.INFO
 if LOCAL_DEVELOPMENT:
+    logger = logging.getLogger()
+    logger.setLevel(logging_level)
     handler = logging.StreamHandler()
     logger.addHandler(handler)
 else:
-    handler = CloudLoggingHandler()
+    client = google.cloud.logging.Client()
+    handler = StructuredLogHandler(client)
     setup_logging(handler)
-    logger.addHandler(handler)
+    logger = logging.getLogger()
+    logger.setLevel(logging_level)
+
 
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
