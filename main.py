@@ -8,6 +8,7 @@ from typing import Callable, Tuple
 
 import functions_framework
 from cloudevents.http import CloudEvent
+from flask import Request
 from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
@@ -46,7 +47,10 @@ def event_handler(cloudevent: CloudEvent):
 
 
 @functions_framework.http
-def handler(request):
+def handler(request: Request):
+    print(request.path)
+    if request.path == "/":
+        event_handler(request)
     slack_handler = SlackRequestHandler(app=app)
     return slack_handler.handle(request)
 
