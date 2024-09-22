@@ -7,11 +7,11 @@ import traceback
 from typing import Callable, Tuple
 
 import functions_framework
-from cloudevents.http import CloudEvent
-from flask import Request
+from flask import Request, Response
 from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
+from features import strava
 from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
@@ -40,19 +40,23 @@ app = App(
 )
 
 
-@functions_framework.cloud_event
-def event_handler(cloudevent: CloudEvent):
-    event_message = base64.b64decode(cloudevent.data["message"]["data"]).decode()
+def gcp_event_handler(request: Request):
+    print(request.data)
+    event_message = base64.b64decode(request.data["message"]["data"]).decode()
     print(event_message)
 
 
 @functions_framework.http
 def handler(request: Request):
-    print(request.path)
     if request.path == "/":
-        event_handler(request)
-    slack_handler = SlackRequestHandler(app=app)
-    return slack_handler.handle(request)
+        return Response("Service is running", status=200)
+    elif request.path == "/gcp_event":
+        gcp_event_handler(request)
+    elif request.path == "/exchange_token":
+        return strava.strava_exchange_token(request)
+    elif request.path == "/slack/events":
+        slack_handler = SlackRequestHandler(app=app)
+        return slack_handler.handle(request)
 
 
 # def handler(event, context):
