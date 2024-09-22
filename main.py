@@ -1,4 +1,5 @@
 # import json
+import base64
 import json
 import logging
 import re
@@ -6,6 +7,7 @@ import traceback
 from typing import Callable, Tuple
 
 import functions_framework
+from cloudevents.http import CloudEvent
 from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
@@ -35,6 +37,12 @@ app = App(
     # oauth_flow=get_oauth_flow(),
     # oauth_settings=SlackSettings,
 )
+
+
+@functions_framework.cloud_event
+def event_handler(cloudevent: CloudEvent):
+    event_message = base64.b64decode(cloudevent.data["message"]["data"]).decode()
+    print(event_message)
 
 
 @functions_framework.http
