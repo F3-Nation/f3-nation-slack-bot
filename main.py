@@ -28,9 +28,9 @@ from utilities.slack.actions import LOADING_ID
 # SlackRequestHandler.clear_all_log_handlers()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-if LOCAL_DEVELOPMENT:
-    handler = logging.StreamHandler()
-    logger.addHandler(handler)
+# if LOCAL_DEVELOPMENT:
+handler = logging.StreamHandler()
+logger.addHandler(handler)
 
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
@@ -41,8 +41,9 @@ app = App(
 
 
 def gcp_event_handler(request: Request):
-    print(request.data)
-    event_message = base64.b64decode(request.data["message"]["data"]).decode()
+    decoded_data = request.data.decode()
+    data_dict = json.loads(decoded_data)
+    event_message = base64.b64decode(data_dict["message"]["data"]).decode()
     print(event_message)
 
 
@@ -59,18 +60,12 @@ def handler(request: Request):
         return slack_handler.handle(request)
 
 
-# def handler(event, context):
-#     if event.get("path") == "/exchange_token":
-#         return strava.strava_exchange_token(event, context)
-#     else:
-#         slack_handler = SlackRequestHandler(app=app)
-#         return slack_handler.handle(event, context)
-
-
 def main_response(body, logger, client, ack, context):
     ack()
-    logger.info(json.dumps(body, indent=4))
-    # logger.info(body)
+    if LOCAL_DEVELOPMENT:
+        logger.info(json.dumps(body, indent=4))
+    else:
+        logger.info(body)
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
 
