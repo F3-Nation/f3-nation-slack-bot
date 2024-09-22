@@ -8,6 +8,8 @@ from typing import Callable, Tuple
 
 import functions_framework
 from flask import Request, Response
+from google.cloud.logging.handlers import CloudLoggingHandler
+from google.cloud.logging_v2.handlers import setup_logging
 from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
@@ -28,9 +30,13 @@ from utilities.slack.actions import LOADING_ID
 # SlackRequestHandler.clear_all_log_handlers()
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
-# if LOCAL_DEVELOPMENT:
-handler = logging.StreamHandler()
-logger.addHandler(handler)
+if LOCAL_DEVELOPMENT:
+    handler = logging.StreamHandler()
+    logger.addHandler(handler)
+else:
+    handler = CloudLoggingHandler()
+    setup_logging(handler)
+    logger.addHandler(handler)
 
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
@@ -45,6 +51,7 @@ def gcp_event_handler(request: Request):
     data_dict = json.loads(decoded_data)
     event_message = base64.b64decode(data_dict["message"]["data"]).decode()
     print(event_message)
+    return Response("Event received", status=200)
 
 
 @functions_framework.http
