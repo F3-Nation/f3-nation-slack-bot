@@ -28,6 +28,7 @@ datepk = Annotated[date, mapped_column(DATE, primary_key=True)]
 bytea = Annotated[bytes, BYTEA]
 dec16_6 = Annotated[float, mapped_column(Double(precision=16, decimal_return_scale=6))]
 time_notz = Annotated[time, TIME]
+dt = Annotated[datetime, DateTime]
 
 
 class BaseClass(DeclarativeBase):
@@ -253,6 +254,8 @@ class SlackUser(BaseClass, GetDBClass):
     user_name: Mapped[str100]
     email: Mapped[str255]
     is_admin: Mapped[bool]
+    is_owner: Mapped[bool]
+    is_bot: Mapped[bool]
     user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
     avatar_url: Mapped[Optional[str255]]
     slack_team_id: Mapped[str100]
@@ -261,6 +264,7 @@ class SlackUser(BaseClass, GetDBClass):
     strava_expires_at: Mapped[Optional[datetime]]
     strava_athlete_id: Mapped[Optional[int]]
     meta: Mapped[Optional[dict[str, Any]]]
+    slack_updated: Mapped[dt_update]
     created: Mapped[dt_create]
     updated: Mapped[dt_update]
 

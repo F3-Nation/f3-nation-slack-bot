@@ -8,6 +8,7 @@ from slack_sdk.web import WebClient
 
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    get_user,
     get_user_names,
     remove_keys_from_dict,
     safe_get,
@@ -196,11 +197,10 @@ def handle_preblast_edit_button(
         safe_get(body, "actions", 0, "value") or "{}"
     )
 
-    user_info_dict = client.users_info(user=user_id)
-    user_admin: bool = user_info_dict["user"]["is_admin"]
+    slack_user = get_user(user_id, region_record, client, logger)
     allow_edit: bool = (
         (region_record.editing_locked == 0)
-        or user_admin
+        or slack_user.is_admin
         or (user_id == preblast_data[actions.PREBLAST_Q])
         or (user_id in preblast_data[actions.PREBLAST_OP])
     )

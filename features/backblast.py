@@ -520,10 +520,9 @@ def handle_backblast_edit_button(
     )
 
     if region_record.editing_locked == 1:
-        user_info_dict = client.users_info(user=user_id)
-        user_admin: bool = user_info_dict["user"]["is_admin"]
+        slack_user = get_user(user_id, region_record, client, logger)
         allow_edit: bool = (
-            user_admin
+            slack_user.is_admin
             or (user_id == backblast_data[actions.BACKBLAST_Q])
             or (user_id in backblast_data[actions.BACKBLAST_COQ] or [])
             or (user_id in backblast_data[actions.BACKBLAST_OP])

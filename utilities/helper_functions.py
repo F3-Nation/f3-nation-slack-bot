@@ -165,7 +165,10 @@ def get_user(slack_user_id: str, region_record: SlackSettings, client: WebClient
                     email=email,
                     user_name=user_name,
                     avatar_url=avatar_url,
-                    is_admin=safe_get(user_info, "user", "is_admin"),
+                    is_admin=safe_get(user_info, "user", "is_admin") or False,
+                    is_owner=safe_get(user_info, "user", "is_owner") or False,
+                    is_bot=safe_get(user_info, "user", "is_bot") or False,
+                    slack_updated=safe_convert(user_info.get("user", "updated"), int),
                 )
             )
 
@@ -267,6 +270,9 @@ def populate_users(client: WebClient, team_id: str):
             avatar_url=u["profile"]["image_192"],
             slack_team_id=team_id,
             is_admin=u.get("is_admin") or False,
+            is_owner=u.get("is_owner") or False,
+            is_bot=u.get("is_bot") or False,
+            slack_updated=safe_convert(u.get("user", "updated"), int),
         )
         for u in users
     ]
