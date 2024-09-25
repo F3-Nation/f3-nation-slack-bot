@@ -47,10 +47,10 @@ def create_tables():
             orm.Achievement_x_Org,
             orm.Achievement_x_User,
         ],
-        "f3devregion": [
-            orm.AchievementsList,
-            orm.AchievementsAwarded,
-        ],
+        # "f3devregion": [
+        #     orm.AchievementsList,
+        #     orm.AchievementsAwarded,
+        # ],
     }
 
     for schema, tables in schema_table_map.items():
@@ -188,9 +188,6 @@ def initialize_tables():
     session.add_all(role_list)
     session.add_all(permission_list)
     session.add_all(role_x_permission_list)
-    # session.add_all(user_list)
-    # session.commit()
-    # session.add_all(slack_user_list)
     session.commit()
     session.close()
 

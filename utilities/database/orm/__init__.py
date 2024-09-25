@@ -115,33 +115,6 @@ class SlackSettings(BaseClass, GetDBClass):
         return SlackSettings.team_id
 
 
-class AchievementsList(BaseClass, GetDBClass):
-    __tablename__ = "achievements_list"
-    id: Mapped[intpk]
-    name: Mapped[str255]
-    description: Mapped[text]
-    verb: Mapped[str255]
-    code: Mapped[str255]
-    created: Mapped[dt_create]
-    updated: Mapped[dt_update]
-
-    def get_id():
-        return AchievementsList.id
-
-
-class AchievementsAwarded(BaseClass, GetDBClass):
-    __tablename__ = "achievements_awarded"
-    id: Mapped[intpk]
-    achievement_id: Mapped[int] = mapped_column(Integer, ForeignKey("achievements_list.id"))
-    pax_id: Mapped[str255]
-    date_awarded: Mapped[date]
-    created: Mapped[dt_create]
-    updated: Mapped[dt_update]
-
-    def get_id():
-        return AchievementsAwarded.id
-
-
 class Event(BaseClass, GetDBClass):
     __tablename__ = "events"
 

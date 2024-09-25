@@ -6,15 +6,17 @@ import pytz
 from slack_sdk.web import WebClient
 from sqlalchemy.exc import ProgrammingError
 
-from utilities import constants
 from utilities.database import DbManager
 from utilities.database.orm import (
-    AchievementsAwarded,
-    AchievementsList,
+    Achievement,
+    Achievement_x_Org,
+    Achievement_x_User,
     Org,
     SlackSettings,
 )
 from utilities.helper_functions import (
+    get_user,
+    safe_convert,
     safe_get,
     update_local_region_records,
 )
@@ -23,7 +25,6 @@ from utilities.slack import orm as slack_orm
 
 
 def build_achievement_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    paxminer_schema = region_record.paxminer_schema
     update_view_id = safe_get(body, actions.LOADING_ID)
     achievement_form = copy.deepcopy(forms.ACHIEVEMENT_FORM)
     callback_id = actions.ACHIEVEMENT_CALLBACK_ID
@@ -31,24 +32,11 @@ def build_achievement_form(body: dict, client: WebClient, logger: Logger, contex
     # build achievement list
     achievement_list = []
     # gather achievements from paxminer
-    if paxminer_schema:
-        try:
-            achievement_list = DbManager.find_records(schema=paxminer_schema, cls=AchievementsList, filters=[True])
-        except ProgrammingError:
-            error_form = copy.deepcopy(forms.ERROR_FORM)
-            error_msg = constants.ERROR_FORM_MESSAGE_TEMPLATE.format(
-                error="It looks like Weaselbot has not been set up for this region. Please contact your local Slack "
-                "admin or go to https://github.com/F3Nation-Community/weaselbot to get started!"
-            )
-            error_form.set_initial_values({actions.ERROR_FORM_MESSAGE: error_msg})
-            error_form.update_modal(
-                client=client,
-                view_id=update_view_id,
-                title_text="F3 Nation Error",
-                submit_button_text="None",
-                callback_id="error-id",
-            )
-            return
+    achievement_list = DbManager.find_join_records2(
+        Achievement, Achievement_x_Org, [Achievement_x_Org.org_id == region_record.org_id]
+    )
+    achievement_list: list[Achievement] = [a[0] for a in achievement_list]
+
     if achievement_list:
         achievement_list = slack_orm.as_selector_options(
             names=[achievement.name for achievement in achievement_list],
@@ -83,21 +71,21 @@ def build_achievement_form(body: dict, client: WebClient, logger: Logger, contex
 def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     achievement_data = forms.ACHIEVEMENT_FORM.get_selected_values(body)
     achievement_pax_list = safe_get(achievement_data, actions.ACHIEVEMENT_PAX)
-    achievement_id = int(safe_get(achievement_data, actions.ACHIEVEMENT_SELECT))
+    achievement_pax_list = [get_user(pax, region_record, client, logger).user_id for pax in achievement_pax_list]
+    achievement_id = safe_convert(safe_get(achievement_data, actions.ACHIEVEMENT_SELECT), int)
     achievement_date = datetime.strptime(safe_get(achievement_data, actions.ACHIEVEMENT_DATE), "%Y-%m-%d")
 
-    achievement_info = DbManager.get_record(AchievementsList, achievement_id, schema=region_record.paxminer_schema)
+    achievement_info: Achievement = DbManager.get_record(Achievement, achievement_id)
     achievement_name = achievement_info.name
     achievement_verb = achievement_info.verb
 
     # Get all achievements for the year
-    pax_awards = DbManager.find_records(
-        schema=region_record.paxminer_schema,
-        cls=AchievementsAwarded,
+    pax_awards: list[Achievement_x_User] = DbManager.find_records(
+        Achievement_x_User,
         filters=[
-            AchievementsAwarded.pax_id.in_(achievement_pax_list),
-            AchievementsAwarded.date_awarded >= datetime(achievement_date.year, 1, 1),
-            AchievementsAwarded.date_awarded <= datetime(achievement_date.year, 12, 31),
+            Achievement_x_User.user_id.in_(achievement_pax_list),
+            Achievement_x_User.date_awarded >= datetime(achievement_date.year, 1, 1),
+            Achievement_x_User.date_awarded <= datetime(achievement_date.year, 12, 31),
         ],
     )
     pax_awards_total = {}
@@ -106,9 +94,9 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
         pax_awards_total[pax] = 0
         pax_awards_this_achievement[pax] = 0
     for award in pax_awards:
-        pax_awards_total[award.pax_id] += 1
+        pax_awards_total[award.user_id] += 1
         if award.achievement_id == achievement_id:
-            pax_awards_this_achievement[award.pax_id] += 1
+            pax_awards_this_achievement[award.user_id] += 1
 
     for pax in achievement_pax_list:
         msg = f"Congrats to our man <@{pax}>! He has achieved *{achievement_name}* for {achievement_verb}!"
@@ -119,9 +107,8 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
             msg += "."
         client.chat_postMessage(channel=region_record.achievement_channel, text=msg)
         DbManager.create_record(
-            schema=region_record.paxminer_schema,
-            record=AchievementsAwarded(
-                pax_id=pax,
+            Achievement_x_User(
+                user_id=pax,
                 date_awarded=achievement_date,
                 achievement_id=achievement_id,
             ),
@@ -136,11 +123,12 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
     trigger_id = safe_get(body, "trigger_id")
 
     try:
-        weaselbot_achievements = DbManager.find_records(
-            cls=AchievementsList,
-            filters=[True],
-            schema=region_record.paxminer_schema,
+        weaselbot_achievements = DbManager.find_join_records2(
+            Achievement,
+            Achievement_x_Org,
+            [Achievement_x_Org.org_id == region_record.org_id],
         )
+        weaselbot_achievements = [a[0] for a in weaselbot_achievements]
     except ProgrammingError:
         weaselbot_achievements = None
 

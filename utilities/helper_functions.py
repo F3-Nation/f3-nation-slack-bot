@@ -16,6 +16,7 @@ from utilities import constants
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database import DbManager
 from utilities.database.orm import (
+    Achievement_x_Org,
     EventTag_x_Org,
     EventType_x_Org,
     Org,
@@ -254,6 +255,15 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
             org_id=org_record.id,
         )
         DbManager.create_record(role_x_user_x_org_record)
+
+        achievement_x_org_records = [
+            Achievement_x_Org(
+                org_id=org_record.id,
+                achievement_id=i,
+            )
+            for i in range(1, 4)
+        ]
+        DbManager.create_records(achievement_x_org_records)
 
     return region_record
 
