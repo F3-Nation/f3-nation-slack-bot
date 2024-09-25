@@ -264,7 +264,7 @@ class SlackUser(BaseClass, GetDBClass):
     strava_expires_at: Mapped[Optional[datetime]]
     strava_athlete_id: Mapped[Optional[int]]
     meta: Mapped[Optional[dict[str, Any]]]
-    slack_updated: Mapped[dt_update]
+    slack_updated: Mapped[Optional[datetime]]
     created: Mapped[dt_create]
     updated: Mapped[dt_update]
 
@@ -382,3 +382,99 @@ class EventTag_x_Org(BaseClass, GetDBClass):
 
     def get_id():
         return EventTag_x_Org.id
+
+
+class Role(BaseClass, GetDBClass):
+    __tablename__ = "roles"
+
+    id: Mapped[intpk]
+    name: Mapped[str100]
+    description: Mapped[Optional[text]]
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Role.id
+
+
+class Permission(BaseClass, GetDBClass):
+    __tablename__ = "permissions"
+
+    id: Mapped[intpk]
+    name: Mapped[str100]
+    description: Mapped[Optional[text]]
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Permission.id
+
+
+class Role_x_Permission(BaseClass, GetDBClass):
+    __tablename__ = "roles_x_permissions"
+
+    id: Mapped[intpk]
+    role_id: Mapped[int] = mapped_column(Integer, ForeignKey("roles.id"))
+    permission_id: Mapped[int] = mapped_column(Integer, ForeignKey("permissions.id"))
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Role_x_Permission.id
+
+
+class Role_x_User_x_Org(BaseClass, GetDBClass):
+    __tablename__ = "roles_x_users_x_orgs"
+    __table_args__ = (UniqueConstraint("role_id", "user_id", "org_id", name="_role_user_org_uc"),)
+
+    id: Mapped[intpk]
+    role_id: Mapped[int] = mapped_column(Integer, ForeignKey("roles.id"))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    org_id: Mapped[int] = mapped_column(Integer, ForeignKey("orgs.id"))
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Role_x_User_x_Org.id
+
+
+class Achievement(BaseClass, GetDBClass):
+    __tablename__ = "achievements"
+
+    id: Mapped[intpk]
+    name: Mapped[str100]
+    description: Mapped[Optional[text]]
+    verb: Mapped[str100]
+    image_url: Mapped[Optional[str255]]
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Achievement.id
+
+
+class Achievement_x_User(BaseClass, GetDBClass):
+    __tablename__ = "achievements_x_users"
+
+    id: Mapped[intpk]
+    achievement_id: Mapped[int] = mapped_column(Integer, ForeignKey("achievements.id"))
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"))
+    date_awarded: Mapped[date]
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Achievement_x_User.id
+
+
+class Achievement_x_Org(BaseClass, GetDBClass):
+    __tablename__ = "achievements_x_orgs"
+
+    id: Mapped[intpk]
+    achievement_id: Mapped[int] = mapped_column(Integer, ForeignKey("achievements.id"))
+    org_id: Mapped[int] = mapped_column(Integer, ForeignKey("orgs.id"))
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Achievement_x_Org.id

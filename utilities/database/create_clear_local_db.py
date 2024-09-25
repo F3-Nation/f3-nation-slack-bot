@@ -39,6 +39,13 @@ def create_tables():
             orm.SlackUser,
             orm.EventTag,
             orm.EventTag_x_Org,
+            orm.Role,
+            orm.Permission,
+            orm.Role_x_Permission,
+            orm.Role_x_User_x_Org,
+            orm.Achievement,
+            orm.Achievement_x_Org,
+            orm.Achievement_x_User,
         ],
         "f3devregion": [
             orm.AchievementsList,
@@ -90,23 +97,20 @@ def initialize_tables():
     # ]
 
     achievement_list = [
-        orm.AchievementsList(
+        orm.Achievement(
             name="The Priest",
             description="Post for 25 QSource lessons",
             verb="posting for 25 QSource lessons",
-            code="the_priest",
         ),
-        orm.AchievementsList(
+        orm.Achievement(
             name="The Monk",
             description="Post at 4 QSources in a month",
             verb="posting at 4 QSources in a month",
-            code="the_monk",
         ),
-        orm.AchievementsList(
+        orm.Achievement(
             name="Leader of Men",
             description="Q at 4 beatdowns in a month",
             verb="Qing at 4 beatdowns in a month",
-            code="leader_of_men",
         ),
     ]
 
@@ -150,10 +154,29 @@ def initialize_tables():
         orm.EventTag(name="Convergence", color="Orange"),
     ]
 
-    session = get_session(schema="f3devregion")
-    session.add_all(achievement_list)
-    session.commit()
-    session.close()
+    role_list = [
+        orm.Role(name="Admin"),
+    ]
+
+    permission_list = [
+        orm.Permission(name="All"),
+        # orm.Permission(name="Create Event"),
+        # orm.Permission(name="Edit Event"),
+        # orm.Permission(name="Delete Event"),
+        # orm.Permission(name="Create User"),
+        # orm.Permission(name="Edit User"),
+        # orm.Permission(name="Delete User"),
+        # orm.Permission(name="Create Role"),
+        # orm.Permission(name="Edit Role"),
+        # orm.Permission(name="Delete Role"),
+        # orm.Permission(name="Create Permission"),
+        # orm.Permission(name="Edit Permission"),
+        # orm.Permission(name="Delete Permission"),
+    ]
+
+    role_x_permission_list = [
+        orm.Role_x_Permission(role_id=1, permission_id=1),
+    ]
 
     session = get_session(schema="f3")
     session.add_all(org_type_list)
@@ -161,6 +184,10 @@ def initialize_tables():
     session.add_all(event_type_list)
     session.add_all(attendance_type_list)
     session.add_all(event_tag_list)
+    session.add_all(achievement_list)
+    session.add_all(role_list)
+    session.add_all(permission_list)
+    session.add_all(role_x_permission_list)
     # session.add_all(user_list)
     # session.commit()
     # session.add_all(slack_user_list)

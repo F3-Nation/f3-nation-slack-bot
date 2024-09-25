@@ -66,7 +66,7 @@ def handler(request: Request):
         return slack_handler.handle(request)
 
 
-def main_response(body, logger, client, ack, context):
+def main_response(body, logger: logging.Logger, client, ack, context):
     ack()
     if LOCAL_DEVELOPMENT:
         logger.info(json.dumps(body, indent=4))
@@ -90,12 +90,11 @@ def main_response(body, logger, client, ack, context):
                 region_record=region_record,
             )
         except Exception as exc:
-            logger.info("sending error response")
             tb_str = "".join(traceback.format_exception(None, exc, exc.__traceback__))
             send_error_response(body=body, client=client, error=str(exc)[:3000])
             logger.error(tb_str)
     else:
-        logger.error(
+        logger.warning(
             f"no handler for path: "
             f"{safe_get(safe_get(MAIN_MAPPER, request_type), request_id) or request_type+', '+request_id}"
         )

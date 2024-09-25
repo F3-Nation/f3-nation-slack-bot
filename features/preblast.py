@@ -6,7 +6,9 @@ from logging import Logger
 import pytz
 from slack_sdk.web import WebClient
 
+from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
 from utilities.database.orm import SlackSettings
+from utilities.database.special_queries import get_user_permission_list
 from utilities.helper_functions import (
     get_user,
     get_user_names,
@@ -198,9 +200,12 @@ def handle_preblast_edit_button(
     )
 
     slack_user = get_user(user_id, region_record, client, logger)
+    user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
+    user_is_admin = PERMISSIONS[ALL_PERMISSIONS] in user_permissions
+
     allow_edit: bool = (
         (region_record.editing_locked == 0)
-        or slack_user.is_admin
+        or user_is_admin
         or (user_id == preblast_data[actions.PREBLAST_Q])
         or (user_id in preblast_data[actions.PREBLAST_OP])
     )

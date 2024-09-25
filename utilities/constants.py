@@ -191,3 +191,8 @@ EVENT_TAG_COLORS = {
     "Plum": "#DDA0DD",
     "Azure": "#F0FFFF",
 }
+
+ALL_PERMISSIONS = "All"
+PERMISSIONS = {
+    ALL_PERMISSIONS: "All",
+}

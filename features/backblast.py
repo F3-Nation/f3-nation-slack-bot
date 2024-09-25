@@ -21,7 +21,7 @@ from utilities.database.orm import (
     Org,
     SlackSettings,
 )
-from utilities.database.special_queries import event_attendance_query, event_preblast_query
+from utilities.database.special_queries import event_attendance_query, event_preblast_query, get_user_permission_list
 from utilities.helper_functions import (
     get_channel_names,
     get_pax,
@@ -515,14 +515,17 @@ def handle_backblast_edit_button(
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
 
+    slack_user = get_user(user_id, region_record, client, logger)
+    user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
+    user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
+
     backblast_data = safe_get(body, "message", "metadata", "event_payload") or json.loads(
         safe_get(body, "actions", 0, "value") or "{}"
     )
 
     if region_record.editing_locked == 1:
-        slack_user = get_user(user_id, region_record, client, logger)
         allow_edit: bool = (
-            slack_user.is_admin
+            user_is_admin
             or (user_id == backblast_data[actions.BACKBLAST_Q])
             or (user_id in backblast_data[actions.BACKBLAST_COQ] or [])
             or (user_id in backblast_data[actions.BACKBLAST_OP])

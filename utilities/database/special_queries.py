@@ -3,8 +3,22 @@ from typing import Any, List
 
 from sqlalchemy import and_, case, func, select
 
+from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
 from utilities.database import get_session
-from utilities.database.orm import Attendance, Event, EventTag, EventType, Location, Org, SlackUser, User
+from utilities.database.orm import (
+    Attendance,
+    Event,
+    EventTag,
+    EventType,
+    Location,
+    Org,
+    Permission,
+    Role,
+    Role_x_Permission,
+    Role_x_User_x_Org,
+    SlackUser,
+    User,
+)
 from utilities.slack import orm
 
 
@@ -133,3 +147,28 @@ def event_attendance_query(attendance_filter: List[Any] = None, event_filter: Li
             .filter(*(event_filter or []))
         ).all()
         return [EventExtended(*r) for r in event_records]
+
+
+def get_user_permission_list(user_id: int, org_id: int) -> list[Permission]:
+    with get_session() as session:
+        query = (
+            session.query(Permission)
+            .join(Role_x_Permission, Role_x_Permission.permission_id == Permission.id)
+            .join(Role, Role.id == Role_x_Permission.role_id)
+            .join(Role_x_User_x_Org, Role_x_User_x_Org.role_id == Role.id)
+            .filter(Role_x_User_x_Org.user_id == user_id, Role_x_User_x_Org.org_id == org_id)
+        )
+        return query.all()
+
+
+def get_admin_users_list(org_id: int) -> list[SlackUser]:
+    with get_session() as session:
+        query = (
+            session.query(SlackUser)
+            .join(Role_x_User_x_Org, Role_x_User_x_Org.user_id == SlackUser.user_id)
+            .join(Role, Role.id == Role_x_User_x_Org.role_id)
+            .join(Role_x_Permission, Role_x_Permission.role_id == Role.id)
+            .join(Permission, Permission.id == Role_x_Permission.permission_id)
+            .filter(Permission.name == PERMISSIONS[ALL_PERMISSIONS], Role_x_User_x_Org.org_id == org_id)
+        )
+        return query.all()

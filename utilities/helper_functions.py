@@ -19,6 +19,7 @@ from utilities.database.orm import (
     EventTag_x_Org,
     EventType_x_Org,
     Org,
+    Role_x_User_x_Org,
     SlackSettings,
     SlackUser,
     User,
@@ -195,6 +196,8 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
     region_record = safe_get(REGION_RECORDS, team_id)
     team_domain = safe_get(body, "team", "domain")
 
+    slack_user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
+
     if not region_record:
         try:
             team_info = client.team_info()
@@ -244,6 +247,14 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 
         populate_users(client, team_id)
 
+        slack_user = get_user(slack_user_id, region_record, client, logger)
+        role_x_user_x_org_record = Role_x_User_x_Org(
+            role_id=1,  # admin
+            user_id=slack_user.user_id,
+            org_id=org_record.id,
+        )
+        DbManager.create_record(role_x_user_x_org_record)
+
     return region_record
 
 
@@ -272,7 +283,7 @@ def populate_users(client: WebClient, team_id: str):
             is_admin=u.get("is_admin") or False,
             is_owner=u.get("is_owner") or False,
             is_bot=u.get("is_bot") or False,
-            slack_updated=safe_convert(u.get("user", "updated"), int),
+            slack_updated=safe_convert(safe_get(u, "user", "updated"), int),
         )
         for u in users
     ]

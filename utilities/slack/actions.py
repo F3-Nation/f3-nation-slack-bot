@@ -242,6 +242,7 @@ REGION_TWITTER = "region_twitter"
 REGION_INSTAGRAM = "region_instagram"
 REGION_FACEBOOK = "region_facebook"
 REGION_INFO_BUTTON = "region_info"
+REGION_ADMINS = "region_admins"
 
 SPECIAL_EVENTS_ENABLED = "special_events_enabled"
 SPECIAL_EVENTS_CHANNEL = "special_events_channel"

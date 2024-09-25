@@ -12,7 +12,9 @@ from utilities.database.orm import (
     Org,
     SlackSettings,
 )
+from utilities.database.special_queries import get_user_permission_list
 from utilities.helper_functions import (
+    get_user,
     safe_convert,
     safe_get,
     update_local_region_records,
@@ -22,10 +24,13 @@ from utilities.slack import actions, forms
 
 def build_config_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    user_info_dict = client.users_info(user=user_id)
     update_view_id = safe_get(body, actions.LOADING_ID)
 
-    if user_info_dict["user"]["is_admin"]:
+    slack_user = get_user(user_id, region_record, client, logger)
+    user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
+    user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
+
+    if user_is_admin:
         config_form = copy.deepcopy(forms.CONFIG_FORM)
     else:
         config_form = copy.deepcopy(forms.CONFIG_NO_PERMISSIONS_FORM)

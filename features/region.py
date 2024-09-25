@@ -6,8 +6,9 @@ import requests
 from slack_sdk.web import WebClient
 
 from utilities.database import DbManager
-from utilities.database.orm import Org, SlackSettings
-from utilities.helper_functions import safe_get
+from utilities.database.orm import Org, Role_x_User_x_Org, SlackSettings, SlackUser
+from utilities.database.special_queries import get_admin_users_list
+from utilities.helper_functions import get_user, safe_get
 from utilities.slack import actions, orm
 
 
@@ -21,6 +22,9 @@ def build_region_form(
     form = copy.deepcopy(REGION_FORM)
     org_record: Org = DbManager.get_record(Org, region_record.org_id)
 
+    admin_users = get_admin_users_list(region_record.org_id)
+    admin_user_ids = [u.slack_id for u in admin_users]
+
     form.set_initial_values(
         {
             actions.REGION_NAME: org_record.name,
@@ -31,6 +35,7 @@ def build_region_form(
             actions.REGION_TWITTER: org_record.twitter,
             actions.REGION_FACEBOOK: org_record.facebook,
             actions.REGION_INSTAGRAM: org_record.instagram,
+            actions.REGION_ADMINS: admin_user_ids,
         }
     )
 
@@ -62,7 +67,7 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     if email and not re.match(r"[^@]+@[^@]+\.[^@]+", email):
         email = None
 
-    website = safe_get(form_data, actions.REGION_WEBSITE)
+    website = safe_get(form_data, actions.REGION_WEBSITE) or ""
     if not re.match(
         r"https?://(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)", website
     ):
@@ -80,6 +85,19 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     }
 
     DbManager.update_record(Org, region_record.org_id, fields)
+
+    admin_users_slack = safe_get(form_data, actions.REGION_ADMINS)
+    admin_users: list[SlackUser] = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
+    admin_user_ids = [u.user_id for u in admin_users]
+    admin_records = [
+        Role_x_User_x_Org(
+            role_id=1,  # Admin role
+            org_id=region_record.org_id,
+            user_id=user_id,
+        )
+        for user_id in admin_user_ids
+    ]
+    DbManager.create_or_ignore(Role_x_User_x_Org, admin_records)
 
 
 REGION_FORM = orm.BlockView(
@@ -109,6 +127,13 @@ REGION_FORM = orm.BlockView(
                     "bmp",
                 ],
             ),
+        ),
+        orm.InputBlock(
+            label="Region Admins",
+            action=actions.REGION_ADMINS,
+            element=orm.MultiUsersSelectElement(placeholder="Select the Region admins"),
+            hint="These users will have admin permissions for the Region (modify schedules, backblasts, etc.)",
+            optional=False,
         ),
         orm.InputBlock(
             label="Region Website",
