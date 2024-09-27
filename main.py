@@ -1,5 +1,4 @@
 # import json
-import base64
 import json
 import logging
 import re
@@ -12,6 +11,7 @@ from google.cloud.logging_v2.handlers import StructuredLogHandler, setup_logging
 from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
+import scripts
 from features import strava
 from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
@@ -45,20 +45,12 @@ app = App(
 )
 
 
-def gcp_event_handler(request: Request):
-    decoded_data = request.data.decode()
-    data_dict = json.loads(decoded_data)
-    event_message = base64.b64decode(data_dict["message"]["data"]).decode()
-    print(event_message)
-    return Response("Event received", status=200)
-
-
 @functions_framework.http
 def handler(request: Request):
     if request.path == "/":
         return Response("Service is running", status=200)
     elif request.path == "/gcp_event":
-        return gcp_event_handler(request)
+        return scripts.handle(request)
     elif request.path == "/exchange_token":
         return strava.strava_exchange_token(request)
     elif request.path == "/slack/events":

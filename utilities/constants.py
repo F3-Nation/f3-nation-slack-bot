@@ -153,6 +153,7 @@ ORG_TYPES = {
 }
 
 S3_IMAGE_URL = "https://slackblast-images.s3.amazonaws.com/{image_name}"
+GCP_IMAGE_URL = "https://storage.googleapis.com/{bucket}/{image_name}"
 
 EVENT_TAG_COLORS = {
     "Red": "#FF0000",
