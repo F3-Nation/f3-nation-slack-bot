@@ -46,6 +46,8 @@ def create_tables():
             orm.Achievement,
             orm.Achievement_x_Org,
             orm.Achievement_x_User,
+            orm.SlackSpace,
+            orm.Org_x_SlackSpace,
         ],
         # "f3devregion": [
         #     orm.AchievementsList,

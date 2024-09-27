@@ -8,8 +8,8 @@ from slack_sdk.web import WebClient
 from utilities import constants
 from utilities.database import DbManager
 from utilities.database.orm import (
-    Org,
     SlackSettings,
+    SlackSpace,
 )
 from utilities.helper_functions import (
     safe_get,
@@ -71,19 +71,16 @@ def handle_welcome_message_config_post(
 ):
     welcome_config_data = forms.WELCOME_MESSAGE_CONFIG_FORM.get_selected_values(body)
 
-    fields = {
-        SlackSettings.welcome_dm_enable: 1
-        if safe_get(welcome_config_data, actions.WELCOME_DM_ENABLE) == "enable"
-        else 0,
-        SlackSettings.welcome_dm_template: safe_get(welcome_config_data, actions.WELCOME_DM_TEMPLATE) or "",
-        SlackSettings.welcome_channel_enable: (
-            1 if safe_get(welcome_config_data, actions.WELCOME_CHANNEL_ENABLE) == "enable" else 0
-        ),
-        SlackSettings.welcome_channel: safe_get(welcome_config_data, actions.WELCOME_CHANNEL) or "",
-    }
+    region_record.welcome_dm_enable = 1 if safe_get(welcome_config_data, actions.WELCOME_DM_ENABLE) == "enable" else 0
+    region_record.welcome_dm_template = safe_get(welcome_config_data, actions.WELCOME_DM_TEMPLATE) or ""
+    region_record.welcome_channel_enable = (
+        1 if safe_get(welcome_config_data, actions.WELCOME_CHANNEL_ENABLE) == "enable" else 0
+    )
+    region_record.welcome_channel = safe_get(welcome_config_data, actions.WELCOME_CHANNEL) or ""
 
-    region = region_record._update(fields)
-    DbManager.update_record(cls=Org, id=region_record.org_id, fields={Org.slack_app_settings: region.to_json()})
+    DbManager.update_record(
+        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    )
 
     update_local_region_records()
     print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))

@@ -7,6 +7,7 @@ from slack_sdk.web import WebClient
 from utilities.database import DbManager
 from utilities.database.orm import (
     SlackSettings,
+    SlackSpace,
 )
 from utilities.helper_functions import (
     safe_get,
@@ -45,11 +46,8 @@ def build_custom_field_menu(
                 "enabled": False,
             }
         }
-        DbManager.update_record(
-            cls=SlackSettings,
-            id=region_record.team_id,
-            fields={"custom_fields": custom_fields},
-        )
+        region_record.custom_fields = custom_fields
+        DbManager.update_record(cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record})
         update_local_region_records()
 
     for custom_field in custom_fields.values():
@@ -190,7 +188,8 @@ def delete_custom_field(body: dict, client: WebClient, logger: Logger, context: 
 
     custom_fields: dict = region_record.custom_fields
     custom_fields.pop(custom_field_name)
-    DbManager.update_record(cls=SlackSettings, id=team_id, fields={"custom_fields": custom_fields})
+    region_record.custom_fields = custom_fields
+    DbManager.update_record(cls=SlackSpace, id=team_id, fields={SlackSpace.settings: region_record})
     update_local_region_records()
     build_custom_field_menu(body, client, logger, context, region_record, update_view_id=view_id)
 
@@ -209,10 +208,9 @@ def handle_custom_field_add(body: dict, client: WebClient, logger: Logger, conte
         "options": custom_field_options.split(",") if custom_field_options else [],
         "enabled": True,
     }
+    region_record.custom_fields = custom_fields
 
-    DbManager.update_record(
-        cls=SlackSettings, id=region_record.team_id, fields={SlackSettings.custom_fields: custom_fields}
-    )
+    DbManager.update_record(cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record})
     update_local_region_records()
 
     print(
@@ -240,8 +238,9 @@ def handle_custom_field_menu(
             custom_fields[key[len(actions.CUSTOM_FIELD_ENABLE) + 1 :]]["enabled"] = (
                 value[key]["selected_option"]["value"] == "enable"
             )
+    region_record.custom_fields = custom_fields
 
     DbManager.update_record(
-        cls=SlackSettings, id=region_record.team_id, fields={SlackSettings.custom_fields: custom_fields}
+        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
     )
     update_local_region_records()

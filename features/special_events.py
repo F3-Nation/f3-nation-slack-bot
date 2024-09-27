@@ -5,7 +5,7 @@ from logging import Logger
 from slack_sdk.web import WebClient
 
 from utilities.database import DbManager
-from utilities.database.orm import Org, SlackSettings
+from utilities.database.orm import SlackSettings, SlackSpace
 from utilities.helper_functions import safe_convert, safe_get, update_local_region_records
 from utilities.slack import actions, orm
 
@@ -43,16 +43,14 @@ def handle_special_settings_edit(
     region_record: SlackSettings,
 ):
     form_data = SPECIAL_EVENTS_FORM.get_selected_values(body)
-    fields = {
-        SlackSettings.special_events_enabled: safe_get(form_data, actions.SPECIAL_EVENTS_ENABLED, 0) == "enable",
-        SlackSettings.special_events_channel: safe_get(form_data, actions.SPECIAL_EVENTS_CHANNEL),
-        SlackSettings.special_events_post_days: safe_convert(
-            safe_get(form_data, actions.SPECIAL_EVENTS_POST_DAYS), int
-        ),
-    }
 
-    region = region_record._update(fields)
-    DbManager.update_record(cls=Org, id=region_record.org_id, fields={Org.slack_app_settings: region.to_json()})
+    region_record.special_events_enabled = safe_get(form_data, actions.SPECIAL_EVENTS_ENABLED, 0) == "enable"
+    region_record.special_events_channel = safe_get(form_data, actions.SPECIAL_EVENTS_CHANNEL)
+    region_record.special_events_post_days = safe_convert(safe_get(form_data, actions.SPECIAL_EVENTS_POST_DAYS), int)
+
+    DbManager.update_record(
+        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    )
 
     update_local_region_records()
     print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))

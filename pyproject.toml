@@ -50,6 +50,7 @@ pandas = "^2.2.2"
 playwright = "^1.44.0"
 
 [tool.poetry.group.dev.dependencies]
+alembic = "^1.13.0"
 
 [build-system]
 requires = ["poetry-core"]

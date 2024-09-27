@@ -11,8 +11,8 @@ from utilities.database.orm import (
     Achievement,
     Achievement_x_Org,
     Achievement_x_User,
-    Org,
     SlackSettings,
+    SlackSpace,
 )
 from utilities.helper_functions import (
     get_user,
@@ -173,22 +173,20 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
 
 def handle_config_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     config_data = forms.WEASELBOT_CONFIG_FORM.get_selected_values(body)
-    fields = {
-        SlackSettings.send_achievements: 1
-        if "achievements" in safe_get(config_data, actions.WEASELBOT_ENABLE_FEATURES)
-        else 0,
-        SlackSettings.send_aoq_reports: 1
-        if "kotter_reports" in safe_get(config_data, actions.WEASELBOT_ENABLE_FEATURES)
-        else 0,
-        SlackSettings.achievement_channel: safe_get(config_data, actions.WEASELBOT_ACHIEVEMENT_CHANNEL),
-        SlackSettings.default_siteq: safe_get(config_data, actions.WEASELBOT_KOTTER_CHANNEL),
-        SlackSettings.NO_POST_THRESHOLD: safe_get(config_data, actions.WEASELBOT_KOTTER_WEEKS),
-        SlackSettings.REMINDER_WEEKS: safe_get(config_data, actions.WEASELBOT_KOTTER_REMOVE_WEEKS),
-        SlackSettings.HOME_AO_CAPTURE: safe_get(config_data, actions.WEASELBOT_HOME_AO_WEEKS),
-        SlackSettings.NO_Q_THRESHOLD_WEEKS: safe_get(config_data, actions.WEASELBOT_Q_WEEKS),
-        SlackSettings.NO_Q_THRESHOLD_POSTS: safe_get(config_data, actions.WEASELBOT_Q_POSTS),
-    }
 
-    region = region_record._update(fields)
-    DbManager.update_record(Org, region_record.org_id, fields={Org.slack_app_settings: region.to_json()})
+    region_record.send_achievements = (
+        1 if "achievements" in safe_get(config_data, actions.WEASELBOT_ENABLE_FEATURES) else 0
+    )
+    region_record.send_aoq_reports = (
+        1 if "kotter_reports" in safe_get(config_data, actions.WEASELBOT_ENABLE_FEATURES) else 0
+    )
+    region_record.achievement_channel = safe_get(config_data, actions.WEASELBOT_ACHIEVEMENT_CHANNEL)
+    region_record.default_siteq = safe_get(config_data, actions.WEASELBOT_KOTTER_CHANNEL)
+    region_record.NO_POST_THRESHOLD = safe_get(config_data, actions.WEASELBOT_KOTTER_WEEKS)
+    region_record.REMINDER_WEEKS = safe_get(config_data, actions.WEASELBOT_KOTTER_REMOVE_WEEKS)
+    region_record.HOME_AO_CAPTURE = safe_get(config_data, actions.WEASELBOT_HOME_AO_WEEKS)
+    region_record.NO_Q_THRESHOLD_WEEKS = safe_get(config_data, actions.WEASELBOT_Q_WEEKS)
+    region_record.NO_Q_THRESHOLD_POSTS = safe_get(config_data, actions.WEASELBOT_Q_POSTS)
+
+    DbManager.update_record(SlackSpace, region_record.team_id, fields={SlackSpace.settings: region_record.__dict__})
     update_local_region_records()

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from typing import Any, Optional
 
@@ -66,53 +67,125 @@ class GetDBClass:
         return self
 
 
-class SlackSettings(BaseClass, GetDBClass):
-    __tablename__ = "regions"
-    id: Mapped[intpk]
-    team_id: Mapped[str100]
+# class SlackSettings(BaseClass, GetDBClass):
+#     __tablename__ = "slack_spaces"
+#     id: Mapped[intpk]
+#     team_id: Mapped[str100]
+#     workspace_name: Mapped[Optional[str100]]
+#     bot_token: Mapped[Optional[str100]]
+#     email_enabled: Mapped[smallint]
+#     email_server: Mapped[Optional[str100]]
+#     email_server_port: Mapped[Optional[int]]
+#     email_user: Mapped[Optional[str100]]
+#     email_password: Mapped[Optional[text]]
+#     email_to: Mapped[Optional[str100]]
+#     email_option_show: Mapped[Optional[smallint]]
+#     postie_format: Mapped[Optional[smallint1]]
+#     editing_locked: Mapped[smallint]
+#     default_destination: Mapped[Optional[str]] = mapped_column(String(30), default="ao_channel")
+#     destination_channel: Mapped[Optional[str100]]
+#     backblast_moleskin_template: Mapped[Optional[dict[str, Any]]]
+#     preblast_moleskin_template: Mapped[Optional[dict[str, Any]]]
+#     strava_enabled: Mapped[Optional[smallint1]]
+#     custom_fields: Mapped[Optional[dict[str, Any]]]
+#     welcome_dm_enable: Mapped[Optional[smallint]]
+#     welcome_dm_template: Mapped[Optional[dict[str, Any]]]
+#     welcome_channel_enable: Mapped[Optional[smallint]]
+#     welcome_channel: Mapped[Optional[str100]]
+#     send_achievements: Mapped[Optional[smallint1]]
+#     send_aoq_reports: Mapped[Optional[smallint1]]
+#     achievement_channel: Mapped[Optional[str100]]
+#     default_siteq: Mapped[Optional[str45]]
+#     NO_POST_THRESHOLD: Mapped[Optional[int]] = mapped_column(Integer, default=2)
+#     REMINDER_WEEKS: Mapped[Optional[int]] = mapped_column(Integer, default=2)
+#     HOME_AO_CAPTURE: Mapped[Optional[int]] = mapped_column(Integer, default=8)
+#     NO_Q_THRESHOLD_WEEKS: Mapped[Optional[int]] = mapped_column(Integer, default=4)
+#     NO_Q_THRESHOLD_POSTS: Mapped[Optional[int]] = mapped_column(Integer, default=4)
+#     org_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("orgs.id"))
+#     calendar_image_current: Mapped[Optional[str255]]
+#     calendar_image_next: Mapped[Optional[str255]]
+#     preblast_reminder_days: Mapped[Optional[int]]
+#     backblast_reminder_days: Mapped[Optional[int]]
+#     special_events_enabled: Mapped[Optional[smallint]]
+#     special_events_channel: Mapped[Optional[str100]]
+#     special_events_post_days: Mapped[Optional[int]]
+#     created: Mapped[dt_create]
+#     updated: Mapped[dt_update]
+
+#     def get_id():
+#         return SlackSettings.team_id
+
+
+@dataclass
+class SlackSettings:
+    team_id: str
+    db_id: Optional[int] = None
+    workspace_name: Optional[str] = None
+    bot_token: Optional[str] = None
+    email_enabled: Optional[int] = None
+    email_server: Optional[str] = None
+    email_server_port: Optional[int] = None
+    email_user: Optional[str] = None
+    email_password: Optional[str] = None
+    email_to: Optional[str] = None
+    email_option_show: Optional[int] = None
+    postie_format: Optional[int] = None
+    editing_locked: Optional[int] = None
+    default_destination: Optional[str] = None
+    destination_channel: Optional[str] = None
+    backblast_moleskin_template: Optional[dict[str, Any]] = None
+    preblast_moleskin_template: Optional[dict[str, Any]] = None
+    strava_enabled: Optional[int] = None
+    custom_fields: Optional[dict[str, Any]] = None
+    welcome_dm_enable: Optional[int] = None
+    welcome_dm_template: Optional[dict[str, Any]] = None
+    welcome_channel_enable: Optional[int] = None
+    welcome_channel: Optional[str] = None
+    send_achievements: Optional[int] = None
+    send_aoq_reports: Optional[int] = None
+    achievement_channel: Optional[str] = None
+    default_siteq: Optional[str] = None
+    NO_POST_THRESHOLD: Optional[int] = None
+    REMINDER_WEEKS: Optional[int] = None
+    HOME_AO_CAPTURE: Optional[int] = None
+    NO_Q_THRESHOLD_WEEKS: Optional[int] = None
+    NO_Q_THRESHOLD_POSTS: Optional[int] = None
+    org_id: Optional[int] = (
+        None  # NOTE: down the road, we may not want this here, for example if we want a slack space to be associated with multiple orgs # noqa
+    )
+    calendar_image_current: Optional[str] = None
+    calendar_image_next: Optional[str] = None
+    preblast_reminder_days: Optional[int] = None
+    backblast_reminder_days: Optional[int] = None
+    special_events_enabled: Optional[int] = None
+    special_events_channel: Optional[str] = None
+    special_events_post_days: Optional[int] = None
+
+
+class SlackSpace(BaseClass, GetDBClass):
+    __tablename__ = "slack_spaces"
+    # id: Mapped[intpk]
+    team_id: Mapped[str100] = mapped_column(String(100), primary_key=True)
     workspace_name: Mapped[Optional[str100]]
     bot_token: Mapped[Optional[str100]]
-    email_enabled: Mapped[smallint]
-    email_server: Mapped[Optional[str100]]
-    email_server_port: Mapped[Optional[int]]
-    email_user: Mapped[Optional[str100]]
-    email_password: Mapped[Optional[text]]
-    email_to: Mapped[Optional[str100]]
-    email_option_show: Mapped[Optional[smallint]]
-    postie_format: Mapped[Optional[smallint1]]
-    editing_locked: Mapped[smallint]
-    default_destination: Mapped[Optional[str]] = mapped_column(String(30), default="ao_channel")
-    destination_channel: Mapped[Optional[str100]]
-    backblast_moleskin_template: Mapped[Optional[dict[str, Any]]]
-    preblast_moleskin_template: Mapped[Optional[dict[str, Any]]]
-    strava_enabled: Mapped[Optional[smallint1]]
-    custom_fields: Mapped[Optional[dict[str, Any]]]
-    welcome_dm_enable: Mapped[Optional[smallint]]
-    welcome_dm_template: Mapped[Optional[dict[str, Any]]]
-    welcome_channel_enable: Mapped[Optional[smallint]]
-    welcome_channel: Mapped[Optional[str100]]
-    send_achievements: Mapped[Optional[smallint1]]
-    send_aoq_reports: Mapped[Optional[smallint1]]
-    achievement_channel: Mapped[Optional[str100]]
-    default_siteq: Mapped[Optional[str45]]
-    NO_POST_THRESHOLD: Mapped[Optional[int]] = mapped_column(Integer, default=2)
-    REMINDER_WEEKS: Mapped[Optional[int]] = mapped_column(Integer, default=2)
-    HOME_AO_CAPTURE: Mapped[Optional[int]] = mapped_column(Integer, default=8)
-    NO_Q_THRESHOLD_WEEKS: Mapped[Optional[int]] = mapped_column(Integer, default=4)
-    NO_Q_THRESHOLD_POSTS: Mapped[Optional[int]] = mapped_column(Integer, default=4)
-    org_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("orgs.id"))
-    calendar_image_current: Mapped[Optional[str255]]
-    calendar_image_next: Mapped[Optional[str255]]
-    preblast_reminder_days: Mapped[Optional[int]]
-    backblast_reminder_days: Mapped[Optional[int]]
-    special_events_enabled: Mapped[Optional[smallint]]
-    special_events_channel: Mapped[Optional[str100]]
-    special_events_post_days: Mapped[Optional[int]]
+    settings: Mapped[Optional[dict[str, Any]]]
     created: Mapped[dt_create]
     updated: Mapped[dt_update]
 
     def get_id():
-        return SlackSettings.team_id
+        return SlackSpace.team_id
+
+
+class Org_x_SlackSpace(BaseClass, GetDBClass):
+    __tablename__ = "orgs_x_slack_spaces"
+    id: Mapped[intpk]
+    org_id: Mapped[int] = mapped_column(Integer, ForeignKey("orgs.id"))
+    slack_space_team_id: Mapped[str100] = mapped_column(String(100), ForeignKey("slack_spaces.team_id"))
+    created: Mapped[dt_create]
+    updated: Mapped[dt_update]
+
+    def get_id():
+        return Org_x_SlackSpace.id
 
 
 class Event(BaseClass, GetDBClass):
@@ -292,8 +365,8 @@ class Org(BaseClass, GetDBClass):
     twitter: Mapped[Optional[str100]]
     facebook: Mapped[Optional[str100]]
     instagram: Mapped[Optional[str100]]
-    slack_id: Mapped[Optional[str30]]
-    slack_app_settings: Mapped[Optional[dict[str, Any]]]
+    slack_id: Mapped[Optional[str30]]  # want to get rid of this
+    # slack_app_settings: Mapped[Optional[dict[str, Any]]]
     last_annual_review: Mapped[Optional[date]]
     meta: Mapped[Optional[dict[str, Any]]]
     created: Mapped[dt_create]

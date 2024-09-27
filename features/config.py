@@ -9,8 +9,8 @@ from slack_sdk.web import WebClient
 from utilities import constants
 from utilities.database import DbManager
 from utilities.database.orm import (
-    Org,
     SlackSettings,
+    SlackSpace,
 )
 from utilities.database.special_queries import get_user_permission_list
 from utilities.helper_functions import (
@@ -110,9 +110,6 @@ def handle_config_email_post(
 ):
     config_data = forms.CONFIG_EMAIL_FORM.get_selected_values(body)
 
-    fields = {
-        SlackSettings.email_enabled: 1 if safe_get(config_data, actions.CONFIG_EMAIL_ENABLE) == "enable" else 0,
-    }
     if safe_get(config_data, actions.CONFIG_EMAIL_ENABLE) == "enable":
         fernet = Fernet(os.environ[constants.PASSWORD_ENCRYPT_KEY].encode())
         email_password_decrypted = safe_get(config_data, actions.CONFIG_EMAIL_PASSWORD)
@@ -122,22 +119,19 @@ def handle_config_email_post(
             ).decode()
         else:
             email_password_encrypted = None
-        fields.update(
-            {
-                SlackSettings.email_option_show: 1
-                if safe_get(config_data, actions.CONFIG_EMAIL_SHOW_OPTION) == "yes"
-                else 0,
-                SlackSettings.email_server: safe_get(config_data, actions.CONFIG_EMAIL_SERVER),
-                SlackSettings.email_server_port: safe_get(config_data, actions.CONFIG_EMAIL_PORT),
-                SlackSettings.email_user: safe_get(config_data, actions.CONFIG_EMAIL_FROM),
-                SlackSettings.email_to: safe_get(config_data, actions.CONFIG_EMAIL_TO),
-                SlackSettings.email_password: email_password_encrypted,
-                SlackSettings.postie_format: 1 if safe_get(config_data, actions.CONFIG_POSTIE_ENABLE) == "yes" else 0,
-            }
-        )
 
-    region = region_record._update(fields)
-    DbManager.update_record(cls=Org, id=region_record.org_id, fields={Org.slack_app_settings: region.to_json()})
+        region_record.email_enabled = 1 if safe_get(config_data, actions.CONFIG_EMAIL_ENABLE) == "enable" else 0
+        region_record.email_option_show = 1 if safe_get(config_data, actions.CONFIG_EMAIL_SHOW_OPTION) == "yes" else 0
+        region_record.email_server = safe_get(config_data, actions.CONFIG_EMAIL_SERVER)
+        region_record.email_server_port = safe_convert(safe_get(config_data, actions.CONFIG_EMAIL_PORT), int)
+        region_record.email_user = safe_get(config_data, actions.CONFIG_EMAIL_FROM)
+        region_record.email_to = safe_get(config_data, actions.CONFIG_EMAIL_TO)
+        region_record.email_password = email_password_encrypted
+        region_record.postie_format = 1 if safe_get(config_data, actions.CONFIG_POSTIE_ENABLE) == "yes" else 0
+
+    DbManager.update_record(
+        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    )
 
     update_local_region_records()
     print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))
@@ -148,23 +142,22 @@ def handle_config_general_post(
 ):
     config_data = forms.CONFIG_GENERAL_FORM.get_selected_values(body)
 
-    fields = {
-        SlackSettings.editing_locked: 1 if safe_get(config_data, actions.CONFIG_EDITING_LOCKED) == "yes" else 0,
-        SlackSettings.default_destination: safe_get(config_data, actions.CONFIG_DEFAULT_DESTINATION),
-        SlackSettings.destination_channel: safe_get(config_data, actions.CONFIG_DESTINATION_CHANNEL),
-        SlackSettings.backblast_moleskin_template: safe_get(config_data, actions.CONFIG_BACKBLAST_MOLESKINE_TEMPLATE),
-        SlackSettings.preblast_moleskin_template: safe_get(config_data, actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE),
-        SlackSettings.strava_enabled: 1 if safe_get(config_data, actions.CONFIG_ENABLE_STRAVA) == "enable" else 0,
-        SlackSettings.preblast_reminder_days: safe_convert(
-            safe_get(config_data, actions.CONFIG_PREBLAST_REMINDER_DAYS), int
-        ),
-        SlackSettings.backblast_reminder_days: safe_convert(
-            safe_get(config_data, actions.CONFIG_BACKBLAST_REMINDER_DAYS), int
-        ),
-    }
+    region_record.editing_locked = 1 if safe_get(config_data, actions.CONFIG_EDITING_LOCKED) == "yes" else 0
+    region_record.default_destination = safe_get(config_data, actions.CONFIG_DEFAULT_DESTINATION)
+    region_record.destination_channel = safe_get(config_data, actions.CONFIG_DESTINATION_CHANNEL)
+    region_record.backblast_moleskin_template = safe_get(config_data, actions.CONFIG_BACKBLAST_MOLESKINE_TEMPLATE)
+    region_record.preblast_moleskin_template = safe_get(config_data, actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE)
+    region_record.strava_enabled = 1 if safe_get(config_data, actions.CONFIG_ENABLE_STRAVA) == "enable" else 0
+    region_record.preblast_reminder_days = safe_convert(
+        safe_get(config_data, actions.CONFIG_PREBLAST_REMINDER_DAYS), int
+    )
+    region_record.backblast_reminder_days = safe_convert(
+        safe_get(config_data, actions.CONFIG_BACKBLAST_REMINDER_DAYS), int
+    )
 
-    region = region_record._update(fields)
-    DbManager.update_record(cls=Org, id=region_record.org_id, fields={Org.slack_app_settings: region.to_json()})
+    DbManager.update_record(
+        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    )
 
     update_local_region_records()
     print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))

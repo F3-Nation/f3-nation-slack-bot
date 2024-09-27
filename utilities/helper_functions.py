@@ -20,8 +20,10 @@ from utilities.database.orm import (
     EventTag_x_Org,
     EventType_x_Org,
     Org,
+    Org_x_SlackSpace,
     Role_x_User_x_Org,
     SlackSettings,
+    SlackSpace,
     SlackUser,
     User,
 )
@@ -206,24 +208,37 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         except Exception:
             team_name = team_domain
 
+        org_record = DbManager.find_records(Org, filters=[Org.slack_id == team_id])
+        if not org_record:
+            org_record = Org(
+                org_type_id=2,
+                name=team_name,
+                is_active=True,
+                slack_id=team_id,
+            )
+            org_record: Org = DbManager.create_record(org_record)
+
         region_record = SlackSettings(
             team_id=team_id,
             bot_token=context["bot_token"],
             workspace_name=team_name,
-            email_enabled=0,
-            email_option_show=0,
-            editing_locked=0,
+            org_id=org_record.id,  # NOTE: eventually we can just rely on the x table
         )
 
-        org_record = Org(
-            org_type_id=2,
-            name=team_name,
-            is_active=True,
-            slack_id=team_id,
+        slack_space_record = SlackSpace(
+            team_id=team_id,
+            workspace_name=team_name,
+            bot_token=context["bot_token"],
+            settings=region_record.__dict__,
         )
-        org_record: Org = DbManager.create_record(org_record)
-        region_record.org_id = org_record.id
-        DbManager.update_record(Org, org_record.id, {Org.slack_app_settings: region_record.to_json()})
+        slack_space_record: SlackSpace = DbManager.create_record(slack_space_record)
+
+        DbManager.create_record(
+            Org_x_SlackSpace(
+                org_id=org_record.id,
+                slack_space_team_id=team_id,
+            )
+        )
 
         REGION_RECORDS[team_id] = region_record
 
@@ -323,8 +338,8 @@ def get_request_type(body: dict) -> Tuple[str]:
 
 def update_local_region_records() -> None:
     print("Updating local region records...")
-    org_records: List[Org] = DbManager.find_records(Org, filters=[Org.org_type_id == 2])
-    region_records = [SlackSettings(**org.slack_app_settings) for org in org_records]
+    slack_space_records: List[SlackSpace] = DbManager.find_records(SlackSpace, filters=[True])
+    region_records = [SlackSettings(**s.settings) for s in slack_space_records]
     global REGION_RECORDS
     REGION_RECORDS = {region.team_id: region for region in region_records}
 
