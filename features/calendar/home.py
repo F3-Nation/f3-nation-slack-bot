@@ -51,11 +51,11 @@ def build_home_form(
     org_record: Org = DbManager.get_record(Org, region_record.org_id)
     org_settings = org_record.slack_app_settings
     this_week_url = GCP_IMAGE_URL.format(
-        bucket="calendar-images",
+        bucket="f3nation-calendar-images",
         image_name=safe_get(org_settings, "calendar_image_current") or "default.png",
     )
     next_week_url = GCP_IMAGE_URL.format(
-        bucket="calendar-images",
+        bucket="f3nation-calendar-images",
         image_name=safe_get(org_settings, "calendar_image_next") or "default.png",
     )
 
