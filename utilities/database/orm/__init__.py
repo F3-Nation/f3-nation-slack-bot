@@ -355,7 +355,7 @@ class Org(BaseClass, GetDBClass):
     id: Mapped[intpk]
     parent_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("orgs.id"))
     org_type_id: Mapped[int] = mapped_column(Integer, ForeignKey("org_types.id"))
-    default_location_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("locations.id"))
+    default_location_id: Mapped[Optional[int]]  # = mapped_column(Integer, ForeignKey("locations.id"))
     name: Mapped[str100]
     description: Mapped[Optional[text]]
     is_active: Mapped[bool]

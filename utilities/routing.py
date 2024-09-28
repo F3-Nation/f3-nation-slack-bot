@@ -1,4 +1,15 @@
-from features import backblast, config, custom_fields, preblast, region, special_events, strava, weaselbot, welcome
+from features import (
+    backblast,
+    config,
+    custom_fields,
+    db_admin,
+    preblast,
+    region,
+    special_events,
+    strava,
+    weaselbot,
+    welcome,
+)
 from features.calendar import ao, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
 from utilities import announcements, builders
@@ -20,6 +31,7 @@ COMMAND_MAPPER = {
     "/tag-achievement": (weaselbot.build_achievement_form, True),
     "/send-announcement": (announcements.send, False),
     "/calendar": (home.build_home_form, True),
+    "/db-admin": (db_admin.build_db_admin_form, True),
 }
 
 VIEW_MAPPER = {
@@ -97,6 +109,8 @@ ACTION_MAPPER = {
     actions.BACKBLAST_NEW_BLANK_BUTTON: (backblast.build_backblast_form, False),
     actions.REGION_INFO_BUTTON: (region.build_region_form, False),
     actions.CONFIG_SPECIAL_EVENTS: (special_events.build_special_settings_form, False),
+    actions.DB_ADMIN_UPGRADE: (db_admin.handle_db_admin_upgrade, False),
+    actions.DB_ADMIN_RESET: (db_admin.handle_db_admin_reset, False),
 }
 
 VIEW_CLOSED_MAPPER = {

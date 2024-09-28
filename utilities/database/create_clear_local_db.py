@@ -61,7 +61,7 @@ def create_tables():
         if not database_exists(engine.url):
             create_database(engine.url)
         with engine.connect() as conn:
-            orm.BaseClass.metadata.create_all(bind=conn, tables=tables)
+            # orm.BaseClass.metadata.create_all(bind=conn, tables=tables)
             conn.commit()
         engine.dispose()
 
@@ -210,4 +210,4 @@ if __name__ == "__main__":
     if args.reset:
         drop_database()
     create_tables()
-    initialize_tables()
+    # initialize_tables()

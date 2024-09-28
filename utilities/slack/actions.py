@@ -249,6 +249,12 @@ SPECIAL_EVENTS_CHANNEL = "special_events_channel"
 SPECIAL_EVENTS_POST_DAYS = "special_events_post_days"
 SPECIAL_EVENTS_CALLBACK_ID = "special-events-id"
 
+DB_ADMIN_CALLBACK_ID = "db-admin-id"
+DB_ADMIN_TEXT = "db-admin-text"
+DB_ADMIN_UPGRADE = "db-admin-upgrade"
+DB_ADMIN_DOWNGRADE = "db-admin-downgrade"
+DB_ADMIN_RESET = "db-admin-reset"
+
 ACTION_PREFIXES = [
     STRAVA_ACTIVITY_BUTTON,
     SERIES_EDIT_DELETE,
