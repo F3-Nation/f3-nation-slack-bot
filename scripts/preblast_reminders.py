@@ -17,6 +17,8 @@ from utilities.database.orm import (
     Event,
     EventType,
     Org,
+    SlackSettings,
+    SlackSpace,
     SlackUser,
     User,
 )
@@ -33,6 +35,7 @@ class PreblastItem:
     parent_org: Org
     q_name: str
     slack_user_id: str
+    slack_settings: SlackSettings
 
 
 @dataclass
@@ -65,6 +68,7 @@ class PreblastList:
                 ParentOrg,
                 firstq_subquery.c.q_name,
                 firstq_subquery.c.slack_id,
+                SlackSpace.settings,
             )
             .select_from(Event)
             .join(Org, Org.id == Event.org_id)
@@ -74,6 +78,7 @@ class PreblastList:
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
             )
+            .join(SlackSpace, Org.slack_id == SlackSpace.team_id)
             .filter(
                 Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
                 Event.preblast_ts.is_(None),  # not already sent
@@ -83,7 +88,18 @@ class PreblastList:
             .order_by(ParentOrg.name, Org.name, Event.start_time)
         )
         records = query.all()
-        self.items = [PreblastItem(*r) for r in records]
+        self.items = [
+            PreblastItem(
+                event=r[0],
+                event_type=r[1],
+                org=r[2],
+                parent_org=r[3],
+                q_name=r[4],
+                slack_user_id=r[5],
+                slack_settings=SlackSettings(**r[6]),
+            )
+            for r in records
+        ]
         session.expunge_all()
         session.close()
 
@@ -100,7 +116,7 @@ for preblast in preblast_list.items:
         event_ao=preblast.org.name,
     )
 
-    slack_bot_token = preblast.parent_org.slack_app_settings.get("bot_token")
+    slack_bot_token = preblast.slack_settings.bot_token
     if slack_bot_token and preblast.slack_user_id:
         slack_client = WebClient(slack_bot_token)
         blocks: List[orm.BaseBlock] = [

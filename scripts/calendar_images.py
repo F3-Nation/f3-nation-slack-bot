@@ -24,8 +24,11 @@ from utilities.database.orm import (
     EventTag_x_Org,
     EventType,
     Org,
+    Org_x_SlackSpace,
+    SlackSpace,
     User,
 )
+from utilities.helper_functions import update_local_region_records
 
 tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
 current_week_start = date.today() + timedelta(days=-tomorrow_day_of_week + 1)
@@ -136,7 +139,14 @@ def generate_calendar_images():
 
     color_results = color_query.all()
 
-    region_org_records = session.query(Org).filter(Org.org_type_id == 2).all()
+    region_org_records = (
+        session.query(Org, Org_x_SlackSpace, SlackSpace)
+        .select_from(Org)
+        .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
+        .join(SlackSpace, Org_x_SlackSpace.slack_space_team_id == SlackSpace.team_id)
+        .filter(Org.org_type_id == 2)
+        .all()
+    )
 
     for region_id in df_all["region_id"].unique():
         region_id = int(region_id)
@@ -196,8 +206,6 @@ def generate_calendar_images():
             include_list.append(True)
 
             # filter out duplicate dates
-            print(include_list)
-            print(df.head())
             df = df[include_list]
 
             # Reshape to wide format by date
@@ -261,8 +269,8 @@ def generate_calendar_images():
                 dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
 
             # upload to s3 and remove local file
-            region_org_record = [r for r in region_org_records if r.id == region_id][0]
-            slack_app_settings = region_org_record.slack_app_settings or {}
+            region_org_record = [r for r in region_org_records if r[0].id == region_id][0]
+            slack_app_settings = region_org_record[2].settings
             existing_file = slack_app_settings.get(f"calendar_image_{week}")
 
             if LOCAL_DEVELOPMENT:  # TODO: upload to GCP
@@ -279,10 +287,13 @@ def generate_calendar_images():
 
             # update org record with new filename
             slack_app_settings[f"calendar_image_{week}"] = filename
-            session.query(Org).filter(Org.id == region_id).update({"slack_app_settings": slack_app_settings})
+            session.query(SlackSpace).filter(SlackSpace.team_id == region_org_record[0].get("slack_id")).update(
+                {"settings": slack_app_settings}
+            )
             session.commit()
 
     session.close()
+    update_local_region_records()
 
 
 if __name__ == "__main__":

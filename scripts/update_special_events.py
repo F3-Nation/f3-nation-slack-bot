@@ -1,18 +1,20 @@
 import os
 import sys
+from datetime import date, timedelta
+
+from slack_sdk import WebClient
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
-from datetime import date, timedelta
 from typing import List, Tuple
-
-from slack_sdk.web import WebClient
 
 from utilities.database import DbManager
 from utilities.database.orm import (
     Event,
     Org,
+    Org_x_SlackSpace,
     SlackSettings,
+    SlackSpace,
 )
 from utilities.slack import orm
 
@@ -25,7 +27,7 @@ def create_special_events_blocks(records: List[Tuple[Event, Org]]) -> List[dict]
         if event.preblast_ts:
             # TODO: need to make this work when the preblast gets posted to a particular channel rather than the AO channel # noqa
             # TODO: also need to make this work for region-level events
-            text += f"\n<slack://channel?team={slack_settings.team_id}&id={org.slack_id}&ts={event.preblast_ts}|Click here to go to the preblast!>"  # noqa
+            text += f"\n<slack://channel?team={slack_settings.team_id}&id={org.slack_id}&ts={event.preblast_ts}|Click here to go to the preblast thread!>"  # noqa
         blocks.append(
             orm.SectionBlock(
                 label=text,
@@ -36,9 +38,13 @@ def create_special_events_blocks(records: List[Tuple[Event, Org]]) -> List[dict]
     return blocks
 
 
-all_regions: List[Org] = DbManager.find_records(Org, [Org.org_type_id == 2])
-for region in all_regions:
-    slack_settings = SlackSettings(**region.slack_app_settings)
+all_regions_records: List[Tuple[Org, Org_x_SlackSpace, SlackSpace]] = DbManager.find_join_records3(
+    Org, Org_x_SlackSpace, SlackSpace, [Org.org_type_id == 2]
+)
+
+for record in all_regions_records:
+    slack_settings = SlackSettings(**record[2].settings)
+    region = record[0]
     if slack_settings.special_events_enabled:
         number_of_days = slack_settings.special_events_post_days or 30
         records: List[Tuple[Event, Org]] = DbManager.find_join_records2(
@@ -47,7 +53,9 @@ for region in all_regions:
             [
                 (Event.org_id == region.id or Org.parent_id == region.id),
                 Event.start_date >= date.today(),
-                Event.end_date <= date.today() + timedelta(days=number_of_days),
+                Event.start_date <= date.today() + timedelta(days=number_of_days),
+                Event.is_active,
+                ~Event.is_series,
                 Event.highlight,
             ],
         )

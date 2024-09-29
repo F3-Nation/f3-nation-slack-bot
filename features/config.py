@@ -6,6 +6,7 @@ from logging import Logger
 from cryptography.fernet import Fernet
 from slack_sdk.web import WebClient
 
+from features import db_admin
 from utilities import constants
 from utilities.database import DbManager
 from utilities.database.orm import (
@@ -25,23 +26,25 @@ from utilities.slack import actions, forms
 def build_config_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     update_view_id = safe_get(body, actions.LOADING_ID)
-
-    slack_user = get_user(user_id, region_record, client, logger)
-    user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
-    user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
-
-    if user_is_admin:
-        config_form = copy.deepcopy(forms.CONFIG_FORM)
+    if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD"):
+        db_admin.build_db_admin_form(body, client, logger, context, region_record, update_view_id)
     else:
-        config_form = copy.deepcopy(forms.CONFIG_NO_PERMISSIONS_FORM)
+        slack_user = get_user(user_id, region_record, client, logger)
+        user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
+        user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
 
-    config_form.update_modal(
-        client=client,
-        view_id=update_view_id,
-        callback_id=actions.CONFIG_CALLBACK_ID,
-        title_text="F3 Nation Settings",
-        submit_button_text="None",
-    )
+        if user_is_admin:
+            config_form = copy.deepcopy(forms.CONFIG_FORM)
+        else:
+            config_form = copy.deepcopy(forms.CONFIG_NO_PERMISSIONS_FORM)
+
+        config_form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            callback_id=actions.CONFIG_CALLBACK_ID,
+            title_text="F3 Nation Settings",
+            submit_button_text="None",
+        )
 
 
 def build_config_email_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

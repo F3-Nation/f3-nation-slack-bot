@@ -31,7 +31,6 @@ COMMAND_MAPPER = {
     "/tag-achievement": (weaselbot.build_achievement_form, True),
     "/send-announcement": (announcements.send, False),
     "/calendar": (home.build_home_form, True),
-    "/db-admin": (db_admin.build_db_admin_form, True),
 }
 
 VIEW_MAPPER = {
