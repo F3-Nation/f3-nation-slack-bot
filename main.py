@@ -65,7 +65,11 @@ def main_response(body, logger: logging.Logger, client, ack, context):
     else:
         logger.info(body)
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
-    region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
+    try:
+        region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
+    except Exception as exc:
+        logger.warning(f"Error getting region record: {exc}")
+        region_record = SlackSettings(team_id="T00000000")
 
     request_type, request_id = get_request_type(body)
     lookup: Tuple[Callable, bool] = safe_get(safe_get(MAIN_MAPPER, request_type), request_id)
