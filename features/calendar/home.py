@@ -9,7 +9,7 @@ from features.calendar.event_preblast import (
     build_event_preblast_form,
     build_preblast_info,
 )
-from utilities.constants import GCP_IMAGE_URL
+from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database import DbManager
 from utilities.database.orm import Attendance, Event, EventType, EventType_x_Org, Org, SlackSettings
 from utilities.database.special_queries import CalendarHomeQuery, home_schedule_query
@@ -48,14 +48,22 @@ def build_home_form(
     )
     event_type_records = [x[0] for x in event_types]
 
-    this_week_url = GCP_IMAGE_URL.format(
-        bucket="f3nation-calendar-images",
-        image_name=region_record.calendar_image_current or "default.png",
-    )
-    next_week_url = GCP_IMAGE_URL.format(
-        bucket="f3nation-calendar-images",
-        image_name=region_record.calendar_image_next or "default.png",
-    )
+    if LOCAL_DEVELOPMENT:
+        this_week_url = S3_IMAGE_URL.format(
+            image_name=region_record.calendar_image_current or "default.png",
+        )
+        next_week_url = S3_IMAGE_URL.format(
+            image_name=region_record.calendar_image_next or "default.png",
+        )
+    else:
+        this_week_url = GCP_IMAGE_URL.format(
+            bucket="f3nation-calendar-images",
+            image_name=region_record.calendar_image_current or "default.png",
+        )
+        next_week_url = GCP_IMAGE_URL.format(
+            bucket="f3nation-calendar-images",
+            image_name=region_record.calendar_image_next or "default.png",
+        )
 
     blocks = [
         orm.DividerBlock(),
@@ -286,7 +294,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
                 ],  # noqa
             }
             client.chat_update(
-                channel=preblast_info.event_extended.org.slack_id,
+                channel=preblast_info.event_extended.org_slack_id,
                 ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_extended.event.preblast_ts),
                 blocks=blocks,
                 text="Event Preblast",

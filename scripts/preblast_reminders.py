@@ -17,6 +17,7 @@ from utilities.database.orm import (
     Event,
     EventType,
     Org,
+    Org_x_Slack,
     SlackSettings,
     SlackSpace,
     SlackUser,
@@ -78,7 +79,8 @@ class PreblastList:
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
             )
-            .join(SlackSpace, Org.slack_id == SlackSpace.team_id)
+            .join(Org_x_Slack, Org.id == Org_x_Slack.org_id)
+            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
             .filter(
                 Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
                 Event.preblast_ts.is_(None),  # not already sent

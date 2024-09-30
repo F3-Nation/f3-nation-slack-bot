@@ -20,7 +20,7 @@ from utilities.database.orm import (
     EventTag_x_Org,
     EventType_x_Org,
     Org,
-    Org_x_SlackSpace,
+    Org_x_Slack,
     Role_x_User_x_Org,
     SlackSettings,
     SlackSpace,
@@ -208,13 +208,14 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         except Exception:
             team_name = team_domain
 
-        org_record = DbManager.find_records(Org, filters=[Org.slack_id == team_id])
+        org_record = DbManager.find_join_records2(Org, Org_x_Slack, filters=[Org_x_Slack.slack_id == team_id])
+        org_record = safe_get(org_record, 0, 0)
+
         if not org_record:
             org_record = Org(
                 org_type_id=2,
                 name=team_name,
                 is_active=True,
-                slack_id=team_id,
             )
             org_record: Org = DbManager.create_record(org_record)
 
@@ -234,9 +235,9 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         slack_space_record: SlackSpace = DbManager.create_record(slack_space_record)
 
         DbManager.create_record(
-            Org_x_SlackSpace(
+            Org_x_Slack(
                 org_id=org_record.id,
-                slack_space_team_id=team_id,
+                slack_id=team_id,
             )
         )
 

@@ -143,10 +143,10 @@ def build_event_preblast_form(
         title_text = "Edit Event Preblast"
         submit_button_text = "Update"
         # TODO: take out the send block if AO not associated with a channel
-        if not record.org.slack_id or not view_id or preblast_info.event_extended.event.preblast_ts:
+        if not record.org_slack_id or not view_id or preblast_info.event_extended.event.preblast_ts:
             form.blocks = form.blocks[:-1]
         else:
-            form.blocks[-1].label = f"When would you like to send the preblast to <#{record.org.slack_id}>?"
+            form.blocks[-1].label = f"When would you like to send the preblast to <#{record.org_slack_id}>?"
     else:
         blocks = [
             *preblast_info.preblast_blocks,
@@ -155,7 +155,7 @@ def build_event_preblast_form(
         if preblast_info.event_extended.event.preblast_ts:
             blocks.append(
                 orm.SectionBlock(
-                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_info.event_extended.org.slack_id}&ts={preblast_info.event_extended.event.preblast_ts}|check it out in the channel>*"  # noqa
+                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_info.event_extended.org_slack_id}&ts={preblast_info.event_extended.event.preblast_ts}|check it out in the channel>*"  # noqa
                 )
             )  # noqa
 
@@ -256,7 +256,7 @@ def handle_event_preblast_edit(
         q_url = q_url[0]
         if preblast_info.event_extended.event.preblast_ts or safe_get(metadata, "preblast_ts"):
             client.chat_update(
-                channel=preblast_info.event_extended.org.slack_id,
+                channel=preblast_info.event_extended.org_slack_id,
                 ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_extended.event.preblast_ts),
                 blocks=blocks,
                 text="Event Preblast",
@@ -266,7 +266,7 @@ def handle_event_preblast_edit(
             )
         else:
             res = client.chat_postMessage(
-                channel=preblast_info.event_extended.org.slack_id,
+                channel=preblast_info.event_extended.org_slack_id,
                 blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
@@ -340,8 +340,8 @@ def build_preblast_info(
         )
 
     location = ""
-    if event_record.org.slack_id:
-        location += f"<#{event_record.org.slack_id}> - "
+    if event_record.org_slack_id:
+        location += f"<#{event_record.org_slack_id}> - "
     if event_record.location.lat and event_record.location.lon:
         location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.lat},{event_record.location.lon}|{event_record.location.name}>"
     else:
@@ -434,7 +434,7 @@ def handle_event_preblast_action(
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
             client.chat_update(
-                channel=preblast_info.event_extended.org.slack_id,
+                channel=preblast_info.event_extended.org_slack_id,
                 ts=metadata["preblast_ts"],
                 blocks=blocks,
                 text="Event Preblast",
@@ -480,7 +480,7 @@ def handle_event_preblast_action(
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
             client.chat_update(
-                channel=preblast_info.event_extended.org.slack_id,
+                channel=preblast_info.event_extended.org_slack_id,
                 ts=body["message"]["ts"],
                 blocks=[b.as_form_field() for b in blocks],
                 text="Preblast",

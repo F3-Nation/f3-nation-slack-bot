@@ -176,16 +176,16 @@ class SlackSpace(BaseClass, GetDBClass):
         return SlackSpace.team_id
 
 
-class Org_x_SlackSpace(BaseClass, GetDBClass):
-    __tablename__ = "orgs_x_slack_spaces"
+class Org_x_Slack(BaseClass, GetDBClass):
+    __tablename__ = "orgs_x_slack"
     id: Mapped[intpk]
     org_id: Mapped[int] = mapped_column(Integer, ForeignKey("orgs.id"))
-    slack_space_team_id: Mapped[str100] = mapped_column(String(100), ForeignKey("slack_spaces.team_id"))
+    slack_id: Mapped[str100]
     created: Mapped[dt_create]
     updated: Mapped[dt_update]
 
     def get_id():
-        return Org_x_SlackSpace.id
+        return Org_x_Slack.id
 
 
 class Event(BaseClass, GetDBClass):
@@ -365,8 +365,6 @@ class Org(BaseClass, GetDBClass):
     twitter: Mapped[Optional[str100]]
     facebook: Mapped[Optional[str100]]
     instagram: Mapped[Optional[str100]]
-    slack_id: Mapped[Optional[str30]]  # want to get rid of this
-    # slack_app_settings: Mapped[Optional[dict[str, Any]]]
     last_annual_review: Mapped[Optional[date]]
     meta: Mapped[Optional[dict[str, Any]]]
     created: Mapped[dt_create]

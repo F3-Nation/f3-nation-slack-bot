@@ -24,7 +24,7 @@ from utilities.database.orm import (
     EventTag_x_Org,
     EventType,
     Org,
-    Org_x_SlackSpace,
+    Org_x_Slack,
     SlackSpace,
     User,
 )
@@ -139,10 +139,10 @@ def generate_calendar_images():
         color_results = color_query.all()
 
         region_org_records = (
-            session.query(Org, Org_x_SlackSpace, SlackSpace)
+            session.query(Org, Org_x_Slack, SlackSpace)
             .select_from(Org)
-            .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
-            .join(SlackSpace, Org_x_SlackSpace.slack_space_team_id == SlackSpace.team_id)
+            .join(Org_x_Slack, Org.id == Org_x_Slack.org_id)
+            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
             .filter(Org.org_type_id == 2)
             .all()
         )
@@ -288,7 +288,7 @@ def generate_calendar_images():
 
                 # update org record with new filename
                 slack_app_settings[f"calendar_image_{week}"] = filename
-                session.query(SlackSpace).filter(SlackSpace.team_id == region_org_record[0].get("slack_id")).update(
+                session.query(SlackSpace).filter(SlackSpace.team_id == slack_app_settings["team_id"]).update(
                     {"settings": slack_app_settings}
                 )
                 session.commit()

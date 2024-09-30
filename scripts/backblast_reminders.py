@@ -17,6 +17,7 @@ from utilities.database.orm import (
     Event,
     EventType,
     Org,
+    Org_x_Slack,
     SlackSettings,
     SlackSpace,
     SlackUser,
@@ -74,7 +75,8 @@ class BackblastList:
             .join(Org, Org.id == Event.org_id)
             .join(EventType, EventType.id == Event.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
-            .join(SlackSpace, Org.slack_id == SlackSpace.team_id)
+            .join(Org_x_Slack, Org_x_Slack.org_id == Org.id)
+            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
             .join(
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),

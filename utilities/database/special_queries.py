@@ -12,6 +12,7 @@ from utilities.database.orm import (
     EventType,
     Location,
     Org,
+    Org_x_Slack,
     Permission,
     Role,
     Role_x_Permission,
@@ -88,6 +89,7 @@ class EventExtended:
     event_type: EventType
     location: Location
     event_tag: EventTag
+    org_slack_id: str
 
 
 @dataclass
@@ -109,12 +111,13 @@ class PreblastInfo:
 def event_preblast_query(event_id: int) -> tuple[EventExtended, list[AttendanceExtended]]:
     with get_session() as session:
         query = (
-            session.query(Event, Org, EventType, Location, EventTag)
+            session.query(Event, Org, EventType, Location, EventTag, Org_x_Slack.slack_id.label("org_slack_id"))
             .select_from(Event)
             .join(Org, Org.id == Event.org_id)
             .join(EventType, EventType.id == Event.event_type_id)
             .join(Location, Location.id == Event.location_id)
             .join(EventTag, EventTag.id == Event.event_tag_id, isouter=True)
+            .join(Org_x_Slack, Org_x_Slack.org_id == Event.org_id)
             .filter(Event.id == event_id)
         )
         record = EventExtended(*query.one_or_none())

@@ -8,7 +8,7 @@ from slack_sdk.web import WebClient
 
 from utilities import constants
 from utilities.database import DbManager
-from utilities.database.orm import Event, EventType, EventType_x_Org, Location, Org, SlackSettings
+from utilities.database.orm import Event, EventType, EventType_x_Org, Location, Org, Org_x_Slack, SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -63,11 +63,12 @@ def build_ao_add_form(
             DbManager.find_records(EventType_x_Org, [EventType_x_Org.org_id == edit_ao.id, EventType_x_Org.is_default]),
             0,
         )
+        slack_id = DbManager.find_records(Org_x_Slack, [Org_x_Slack.org_id == edit_ao.id])[0].slack_id
         form.set_initial_values(
             {
                 actions.CALENDAR_ADD_AO_NAME: edit_ao.name,
                 actions.CALENDAR_ADD_AO_DESCRIPTION: edit_ao.description,
-                actions.CALENDAR_ADD_AO_CHANNEL: edit_ao.slack_id,
+                actions.CALENDAR_ADD_AO_CHANNEL: slack_id,
             }
         )
         if edit_ao.default_location_id:
@@ -120,17 +121,20 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         is_active=True,
         name=safe_get(form_data, actions.CALENDAR_ADD_AO_NAME),
         description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
-        slack_id=safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL),
+        # slack_id=safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL),
         default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
         logo=logo,
     )
+    slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
 
     if safe_get(metatdata, "ao_id"):
         update_dict = ao.__dict__
         update_dict.pop("_sa_instance_state")
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
+        DbManager.update_records(Org_x_Slack, [Org_x_Slack.org_id == metatdata["ao_id"]], fields={"slack_id": slack_id})
     else:
-        DbManager.create_record(ao)
+        ao_org = DbManager.create_record(ao)
+        DbManager.create_record(Org_x_Slack(org_id=ao_org.id, slack_id=slack_id))
 
     if safe_get(form_data, actions.CALENDAR_ADD_AO_TYPE):
         event_type_x_org: EventType_x_Org = EventType_x_Org(
@@ -204,6 +208,7 @@ AO_FORM = orm.BlockView(
             label="Channel associated with this AO:",
             action=actions.CALENDAR_ADD_AO_CHANNEL,
             element=orm.ChannelsSelectElement(placeholder="Select a channel"),
+            optional=False,
         ),
         orm.InputBlock(
             label="Default Location",

@@ -18,7 +18,6 @@ from utilities.database.orm import (
     Event,
     EventType,
     EventType_x_Org,
-    Org,
     SlackSettings,
 )
 from utilities.database.special_queries import event_attendance_query, event_preblast_query, get_user_permission_list
@@ -155,7 +154,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.event.name,
             actions.BACKBLAST_DATE: event_record.event.start_date.strftime("%Y-%m-%d"),
-            actions.BACKBLAST_AO: event_record.org.slack_id,
+            actions.BACKBLAST_AO: event_record.org_slack_id,
             actions.BACKBLAST_Q: safe_get(
                 [a.slack_user.slack_id for a in attendance_records if a.attendance.attendance_type_id == 2], 0
             ),
@@ -458,11 +457,11 @@ COUNT: {count}
     rich_blocks: list = res["message"]["blocks"]
     rich_blocks.pop(-1)
 
-    ao_org_id = safe_get(DbManager.find_records(Org, [Org.slack_id == the_ao]), 0).id
+    event = event_preblast_query(event_id)[0]
 
     db_fields = {
         Event.start_date: the_date,
-        Event.org_id: ao_org_id,
+        Event.org_id: event.org_slack_id,
         Event.event_type_id: event_type,
         Event.backblast_ts: res["ts"],
         Event.backblast: backblast_parsed,
