@@ -10,6 +10,9 @@ def handle(request: Request) -> Response:
     decoded_data = request.data.decode()
     data_dict = json.loads(decoded_data)
     event_message = base64.b64decode(data_dict["message"]["data"]).decode()
-    if event_message == "hourly":
-        calendar_images.generate_calendar_images()
-    return Response("Event received", status=200)
+    try:
+        if event_message == "hourly":
+            calendar_images.generate_calendar_images()
+            return Response("Calendar images generated", status=200)
+    except Exception as e:
+        return Response(f"Error: {e}", status=500)
