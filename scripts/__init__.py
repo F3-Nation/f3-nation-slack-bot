@@ -1,13 +1,12 @@
 import base64
 import json
-import logging
 
 from flask import Request, Response
 
 from scripts import calendar_images
 
 
-def handle(request: Request, logger: logging.Logger) -> Response:
+def handle(request: Request) -> Response:
     decoded_data = request.data.decode()
     data_dict = json.loads(decoded_data)
     event_message = base64.b64decode(data_dict["message"]["data"]).decode()
@@ -16,5 +15,5 @@ def handle(request: Request, logger: logging.Logger) -> Response:
             calendar_images.generate_calendar_images()
             return Response("Calendar images generated", status=200)
     except Exception as e:
-        logger.error(f"Error generating calendar images: {e}")
+        print(f"Error generating calendar images: {e}")
         return Response(f"Error: {e}", status=200)

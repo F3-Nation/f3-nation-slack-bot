@@ -50,7 +50,7 @@ def handler(request: Request):
     if request.path == "/":
         return Response("Service is running", status=200)
     elif request.path == "/gcp_event":
-        return scripts.handle(request, logger)
+        return scripts.handle(request)
     elif request.path == "/exchange_token":
         return strava.strava_exchange_token(request)
     elif request.path == "/slack/events":
