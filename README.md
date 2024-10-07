@@ -189,3 +189,9 @@ This codebase utilizes the slack-bolt python sdk throughout, and will eventually
 - `utilities/slack/orm.py` - this is where I've defined most of the Slack API UI elements in python class form, that is then used throughout. The ORM defines "blocks", that can then be converted to Slack's required json format via the `.as_form_field()` method
 - `utilities/database/orm/__init__.py` - this is where the SQLAlchemy ORM classes are defined
 - `utilities/database/create_clear_local_db.py` - this can be run to drop the database and recreate it using the ORM definition in the file above
+
+## Database Structure
+
+Below is the current structure of the database:
+
+<img src="utilities/database/schema.png" width="500">

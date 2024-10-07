@@ -51,6 +51,8 @@ playwright = "^1.44.0"
 alembic = "^1.13.0"
 
 [tool.poetry.group.dev.dependencies]
+sqlalchemy-schemadisplay = "^2.0"
+graphviz = "^0.20.3"
 
 [build-system]
 requires = ["poetry-core"]
