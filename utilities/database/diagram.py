@@ -14,9 +14,9 @@ def create_diagram():
         engine=get_engine(),
         metadata=BaseClass.metadata,
         show_datatypes=True,
-        show_indexes=False,
+        show_indexes=True,
         rankdir="LR",
-        concentrate=False,
+        show_column_keys=True,
     )
     graph.write_png("utilities/database/schema.png")
 
