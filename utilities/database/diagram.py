@@ -13,7 +13,7 @@ def create_diagram():
     graph = create_schema_graph(
         engine=get_engine(),
         metadata=BaseClass.metadata,
-        show_datatypes=False,
+        show_datatypes=True,
         show_indexes=False,
         rankdir="LR",
         concentrate=False,
