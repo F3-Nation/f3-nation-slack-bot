@@ -3,7 +3,7 @@ import json
 
 from flask import Request, Response
 
-from scripts import calendar_images
+# from scripts import calendar_images
 
 
 def handle(request: Request) -> Response:
@@ -12,7 +12,7 @@ def handle(request: Request) -> Response:
     event_message = base64.b64decode(data_dict["message"]["data"]).decode()
     try:
         if event_message == "hourly":
-            calendar_images.generate_calendar_images()
+            # calendar_images.generate_calendar_images()
             return Response("Calendar images generated", status=200)
     except Exception as e:
         print(f"Error generating calendar images: {e}")

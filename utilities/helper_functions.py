@@ -53,8 +53,8 @@ def get_oauth_settings():
         client_id=os.environ[constants.SLACK_CLIENT_ID],
         client_secret=os.environ[constants.SLACK_CLIENT_SECRET],
         scopes=os.environ[constants.SLACK_SCOPES].split(","),
-        installation_store=FileInstallationStore(base_dir="/oauth_installations"),
-        state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="/oauth_states"),
+        installation_store=FileInstallationStore(base_dir="/mnt/oauth_installations"),
+        state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="/mnt/oauth_states"),
     )
 
 

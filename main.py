@@ -17,7 +17,7 @@ from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
-    # get_oauth_flow,
+    get_oauth_settings,
     get_region_record,
     get_request_type,
     safe_get,
@@ -39,9 +39,7 @@ else:
 
 app = App(
     process_before_response=not LOCAL_DEVELOPMENT,
-    # process_before_response=not LOCAL_DEVELOPMENT,
-    # oauth_flow=get_oauth_flow(),
-    # oauth_settings=SlackSettings,
+    oauth_settings=get_oauth_settings(),
 )
 
 
