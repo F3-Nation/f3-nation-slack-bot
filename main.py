@@ -51,7 +51,7 @@ def handler(request: Request):
         return scripts.handle(request)
     elif request.path == "/exchange_token":
         return strava.strava_exchange_token(request)
-    elif request.path == "/slack/events":
+    elif request.path[:6] == "/slack":
         slack_handler = SlackRequestHandler(app=app)
         return slack_handler.handle(request)
 
