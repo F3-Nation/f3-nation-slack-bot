@@ -54,6 +54,8 @@ def handler(request: Request):
     elif request.path[:6] == "/slack":
         slack_handler = SlackRequestHandler(app=app)
         return slack_handler.handle(request)
+    else:
+        return Response(f"Invalid path: {request.path}", status=404)
 
 
 def main_response(body, logger: logging.Logger, client, ack, context):

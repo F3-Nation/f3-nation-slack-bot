@@ -49,13 +49,16 @@ def get_oauth_flow():
 
 
 def get_oauth_settings():
-    return OAuthSettings(
-        client_id=os.environ[constants.SLACK_CLIENT_ID],
-        client_secret=os.environ[constants.SLACK_CLIENT_SECRET],
-        scopes=os.environ[constants.SLACK_SCOPES].split(","),
-        installation_store=FileInstallationStore(base_dir="/mnt/oauth_installations"),
-        state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="/mnt/oauth_states"),
-    )
+    if LOCAL_DEVELOPMENT:
+        return None
+    else:
+        return OAuthSettings(
+            client_id=os.environ[constants.SLACK_CLIENT_ID],
+            client_secret=os.environ[constants.SLACK_CLIENT_SECRET],
+            scopes=os.environ[constants.SLACK_SCOPES].split(","),
+            installation_store=FileInstallationStore(base_dir="/mnt/oauth_installations"),
+            state_store=FileOAuthStateStore(expiration_seconds=600, base_dir="/mnt/oauth_states"),
+        )
 
 
 def safe_get(data, *keys):
