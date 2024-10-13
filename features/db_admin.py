@@ -68,7 +68,7 @@ def build_db_admin_form(
                     ],
                 )
             )
-        form.blocks[0].label = msg
+        form.blocks[1].label = msg
     else:
         form = copy.deepcopy(DB_WRONG_PASSWORD_FORM)
 
@@ -124,10 +124,6 @@ def handle_calendar_image_refresh(
 
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
-        orm.SectionBlock(
-            action=actions.DB_ADMIN_TEXT,
-            label="Database is at the latest version.",
-        ),
         orm.ActionsBlock(
             elements=[
                 orm.ButtonElement(
@@ -135,6 +131,10 @@ DB_ADMIN_FORM = orm.BlockView(
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
                 ),
             ],
+        ),
+        orm.SectionBlock(
+            action=actions.DB_ADMIN_TEXT,
+            label="Database is at the latest version.",
         ),
     ]
 )
