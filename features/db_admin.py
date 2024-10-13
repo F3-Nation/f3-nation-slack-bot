@@ -7,6 +7,7 @@ from sqlalchemy import engine
 
 from alembic import command, config, script
 from alembic.runtime import migration
+from scripts.calendar_images import generate_calendar_images
 from utilities.database import get_engine
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
@@ -111,24 +112,30 @@ def handle_db_admin_reset(
     build_db_admin_form(body, client, logger, context, region_record, update_view_id=view_id, message="Database reset!")
 
 
+def handle_calendar_image_refresh(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    generate_calendar_images()
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(
             action=actions.DB_ADMIN_TEXT,
             label="Database is at the latest version.",
         ),
-        # orm.ActionsBlock(
-        #     elements=[
-        #         orm.ButtonElement(
-        #             label="Update database",
-        #             action=actions.DB_ADMIN_UPGRADE,
-        #         ),
-        #         orm.ButtonElement(
-        #             label="Downgrade database",
-        #             action=actions.DB_ADMIN_DOWNGRADE,
-        #         ),
-        #     ],
-        # ),
+        orm.ActionsBlock(
+            elements=[
+                orm.ButtonElement(
+                    label="Calendar Images",
+                    action=actions.SECRET_MENU_CALENDAR_IMAGES,
+                ),
+            ],
+        ),
     ]
 )
 

@@ -254,6 +254,7 @@ DB_ADMIN_TEXT = "db-admin-text"
 DB_ADMIN_UPGRADE = "db-admin-upgrade"
 DB_ADMIN_DOWNGRADE = "db-admin-downgrade"
 DB_ADMIN_RESET = "db-admin-reset"
+SECRET_MENU_CALENDAR_IMAGES = "secret-menu-calendar-images"
 
 ACTION_PREFIXES = [
     STRAVA_ACTIVITY_BUTTON,

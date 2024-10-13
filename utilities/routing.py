@@ -110,6 +110,7 @@ ACTION_MAPPER = {
     actions.CONFIG_SPECIAL_EVENTS: (special_events.build_special_settings_form, False),
     actions.DB_ADMIN_UPGRADE: (db_admin.handle_db_admin_upgrade, False),
     actions.DB_ADMIN_RESET: (db_admin.handle_db_admin_reset, False),
+    actions.SECRET_MENU_CALENDAR_IMAGES: (db_admin.handle_calendar_image_refresh, False),
 }
 
 VIEW_CLOSED_MAPPER = {
