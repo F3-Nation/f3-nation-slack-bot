@@ -106,57 +106,38 @@ class PreblastList:
         session.close()
 
 
-preblast_list = PreblastList()
-preblast_list.pull_data()
+def send_preblast_reminders():
+    preblast_list = PreblastList()
+    preblast_list.pull_data()
 
-for preblast in preblast_list.items:
-    # TODO: add some handling for missing stuff
-    msg = MSG_TEMPLATE.format(
-        q_name=preblast.q_name,
-        event_name=preblast.event_type.name,
-        event_date=preblast.event.start_date.strftime("%m/%d"),
-        event_ao=preblast.org.name,
-    )
+    for preblast in preblast_list.items:
+        # TODO: add some handling for missing stuff
+        msg = MSG_TEMPLATE.format(
+            q_name=preblast.q_name,
+            event_name=preblast.event_type.name,
+            event_date=preblast.event.start_date.strftime("%m/%d"),
+            event_ao=preblast.org.name,
+        )
 
-    slack_bot_token = preblast.slack_settings.bot_token
-    if slack_bot_token and preblast.slack_user_id:
-        slack_client = WebClient(slack_bot_token)
-        blocks: List[orm.BaseBlock] = [
-            orm.SectionBlock(label=msg),
-            orm.ActionsBlock(
-                elements=[
-                    orm.ButtonElement(
-                        label="Fill Out Preblast",
-                        value=str(preblast.event.id),
-                        style="primary",
-                        action=actions.MSG_EVENT_PREBLAST_BUTTON,
-                    ),
-                ],
-            ),
-            # orm.InputBlock(
-            #     label="Title",
-            #     action=actions.MSG_EVENT_PREBLAST_TITLE,
-            #     element=orm.PlainTextInputElement(
-            #         placeholder="Event Title",
-            #     ),
-            #     optional=False,
-            #     hint="Studies show that fun titles generate 42% more HC's!",
-            # ),
-            # orm.InputBlock(
-            #     label="Preblast",
-            #     action=actions.MSG_EVENT_PREBLAST_MOLESKINE,
-            #     element=orm.PlainTextInputElement(placeholder="Give us an event preview!", multiline=True),
-            #     optional=False,
-            # ),
-            # orm.ActionsBlock(
-            #     elements=[
-            #         orm.ButtonElement(
-            #             label="Submit",
-            #             action=actions.MSG_EVENT_PREBLAST_SUBMIT,
-            #             style="primary",
-            #         ),
-            #     ]
-            # ),
-        ]
-        blocks = [b.as_form_field() for b in blocks]
-        slack_client.chat_postMessage(channel=preblast.slack_user_id, text=msg, blocks=blocks)
+        slack_bot_token = preblast.slack_settings.bot_token
+        if slack_bot_token and preblast.slack_user_id:
+            slack_client = WebClient(slack_bot_token)
+            blocks: List[orm.BaseBlock] = [
+                orm.SectionBlock(label=msg),
+                orm.ActionsBlock(
+                    elements=[
+                        orm.ButtonElement(
+                            label="Fill Out Preblast",
+                            value=str(preblast.event.id),
+                            style="primary",
+                            action=actions.MSG_EVENT_PREBLAST_BUTTON,
+                        ),
+                    ],
+                ),
+            ]
+            blocks = [b.as_form_field() for b in blocks]
+            slack_client.chat_postMessage(channel=preblast.slack_user_id, text=msg, blocks=blocks)
+
+
+if __name__ == "__main__":
+    send_preblast_reminders()

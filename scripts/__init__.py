@@ -3,7 +3,7 @@ import json
 
 from flask import Request, Response
 
-from scripts import calendar_images
+from scripts import backblast_reminders, calendar_images, preblast_reminders, update_special_events
 
 
 def handle(request: Request) -> Response:
@@ -12,8 +12,14 @@ def handle(request: Request) -> Response:
     event_message = base64.b64decode(data_dict["message"]["data"]).decode()
     try:
         if event_message == "hourly":
+            print("Running hourly scripts")
             calendar_images.generate_calendar_images()
-            return Response("Calendar images generated", status=200)
+            return Response("Hourly scripts complete", status=200)
+        if event_message == "daily":
+            backblast_reminders.send_backblast_reminders()
+            preblast_reminders.send_preblast_reminders()
+            update_special_events.update_special_events()
+            return Response("Daily scripts complete", status=200)
     except Exception as e:
-        print(f"Error generating calendar images: {e}")
+        print(f"Error running scripts: {e}")
         return Response(f"Error: {e}", status=200)
