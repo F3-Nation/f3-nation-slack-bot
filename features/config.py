@@ -86,9 +86,12 @@ def build_config_general_form(
     config_form.set_initial_values(
         {
             actions.CONFIG_EDITING_LOCKED: "yes" if region_record.editing_locked == 1 else "no",
-            actions.CONFIG_DEFAULT_DESTINATION: region_record.default_destination
+            actions.CONFIG_DEFAULT_DESTINATION: region_record.default_backblast_destination
             or constants.CONFIG_DESTINATION_AO["value"],
-            actions.CONFIG_DESTINATION_CHANNEL: region_record.destination_channel,
+            actions.CONFIG_DESTINATION_CHANNEL: region_record.backblast_destination_channel,
+            actions.CONFIG_DEFAULT_PREBLAST_DESTINATION: region_record.default_preblast_destination
+            or constants.CONFIG_DESTINATION_AO["value"],
+            actions.CONFIG_PREBLAST_DESTINATION_CHANNEL: region_record.preblast_destination_channel,
             actions.CONFIG_BACKBLAST_MOLESKINE_TEMPLATE: region_record.backblast_moleskin_template
             or constants.DEFAULT_BACKBLAST_MOLESKINE_TEMPLATE,
             actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE: region_record.preblast_moleskin_template
@@ -146,8 +149,10 @@ def handle_config_general_post(
     config_data = forms.CONFIG_GENERAL_FORM.get_selected_values(body)
 
     region_record.editing_locked = 1 if safe_get(config_data, actions.CONFIG_EDITING_LOCKED) == "yes" else 0
-    region_record.default_destination = safe_get(config_data, actions.CONFIG_DEFAULT_DESTINATION)
-    region_record.destination_channel = safe_get(config_data, actions.CONFIG_DESTINATION_CHANNEL)
+    region_record.default_backblast_destination = safe_get(config_data, actions.CONFIG_DEFAULT_DESTINATION)
+    region_record.backblast_destination_channel = safe_get(config_data, actions.CONFIG_DESTINATION_CHANNEL)
+    region_record.default_preblast_destination = safe_get(config_data, actions.CONFIG_DEFAULT_PREBLAST_DESTINATION)
+    region_record.preblast_destination_channel = safe_get(config_data, actions.CONFIG_PREBLAST_DESTINATION_CHANNEL)
     region_record.backblast_moleskin_template = safe_get(config_data, actions.CONFIG_BACKBLAST_MOLESKINE_TEMPLATE)
     region_record.preblast_moleskin_template = safe_get(config_data, actions.CONFIG_PREBLAST_MOLESKINE_TEMPLATE)
     region_record.strava_enabled = 1 if safe_get(config_data, actions.CONFIG_ENABLE_STRAVA) == "enable" else 0

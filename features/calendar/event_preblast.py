@@ -6,6 +6,7 @@ from logging import Logger
 from slack_sdk.web import WebClient
 
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
+from utilities import constants
 from utilities.database import DbManager
 from utilities.database.orm import (
     Attendance,
@@ -18,6 +19,15 @@ from utilities.database.orm import (
 from utilities.database.special_queries import PreblastInfo, event_attendance_query, event_preblast_query
 from utilities.helper_functions import get_user, get_user_names, safe_convert, safe_get
 from utilities.slack import actions, orm
+
+
+def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastInfo) -> str:
+    if (
+        region_record.default_preblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
+        and region_record.preblast_destination_channel
+    ):
+        return region_record.preblast_destination_channel
+    return preblast_info.event_extended.org_slack_id
 
 
 def build_event_preblast_select_form(
@@ -106,6 +116,8 @@ def build_event_preblast_form(
     view_id = safe_get(body, "view", "id")
     action_value = safe_get(body, "actions", 0, "value") or safe_get(body, "actions", 0, "selected_option", "value")
 
+    preblast_channel = get_preblast_channel(region_record, preblast_info)
+
     if action_value == "Edit Preblast" or preblast_info.user_is_q:
         form = deepcopy(EVENT_PREBLAST_FORM)
 
@@ -143,10 +155,10 @@ def build_event_preblast_form(
         title_text = "Edit Event Preblast"
         submit_button_text = "Update"
         # TODO: take out the send block if AO not associated with a channel
-        if not record.org_slack_id or not view_id or preblast_info.event_extended.event.preblast_ts:
+        if not preblast_channel or not view_id or preblast_info.event_extended.event.preblast_ts:
             form.blocks = form.blocks[:-1]
         else:
-            form.blocks[-1].label = f"When would you like to send the preblast to <#{record.org_slack_id}>?"
+            form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
     else:
         blocks = [
             *preblast_info.preblast_blocks,
@@ -155,7 +167,7 @@ def build_event_preblast_form(
         if preblast_info.event_extended.event.preblast_ts:
             blocks.append(
                 orm.SectionBlock(
-                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_info.event_extended.org_slack_id}&ts={preblast_info.event_extended.event.preblast_ts}|check it out in the channel>*"  # noqa
+                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_channel}&ts={preblast_info.event_extended.event.preblast_ts}|check it out in the channel>*"  # noqa
                 )
             )  # noqa
 
@@ -254,9 +266,11 @@ def handle_event_preblast_edit(
         q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
         q_name = (q_name or [""])[0]
         q_url = q_url[0]
+        preblast_channel = get_preblast_channel(region_record, preblast_info)
+
         if preblast_info.event_extended.event.preblast_ts or safe_get(metadata, "preblast_ts"):
             client.chat_update(
-                channel=preblast_info.event_extended.org_slack_id,
+                channel=preblast_channel,
                 ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_extended.event.preblast_ts),
                 blocks=blocks,
                 text="Event Preblast",
@@ -266,7 +280,7 @@ def handle_event_preblast_edit(
             )
         else:
             res = client.chat_postMessage(
-                channel=preblast_info.event_extended.org_slack_id,
+                channel=preblast_channel,
                 blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
@@ -276,8 +290,8 @@ def handle_event_preblast_edit(
             )
             DbManager.update_record(Event, event_id, {Event.preblast_ts: float(res["ts"])})
 
-    elif form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Schedule 24 hours before event":
-        pass  # schedule preblast
+    # elif form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Schedule 24 hours before event":
+    #     pass  # schedule preblast
     else:
         pass
 
@@ -433,8 +447,9 @@ def handle_event_preblast_action(
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
+            preblast_channel = get_preblast_channel(region_record, preblast_info)
             client.chat_update(
-                channel=preblast_info.event_extended.org_slack_id,
+                channel=preblast_channel,
                 ts=metadata["preblast_ts"],
                 blocks=blocks,
                 text="Event Preblast",
@@ -479,8 +494,9 @@ def handle_event_preblast_action(
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
+            preblast_channel = get_preblast_channel(region_record, preblast_info)
             client.chat_update(
-                channel=preblast_info.event_extended.org_slack_id,
+                channel=preblast_channel,
                 ts=body["message"]["ts"],
                 blocks=[b.as_form_field() for b in blocks],
                 text="Preblast",
@@ -547,7 +563,7 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             action=actions.EVENT_PREBLAST_SEND_OPTIONS,
             element=orm.RadioButtonsElement(
                 options=orm.as_selector_options(
-                    names=["Send now", "Schedule 24 hours before event", "Do not send"],
+                    names=["Send now", "Do not send now"],
                 ),
             ),
             optional=False,

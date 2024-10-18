@@ -119,6 +119,7 @@ def event_preblast_query(event_id: int) -> tuple[EventExtended, list[AttendanceE
             .join(EventTag, EventTag.id == Event.event_tag_id, isouter=True)
             .join(Org_x_Slack, Org_x_Slack.org_id == Event.org_id)
             .filter(Event.id == event_id)
+            .order_by(Event.start_date, Event.start_time)
         )
         record = EventExtended(*query.one_or_none())
 
@@ -140,14 +141,16 @@ def event_attendance_query(attendance_filter: List[Any] = None, event_filter: Li
             select(Attendance.event_id.distinct().label("event_id")).filter(*(attendance_filter or [])).alias()
         )
         event_records = (
-            session.query(Event, Org, EventType, Location, EventTag)
+            session.query(Event, Org, EventType, Location, EventTag, Org_x_Slack.slack_id.label("org_slack_id"))
             .select_from(Event)
             .join(Org, Org.id == Event.org_id)
             .join(EventType, EventType.id == Event.event_type_id)
             .join(Location, Location.id == Event.location_id)
             .join(EventTag, EventTag.id == Event.event_tag_id, isouter=True)
             .join(attendance_subquery, attendance_subquery.c.event_id == Event.id)
+            .join(Org_x_Slack, Org_x_Slack.org_id == Event.org_id)
             .filter(*(event_filter or []))
+            .order_by(Event.start_date, Event.start_time)
         ).all()
         return [EventExtended(*r) for r in event_records]
 

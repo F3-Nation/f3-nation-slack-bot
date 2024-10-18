@@ -159,7 +159,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
                 [a.slack_user.slack_id for a in attendance_records if a.attendance.attendance_type_id == 2], 0
             ),
             actions.BACKBLAST_COQ: [
-                a.slack_user.user_id for a in attendance_records if a.attendance.attendance_type_id == 3
+                a.slack_user.slack_id for a in attendance_records if a.attendance.attendance_type_id == 3
             ],
             actions.BACKBLAST_PAX: [a.slack_user.slack_id for a in attendance_records],
             actions.BACKBLAST_MOLESKIN: region_record.backblast_moleskin_template,
@@ -187,7 +187,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_form.set_initial_values(initial_backblast_data)
     backblast_form = add_custom_field_blocks(backblast_form, region_record)
 
-    if not (region_record.email_enabled & region_record.email_option_show):
+    if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
         backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
     # backblast_metadata = None
     if action_id == actions.BACKBLAST_EDIT_BUTTON:
@@ -244,10 +244,10 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_id = safe_get(metadata, "event_id")
     if (
-        region_record.default_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
-        and region_record.destination_channel
+        region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
+        and region_record.backblast_destination_channel
     ):
-        destination_channel = region_record.destination_channel
+        destination_channel = region_record.backblast_destination_channel
     else:
         destination_channel = the_ao
 
@@ -461,7 +461,7 @@ COUNT: {count}
 
     db_fields = {
         Event.start_date: the_date,
-        Event.org_id: event.org_slack_id,
+        Event.org_id: event.org.id,
         Event.event_type_id: event_type,
         Event.backblast_ts: res["ts"],
         Event.backblast: backblast_parsed,

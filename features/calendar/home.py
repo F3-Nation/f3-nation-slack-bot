@@ -106,7 +106,7 @@ def build_home_form(
             element=orm.CheckboxInputElement(
                 options=orm.as_selector_options(
                     names=["Show only open Q slots", "Show only my events", "Include events from nearby regions"],
-                    values=[actions.FILTER_OPEN_Q, actions.FILTER_MY_EVENTS, actions.FILTER_NEARBY_REGIONS],
+                    values=[actions.FILTER_OPEN_Q, actions.FILTER_MY_EVENTS],  # , actions.FILTER_NEARBY_REGIONS],
                 ),
             ),
             dispatch_action=True,
@@ -177,7 +177,7 @@ def build_home_form(
     open_q_only = actions.FILTER_OPEN_Q in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or [])
     # Run the query
     # TODO: implement pagination / dynamic limit
-    events: list[CalendarHomeQuery] = home_schedule_query(user_id, filter, limit=5, open_q_only=open_q_only)
+    events: list[CalendarHomeQuery] = home_schedule_query(user_id, filter, limit=100, open_q_only=open_q_only)
 
     if actions.FILTER_MY_EVENTS in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or []):
         events = [x for x in events if x.user_attending]

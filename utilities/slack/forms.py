@@ -306,6 +306,34 @@ CONFIG_GENERAL_FORM = orm.BlockView(
         ),
         orm.DividerBlock(),
         orm.InputBlock(
+            label="Default Slack channel desination for preblasts",
+            action=actions.CONFIG_DEFAULT_PREBLAST_DESTINATION,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                initial_value=constants.CONFIG_DESTINATION_AO["value"],
+                options=orm.as_selector_options(
+                    names=[
+                        constants.CONFIG_DESTINATION_AO["name"],
+                        # constants.CONFIG_DESTINATION_CURRENT["name"],
+                        constants.CONFIG_DESTINATION_SPECIFIED["name"],
+                    ],
+                    values=[
+                        constants.CONFIG_DESTINATION_AO["value"],
+                        # constants.CONFIG_DESTINATION_CURRENT["value"],
+                        constants.CONFIG_DESTINATION_SPECIFIED["value"],
+                    ],
+                ),
+            ),
+        ),
+        orm.InputBlock(
+            label="Specified Preblast Channel",
+            action=actions.CONFIG_PREBLAST_DESTINATION_CHANNEL,
+            optional=True,
+            element=orm.ChannelsSelectElement(placeholder="Select the channel..."),
+            hint="Only required if 'Specified Channel' is selected above.",
+        ),
+        orm.DividerBlock(),
+        orm.InputBlock(
             label="Default Slack channel desination for backblasts",
             action=actions.CONFIG_DEFAULT_DESTINATION,
             optional=False,

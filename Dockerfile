@@ -1,5 +1,6 @@
 FROM python:3.12
 
+ARG CACHEBUST=1
 ENV PYTHONUNBUFFERED True
 
 COPY requirements.txt ./

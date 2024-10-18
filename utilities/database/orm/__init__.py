@@ -131,8 +131,10 @@ class SlackSettings:
     email_option_show: Optional[int] = None
     postie_format: Optional[int] = None
     editing_locked: Optional[int] = None
-    default_destination: Optional[str] = None
-    destination_channel: Optional[str] = None
+    default_backblast_destination: Optional[str] = None
+    backblast_destination_channel: Optional[str] = None
+    default_preblast_destination: Optional[str] = None
+    preblast_destination_channel: Optional[str] = None
     backblast_moleskin_template: Optional[dict[str, Any]] = None
     preblast_moleskin_template: Optional[dict[str, Any]] = None
     strava_enabled: Optional[int] = None
