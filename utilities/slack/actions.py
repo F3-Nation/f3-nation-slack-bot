@@ -257,6 +257,7 @@ DB_ADMIN_UPGRADE = "db-admin-upgrade"
 DB_ADMIN_DOWNGRADE = "db-admin-downgrade"
 DB_ADMIN_RESET = "db-admin-reset"
 SECRET_MENU_CALENDAR_IMAGES = "secret-menu-calendar-images"
+SECRET_MENU_PAXMINER_MIGRATION = "secret-menu-paxminer-migration"
 
 ACTION_PREFIXES = [
     STRAVA_ACTIVITY_BUTTON,

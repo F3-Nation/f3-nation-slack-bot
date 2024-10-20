@@ -27,46 +27,56 @@ GLOBAL_SESSION = None
 GLOBAL_SCHEMA = None
 
 
-def get_engine(echo=False, schema=None) -> Engine:
-    host = os.environ[constants.DATABASE_HOST]
-    user = os.environ[constants.ADMIN_DATABASE_USER]
-    passwd = os.environ[constants.ADMIN_DATABASE_PASSWORD]
-    database = schema or os.environ[constants.ADMIN_DATABASE_SCHEMA]
-    # db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
-    # db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
-
-    # engine = sqlalchemy.create_engine(
-    #     sqlalchemy.engine.url.URL.create(
-    #         drivername="postgresql+pg8000",
-    #         username=user,
-    #         password=passwd,
-    #         database=database,
-    #         query={"unix_sock": f"{host}/.s.PGSQL.5432"},
-    #     ),
-    # )
-
-    if constants.LOCAL_DEVELOPMENT:
-        db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
+def get_engine(echo=False, schema=None, paxminer_db=False) -> Engine:
+    if paxminer_db:
+        host = os.environ[constants.PAXMINER_DATABASE_HOST]
+        user = os.environ[constants.PAXMINER_DATABASE_USER]
+        passwd = os.environ[constants.PAXMINER_DATABASE_PASSWORD]
+        database = schema or os.environ[constants.PAXMINER_DATABASE_SCHEMA]
+        db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
         engine = sqlalchemy.create_engine(db_url, echo=echo)
+        print(engine.url)
+        return engine
     else:
-        connector = Connector()
+        host = os.environ[constants.DATABASE_HOST]
+        user = os.environ[constants.ADMIN_DATABASE_USER]
+        passwd = os.environ[constants.ADMIN_DATABASE_PASSWORD]
+        database = schema or os.environ[constants.ADMIN_DATABASE_SCHEMA]
+        # db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
+        # db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
 
-        def get_connection():
-            conn: pg8000.dbapi.Connection = connector.connect(
-                instance_connection_string=host,
-                driver="pg8000",
-                user=user,
-                password=passwd,
-                db=database,
-                ip_type=IPTypes.PUBLIC,
-            )
-            return conn
+        # engine = sqlalchemy.create_engine(
+        #     sqlalchemy.engine.url.URL.create(
+        #         drivername="postgresql+pg8000",
+        #         username=user,
+        #         password=passwd,
+        #         database=database,
+        #         query={"unix_sock": f"{host}/.s.PGSQL.5432"},
+        #     ),
+        # )
 
-        engine = sqlalchemy.create_engine("postgresql+pg8000://", creator=get_connection, echo=echo)
-    return engine
+        if constants.LOCAL_DEVELOPMENT:
+            db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
+            engine = sqlalchemy.create_engine(db_url, echo=echo)
+        else:
+            connector = Connector()
+
+            def get_connection():
+                conn: pg8000.dbapi.Connection = connector.connect(
+                    instance_connection_string=host,
+                    driver="pg8000",
+                    user=user,
+                    password=passwd,
+                    db=database,
+                    ip_type=IPTypes.PUBLIC,
+                )
+                return conn
+
+            engine = sqlalchemy.create_engine("postgresql+pg8000://", creator=get_connection, echo=echo)
+        return engine
 
 
-def get_session(echo=False, schema=None):
+def get_session(echo=False, schema=None, paxminer_db=False):
     if GLOBAL_SESSION:
         return GLOBAL_SESSION
 

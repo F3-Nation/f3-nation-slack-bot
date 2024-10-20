@@ -111,6 +111,7 @@ ACTION_MAPPER = {
     actions.DB_ADMIN_UPGRADE: (db_admin.handle_db_admin_upgrade, False),
     actions.DB_ADMIN_RESET: (db_admin.handle_db_admin_reset, False),
     actions.SECRET_MENU_CALENDAR_IMAGES: (db_admin.handle_calendar_image_refresh, False),
+    actions.SECRET_MENU_PAXMINER_MIGRATION: (db_admin.handle_paxminer_migration, False),
 }
 
 VIEW_CLOSED_MAPPER = {

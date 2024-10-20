@@ -10,6 +10,7 @@ from alembic.runtime import migration
 from scripts.calendar_images import generate_calendar_images
 from utilities.database import get_engine
 from utilities.database.orm import SlackSettings
+from utilities.database.paxminer_migration import run_paxminer_migration
 from utilities.helper_functions import safe_get
 from utilities.slack import actions, orm
 
@@ -122,6 +123,17 @@ def handle_calendar_image_refresh(
     generate_calendar_images()
 
 
+def handle_paxminer_migration(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    slack_team_id = safe_get(body, "team", "id")
+    run_paxminer_migration("f3stcharles", slack_team_id)
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -129,6 +141,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Calendar Images",
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
+                ),
+                orm.ButtonElement(
+                    label="Paxminer Migration",
+                    action=actions.SECRET_MENU_PAXMINER_MIGRATION,
                 ),
             ],
         ),
