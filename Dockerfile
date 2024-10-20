@@ -6,7 +6,7 @@ ENV PYTHONUNBUFFERED True
 COPY requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
-RUN python -m playwright install-deps chromium
+RUN python -m playwright install --with-deps chromium
 
 ENV APP_HOME /app
 WORKDIR $APP_HOME
