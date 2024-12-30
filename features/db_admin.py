@@ -2,13 +2,13 @@ import copy
 import os
 from logging import Logger
 
+from f3_data_models.utils import get_engine
 from slack_sdk.web import WebClient
 from sqlalchemy import engine
 
 from alembic import command, config, script
 from alembic.runtime import migration
 from scripts.calendar_images import generate_calendar_images
-from utilities.database import get_engine
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration import run_paxminer_migration
 from utilities.helper_functions import safe_get

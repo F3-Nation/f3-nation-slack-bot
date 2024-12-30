@@ -9,25 +9,27 @@ from datetime import date, timedelta
 import boto3
 import dataframe_image as dfi
 import pandas as pd
+from f3_data_models.models import (
+    Attendance,
+    AttendanceType,
+    Event,
+    EventTag,
+    EventTag_x_Event,
+    EventTag_x_Org,
+    EventType,
+    EventType_x_Event,
+    Org,
+    Org_x_SlackSpace,
+    SlackSpace,
+)
+
+# import dataframe_image as dfi
+from f3_data_models.utils import get_session
 from sqlalchemy import and_, case, func, select
-from sqlalchemy.orm import aliased
+from sqlalchemy.orm import aliased, joinedload
 from sqlalchemy.sql.functions import coalesce
 
 from utilities.constants import EVENT_TAG_COLORS, LOCAL_DEVELOPMENT
-
-# import dataframe_image as dfi
-from utilities.database import get_session
-from utilities.database.orm import (
-    Attendance,
-    Event,
-    EventTag,
-    EventTag_x_Org,
-    EventType,
-    Org,
-    Org_x_Slack,
-    SlackSpace,
-    User,
-)
 from utilities.helper_functions import update_local_region_records
 
 
@@ -63,12 +65,15 @@ def generate_calendar_images():
         firstq_subquery = (
             select(
                 Attendance.event_id,
-                User.f3_name.label("q_name"),
+                Attendance.user.f3_name.label("q_name"),
                 func.row_number().over(partition_by=Attendance.event_id, order_by=Attendance.created).label("rn"),
             )
-            .select_from(Attendance)
-            .join(User, Attendance.user_id == User.id)
-            .filter(Attendance.attendance_type_id == 2)
+            .select(Attendance)
+            .options(
+                joinedload(Attendance.attendance_types),
+                joinedload(Attendance.user),
+            )
+            .filter(Attendance.attendance_types.any(AttendanceType.id == 2))
             .alias()
         )
 
@@ -77,11 +82,12 @@ def generate_calendar_images():
                 Attendance.event_id,
                 func.max(
                     case(
-                        (Attendance.attendance_type_id == 2, Attendance.updated),
+                        (Attendance.attendance_types.any(AttendanceType.id == 2), Attendance.updated),
                     )
                 ).label("q_last_updated"),
             )
             .select_from(Attendance)
+            .options(joinedload(Attendance.attendance_types))
             .group_by(Attendance.event_id)
             .alias()
         )
@@ -106,8 +112,10 @@ def generate_calendar_images():
                 RegionOrg.id.label("region_id"),
             )
             .select_from(Event)
-            .outerjoin(EventTag, Event.event_tag_id == EventTag.id)
-            .join(EventType, Event.event_type_id == EventType.id)
+            .outerjoin(EventTag_x_Event, Event.id == EventTag_x_Event.event_id)
+            .outerjoin(EventTag, EventTag_x_Event.event_tag_id == EventTag.id)
+            .join(EventType_x_Event, Event.id == EventType_x_Event.event_id)
+            .join(EventType, EventType_x_Event.event_type_id == EventType.id)
             .join(Org, Event.org_id == Org.id)
             .join(RegionOrg, RegionOrg.id == Org.parent_id)
             .outerjoin(
@@ -139,10 +147,10 @@ def generate_calendar_images():
         color_results = color_query.all()
 
         region_org_records = (
-            session.query(Org, Org_x_Slack, SlackSpace)
+            session.query(Org, Org_x_SlackSpace, SlackSpace)
             .select_from(Org)
-            .join(Org_x_Slack, Org.id == Org_x_Slack.org_id)
-            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
+            .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
             .filter(Org.org_type_id == 2)
             .all()
         )

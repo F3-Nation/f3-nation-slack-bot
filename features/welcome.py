@@ -3,14 +3,12 @@ import json
 import random
 from logging import Logger
 
+from f3_data_models.models import SlackSpace
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities import constants
-from utilities.database import DbManager
-from utilities.database.orm import (
-    SlackSettings,
-    SlackSpace,
-)
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     safe_get,
     update_local_region_records,

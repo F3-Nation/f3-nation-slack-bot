@@ -4,15 +4,13 @@ import os
 from logging import Logger
 
 from cryptography.fernet import Fernet
+from f3_data_models.models import SlackSpace
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from features import db_admin
 from utilities import constants
-from utilities.database import DbManager
-from utilities.database.orm import (
-    SlackSettings,
-    SlackSpace,
-)
+from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_user_permission_list
 from utilities.helper_functions import (
     get_user,

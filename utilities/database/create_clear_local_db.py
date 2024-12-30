@@ -8,10 +8,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 import logging
 
+from f3_data_models import models
+from f3_data_models.utils import get_engine, get_session
 from sqlalchemy.engine import Engine
 from sqlalchemy_utils import create_database, database_exists
-
-from utilities.database import get_engine, get_session, orm
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -26,32 +26,32 @@ def create_tables():
 
     schema_table_map = {
         "f3": [
-            orm.OrgType,
-            orm.Org,
-            orm.EventCategory,
-            orm.EventType,
-            orm.Location,
-            orm.Event,
-            orm.EventType_x_Org,
-            orm.AttendanceType,
-            orm.User,
-            orm.Attendance,
-            orm.SlackUser,
-            orm.EventTag,
-            orm.EventTag_x_Org,
-            orm.Role,
-            orm.Permission,
-            orm.Role_x_Permission,
-            orm.Role_x_User_x_Org,
-            orm.Achievement,
-            orm.Achievement_x_Org,
-            orm.Achievement_x_User,
-            orm.SlackSpace,
-            orm.Org_x_Slack,
+            models.OrgType,
+            models.Org,
+            models.EventCategory,
+            models.EventType,
+            models.Location,
+            models.Event,
+            models.EventType_x_Org,
+            models.AttendanceType,
+            models.User,
+            models.Attendance,
+            models.SlackUser,
+            models.EventTag,
+            models.EventTag_x_Org,
+            models.Role,
+            models.Permission,
+            models.Role_x_Permission,
+            models.Role_x_User_x_Org,
+            models.Achievement,
+            models.Achievement_x_Org,
+            models.Achievement_x_User,
+            models.SlackSpace,
+            models.Org_x_SlackSpace,
         ],
         # "f3devregion": [
-        #     orm.AchievementsList,
-        #     orm.AchievementsAwarded,
+        #     models.AchievementsList,
+        #     models.AchievementsAwarded,
         # ],
     }
 
@@ -61,7 +61,7 @@ def create_tables():
         if not database_exists(engine.url):
             create_database(engine.url)
         with engine.connect() as conn:
-            # orm.BaseClass.metadata.create_all(bind=conn, tables=tables)
+            # models.BaseClass.metadata.create_all(bind=conn, tables=tables)
             conn.commit()
         engine.dispose()
 
@@ -76,7 +76,7 @@ def initialize_tables():
     # users = client.users_list().get("members")
 
     # user_list = [
-    #     orm.User(
+    #     models.User(
     #         id=i + 1,
     #         f3_name=u["profile"]["display_name"] or u["profile"]["real_name"],
     #         email=u["profile"].get("email") or u["id"],
@@ -86,7 +86,7 @@ def initialize_tables():
     # ]
 
     # slack_user_list = [
-    #     orm.SlackUser(
+    #     models.SlackUser(
     #         id=i + 1,
     #         slack_id=u["id"],
     #         slack_team_id=u["team_id"],
@@ -99,17 +99,17 @@ def initialize_tables():
     # ]
 
     achievement_list = [
-        orm.Achievement(
+        models.Achievement(
             name="The Priest",
             description="Post for 25 QSource lessons",
             verb="posting for 25 QSource lessons",
         ),
-        orm.Achievement(
+        models.Achievement(
             name="The Monk",
             description="Post at 4 QSources in a month",
             verb="posting at 4 QSources in a month",
         ),
-        orm.Achievement(
+        models.Achievement(
             name="Leader of Men",
             description="Q at 4 beatdowns in a month",
             verb="Qing at 4 beatdowns in a month",
@@ -117,67 +117,69 @@ def initialize_tables():
     ]
 
     org_type_list = [
-        orm.OrgType(name="AO"),
-        orm.OrgType(name="Region"),
-        orm.OrgType(name="Area"),
-        orm.OrgType(name="Sector"),
+        models.OrgType(name="AO"),
+        models.OrgType(name="Region"),
+        models.OrgType(name="Area"),
+        models.OrgType(name="Sector"),
     ]
 
     event_category_list = [
-        orm.EventCategory(
+        models.EventCategory(
             name="1st F - Core Workout", description="The core F3 activity - must meet all 5 core principles."
         ),
-        orm.EventCategory(name="1st F - Pre Workout", description="Pre-workout activities (pre-rucks, pre-runs, etc)."),
-        orm.EventCategory(
+        models.EventCategory(
+            name="1st F - Pre Workout", description="Pre-workout activities (pre-rucks, pre-runs, etc)."
+        ),
+        models.EventCategory(
             name="1st F - Off the books",
             description="Fitness activities that didn't meet all 5 core principles (unscheduled, open to all men, etc).",  # noqa: E501
         ),
-        orm.EventCategory(name="2nd F - Fellowship", description="General category for 2nd F events."),
-        orm.EventCategory(name="3rd F - Faith", description="General category for 3rd F events."),
+        models.EventCategory(name="2nd F - Fellowship", description="General category for 2nd F events."),
+        models.EventCategory(name="3rd F - Faith", description="General category for 3rd F events."),
     ]
 
     event_type_list = [
-        orm.EventType(name="Bootcamp", category_id=1, acronym="BC"),
-        orm.EventType(name="Run", category_id=1, acronym="RU"),
-        orm.EventType(name="Ruck", category_id=1, acronym="RK"),
-        orm.EventType(name="QSource", category_id=3, acronym="QS"),
+        models.EventType(name="Bootcamp", category_id=1, acronym="BC"),
+        models.EventType(name="Run", category_id=1, acronym="RU"),
+        models.EventType(name="Ruck", category_id=1, acronym="RK"),
+        models.EventType(name="QSource", category_id=3, acronym="QS"),
     ]
 
     attendance_type_list = [
-        orm.AttendanceType(type="PAX"),
-        orm.AttendanceType(type="Q"),
-        orm.AttendanceType(type="Co-Q"),
+        models.AttendanceType(type="PAX"),
+        models.AttendanceType(type="Q"),
+        models.AttendanceType(type="Co-Q"),
     ]
 
     event_tag_list = [
-        orm.EventTag(name="Open", color="Green"),
-        orm.EventTag(name="VQ", color="Blue"),
-        orm.EventTag(name="Manniversary", color="Yellow"),
-        orm.EventTag(name="Convergence", color="Orange"),
+        models.EventTag(name="Open", color="Green"),
+        models.EventTag(name="VQ", color="Blue"),
+        models.EventTag(name="Manniversary", color="Yellow"),
+        models.EventTag(name="Convergence", color="Orange"),
     ]
 
     role_list = [
-        orm.Role(name="Admin"),
+        models.Role(name="Admin"),
     ]
 
     permission_list = [
-        orm.Permission(name="All"),
-        # orm.Permission(name="Create Event"),
-        # orm.Permission(name="Edit Event"),
-        # orm.Permission(name="Delete Event"),
-        # orm.Permission(name="Create User"),
-        # orm.Permission(name="Edit User"),
-        # orm.Permission(name="Delete User"),
-        # orm.Permission(name="Create Role"),
-        # orm.Permission(name="Edit Role"),
-        # orm.Permission(name="Delete Role"),
-        # orm.Permission(name="Create Permission"),
-        # orm.Permission(name="Edit Permission"),
-        # orm.Permission(name="Delete Permission"),
+        models.Permission(name="All"),
+        # models.Permission(name="Create Event"),
+        # models.Permission(name="Edit Event"),
+        # models.Permission(name="Delete Event"),
+        # models.Permission(name="Create User"),
+        # models.Permission(name="Edit User"),
+        # models.Permission(name="Delete User"),
+        # models.Permission(name="Create Role"),
+        # models.Permission(name="Edit Role"),
+        # models.Permission(name="Delete Role"),
+        # models.Permission(name="Create Permission"),
+        # models.Permission(name="Edit Permission"),
+        # models.Permission(name="Delete Permission"),
     ]
 
     role_x_permission_list = [
-        orm.Role_x_Permission(role_id=1, permission_id=1),
+        models.Role_x_Permission(role_id=1, permission_id=1),
     ]
 
     session = get_session(schema="f3")

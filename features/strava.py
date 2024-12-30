@@ -6,12 +6,13 @@ from logging import Logger
 from typing import Any, Dict, List
 
 import requests
+from f3_data_models.models import SlackUser
+from f3_data_models.utils import DbManager
 from requests_oauthlib import OAuth2Session
 from slack_sdk import WebClient
 
 from utilities import constants
-from utilities.database import DbManager
-from utilities.database.orm import SlackSettings, SlackUser
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import parse_rich_block, replace_user_channel_ids, safe_get
 from utilities.slack import actions, forms
 from utilities.slack import orm as slack_orm

@@ -1,18 +1,15 @@
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any, List, Tuple
 
-from sqlalchemy import and_, case, func, select
-
-from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
-from utilities.database import get_session
-from utilities.database.orm import (
+from f3_data_models.models import (
     Attendance,
+    Attendance_x_AttendanceType,
     Event,
     EventTag,
     EventType,
+    EventType_x_Event,
     Location,
     Org,
-    Org_x_Slack,
     Permission,
     Role,
     Role_x_Permission,
@@ -20,14 +17,18 @@ from utilities.database.orm import (
     SlackUser,
     User,
 )
-from utilities.slack import orm
+from f3_data_models.utils import _joinedloads, get_session
+from sqlalchemy import and_, case, func, select
+from sqlalchemy.orm import joinedload
+
+from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
 
 
 @dataclass
 class CalendarHomeQuery:
     event: Event
     org: Org
-    event_type: EventType
+    event_types: List[EventType]
     planned_qs: str = None
     user_attending: int = None
     user_q: int = None
@@ -44,19 +45,23 @@ def home_schedule_query(
     subquery = (
         select(
             Attendance.event_id,
-            func.string_agg(case((Attendance.attendance_type_id.in_([2, 3]), User.f3_name), else_=None), ",").label(
-                "planned_qs"
-            ),
+            func.string_agg(
+                case((Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]), User.f3_name), else_=None), ","
+            ).label("planned_qs"),
             func.max(case((Attendance.user_id == user_id, 1), else_=0)).label("user_attending"),
             func.max(
                 case(
-                    (and_(Attendance.user_id == user_id, Attendance.attendance_type_id.in_([2, 3])), 1),
+                    (
+                        and_(Attendance.user_id == user_id, Attendance_x_AttendanceType.attendance_type_id.in_([2, 3])),
+                        1,
+                    ),
                     else_=0,
                 )
             ).label("user_q"),
         )
         .select_from(Attendance)
         .join(User, User.id == Attendance.user_id)
+        .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
         .group_by(Attendance.event_id)
         .alias()
     )
@@ -66,18 +71,39 @@ def home_schedule_query(
 
     # Create the main query
     query = (
-        session.query(Event, Org, EventType, subquery.c.planned_qs, subquery.c.user_attending, subquery.c.user_q)
+        select(Event, Org, EventType, subquery.c.planned_qs, subquery.c.user_attending, subquery.c.user_q)
         .join(Org, Org.id == Event.org_id)
-        .join(EventType, EventType.id == Event.event_type_id)
+        .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
+        .join(EventType, EventType.id == EventType_x_Event.event_type_id)
         .outerjoin(subquery, subquery.c.event_id == Event.id)
         .filter(*filters)
-        .order_by(Event.start_date, Org.name, Event.start_time)
+        .order_by(Event.start_date, Event.id, Org.name, Event.start_time)
         .limit(limit)
     )
 
     # To execute the query and fetch all results
-    results = query.all()
-    output = [CalendarHomeQuery(*result) for result in results]
+    result = session.execute(query)
+    results: List[Tuple[Event, Org, EventType, str, str, str]] = result.scalars().all()
+
+    # Turn EventType into a list of EventType objects for each Event.id
+    event_types = {}
+    for r in results:
+        event_types.setdefault(r[0].id, []).append(r[2])
+
+    # Turn the results into a list of CalendarHomeQuery objects
+    output = []
+
+    for r in results:
+        output.append(
+            CalendarHomeQuery(
+                event=r[0],
+                org=r[1],
+                event_types=event_types.get(r[0].id, []),
+                planned_qs=r[3],
+                user_attending=r[4],
+                user_q=r[5],
+            )
+        )
     session.close()
     return output
 
@@ -86,9 +112,9 @@ def home_schedule_query(
 class EventExtended:
     event: Event
     org: Org
-    event_type: EventType
+    event_types: List[EventType]
     location: Location
-    event_tag: EventTag
+    event_tags: List[EventTag]
     org_slack_id: str
 
 
@@ -99,60 +125,23 @@ class AttendanceExtended:
     slack_user: SlackUser
 
 
-@dataclass
-class PreblastInfo:
-    event_extended: EventExtended
-    attendance_records: list[AttendanceExtended]
-    preblast_blocks: list[orm.BaseBlock]
-    action_blocks: list[orm.BaseElement]
-    user_is_q: bool = False
-
-
-def event_preblast_query(event_id: int) -> tuple[EventExtended, list[AttendanceExtended]]:
-    with get_session() as session:
-        query = (
-            session.query(Event, Org, EventType, Location, EventTag, Org_x_Slack.slack_id.label("org_slack_id"))
-            .select_from(Event)
-            .join(Org, Org.id == Event.org_id)
-            .join(EventType, EventType.id == Event.event_type_id)
-            .join(Location, Location.id == Event.location_id)
-            .join(EventTag, EventTag.id == Event.event_tag_id, isouter=True)
-            .join(Org_x_Slack, Org_x_Slack.org_id == Event.org_id)
-            .filter(Event.id == event_id)
-            .order_by(Event.start_date, Event.start_time)
-        )
-        record = EventExtended(*query.one_or_none())
-
-        query = (
-            session.query(Attendance, User, SlackUser)
-            .select_from(Attendance)
-            .join(User)
-            .join(SlackUser)
-            .filter(Attendance.event_id == event_id, Attendance.is_planned)
-        )
-        attendance_records = [AttendanceExtended(*r) for r in query.all()]
-
-    return record, attendance_records
-
-
-def event_attendance_query(attendance_filter: List[Any] = None, event_filter: List[Any] = None) -> List[EventExtended]:
+def event_attendance_query(attendance_filter: List[Any] = None, event_filter: List[Any] = None) -> List[Event]:
     with get_session() as session:
         attendance_subquery = (
-            select(Attendance.event_id.distinct().label("event_id")).filter(*(attendance_filter or [])).alias()
+            select(Attendance.event_id.distinct().label("event_id"))
+            .options(joinedload(Attendance.attendance_types))
+            .filter(*(attendance_filter or []))
+            .alias()
         )
-        event_records = (
-            session.query(Event, Org, EventType, Location, EventTag, Org_x_Slack.slack_id.label("org_slack_id"))
-            .select_from(Event)
-            .join(Org, Org.id == Event.org_id)
-            .join(EventType, EventType.id == Event.event_type_id)
-            .join(Location, Location.id == Event.location_id)
-            .join(EventTag, EventTag.id == Event.event_tag_id, isouter=True)
+        query = (
+            select(Event)
             .join(attendance_subquery, attendance_subquery.c.event_id == Event.id)
-            .join(Org_x_Slack, Org_x_Slack.org_id == Event.org_id)
             .filter(*(event_filter or []))
             .order_by(Event.start_date, Event.start_time)
-        ).all()
-        return [EventExtended(*r) for r in event_records]
+        )
+        query = _joinedloads(Event, query, "all")
+        event_records = session.scalars(query).unique().all()
+        return event_records
 
 
 def get_user_permission_list(user_id: int, org_id: int) -> list[Permission]:

@@ -3,17 +3,17 @@ from datetime import datetime
 from logging import Logger
 
 import pytz
-from slack_sdk.web import WebClient
-from sqlalchemy.exc import ProgrammingError
-
-from utilities.database import DbManager
-from utilities.database.orm import (
+from f3_data_models.models import (
     Achievement,
     Achievement_x_Org,
     Achievement_x_User,
-    SlackSettings,
     SlackSpace,
 )
+from f3_data_models.utils import DbManager
+from slack_sdk.web import WebClient
+from sqlalchemy.exc import ProgrammingError
+
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     get_user,
     safe_convert,
@@ -75,7 +75,7 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
     achievement_id = safe_convert(safe_get(achievement_data, actions.ACHIEVEMENT_SELECT), int)
     achievement_date = datetime.strptime(safe_get(achievement_data, actions.ACHIEVEMENT_DATE), "%Y-%m-%d")
 
-    achievement_info: Achievement = DbManager.get_record(Achievement, achievement_id)
+    achievement_info: Achievement = DbManager.get(Achievement, achievement_id)
     achievement_name = achievement_info.name
     achievement_verb = achievement_info.verb
 

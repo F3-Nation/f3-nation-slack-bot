@@ -3,10 +3,11 @@ import re
 from logging import Logger
 
 import requests
+from f3_data_models.models import Org, Role_x_User_x_Org, SlackUser
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
-from utilities.database import DbManager
-from utilities.database.orm import Org, Role_x_User_x_Org, SlackSettings, SlackUser
+from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users_list
 from utilities.helper_functions import get_user, safe_get
 from utilities.slack import actions, orm
@@ -20,7 +21,7 @@ def build_region_form(
     region_record: SlackSettings,
 ):
     form = copy.deepcopy(REGION_FORM)
-    org_record: Org = DbManager.get_record(Org, region_record.org_id)
+    org_record: Org = DbManager.get(Org, region_record.org_id)
 
     admin_users = get_admin_users_list(region_record.org_id)
     admin_user_ids = [u.slack_id for u in admin_users]
@@ -29,7 +30,7 @@ def build_region_form(
         {
             actions.REGION_NAME: org_record.name,
             actions.REGION_DESCRIPTION: org_record.description,
-            actions.REGION_LOGO: org_record.logo,
+            actions.REGION_LOGO: org_record.logo_url,
             actions.REGION_WEBSITE: org_record.website,
             actions.REGION_EMAIL: org_record.email,
             actions.REGION_TWITTER: org_record.twitter,
@@ -76,7 +77,7 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     fields = {
         Org.name: safe_get(form_data, actions.REGION_NAME),
         Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
-        Org.logo: logo,
+        Org.logo_url: logo,
         Org.website: website,
         Org.email: email,
         Org.twitter: safe_get(form_data, actions.REGION_TWITTER),

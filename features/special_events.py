@@ -2,10 +2,11 @@ import copy
 import json
 from logging import Logger
 
+from f3_data_models.models import SlackSpace
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
-from utilities.database import DbManager
-from utilities.database.orm import SlackSettings, SlackSpace
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get, update_local_region_records
 from utilities.slack import actions, orm
 

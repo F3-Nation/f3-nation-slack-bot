@@ -1,10 +1,17 @@
 from typing import Dict, List
 
+from f3_data_models.models import (
+    Attendance,
+    Event,
+    Org_x_SlackSpace,
+    SlackSpace,
+    SlackUser,
+)
+from f3_data_models.utils import DbManager, get_engine
 from sqlalchemy import text
 
-from utilities.database import DbManager, get_engine
+from utilities.database.orm import SlackSettings
 
-from .orm import Attendance, Event, Org_x_Slack, SlackSettings, SlackSpace, SlackUser
 from .orm.paxminer import Attendance as PaxminerAttendance
 from .orm.paxminer import Backblast, PaxminerRegion
 
@@ -140,7 +147,7 @@ def run_paxminer_migration(from_pm_schema: str, slack_team_id: str):
     # insert paxminer data
 
     # region settings
-    slack_space: SlackSpace = DbManager.get_record(SlackSpace, slack_team_id)
+    slack_space: SlackSpace = DbManager.get(SlackSpace, slack_team_id)
     slack_settings = SlackSettings(**slack_space.settings)
     # slack_settings = convert_settings(slack_settings, paxminer_region)
     # DbManager.update_record(
@@ -148,8 +155,8 @@ def run_paxminer_migration(from_pm_schema: str, slack_team_id: str):
     # )
 
     # past events
-    org_x_slack: List[Org_x_Slack] = DbManager.find_records(Org_x_Slack, filters=[True])
-    slack_org_dict = {org.slack_id: org.org_id for org in org_x_slack}
+    org_x_slack_space: List[Org_x_SlackSpace] = DbManager.find_records(Org_x_SlackSpace, filters=[True])
+    slack_org_dict = {org.slack_id: org.org_id for org in org_x_slack_space}
     events = convert_events(paxminer_backblasts, slack_org_dict, region_org_id=slack_settings.org_id)
     print(len(events))
     print(len(paxminer_backblasts))

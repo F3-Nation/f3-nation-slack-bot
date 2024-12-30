@@ -7,22 +7,24 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import List
 
-from slack_sdk.web import WebClient
-from sqlalchemy import and_, func, select
-from sqlalchemy.orm import aliased
-
-from utilities.database import get_session
-from utilities.database.orm import (
+from f3_data_models.models import (
     Attendance,
+    Attendance_x_AttendanceType,
     Event,
     EventType,
+    EventType_x_Event,
     Org,
-    Org_x_Slack,
-    SlackSettings,
+    Org_x_SlackSpace,
     SlackSpace,
     SlackUser,
     User,
 )
+from f3_data_models.utils import get_session
+from slack_sdk.web import WebClient
+from sqlalchemy import and_, func, select
+from sqlalchemy.orm import aliased
+
+from utilities.database.orm import SlackSettings
 from utilities.slack import actions, orm
 
 MSG_TEMPLATE = "Hey there, {q_name}! I hope that the {event_name} on {event_date} at {event_ao} went well! I have not seen a backblast posted for this event yet... Please click the button below to fill out the backblast so we can track those stats!"  # noqa
@@ -57,7 +59,8 @@ class BackblastList:
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
             .join(SlackUser, User.id == SlackUser.user_id)
-            .filter(Attendance.attendance_type_id == 2)
+            .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
 
@@ -73,10 +76,11 @@ class BackblastList:
             )
             .select_from(Event)
             .join(Org, Org.id == Event.org_id)
-            .join(EventType, EventType.id == Event.event_type_id)
+            .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
+            .join(EventType, EventType.id == EventType_x_Event.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
-            .join(Org_x_Slack, Org_x_Slack.org_id == Org.id)
-            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
+            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == Org.id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
             .join(
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),

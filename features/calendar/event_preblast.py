@@ -1,24 +1,38 @@
 import datetime
 import json
 from copy import deepcopy
+from dataclasses import dataclass
 from logging import Logger
+from typing import List
 
+from f3_data_models.models import (
+    Attendance,
+    Attendance_x_AttendanceType,
+    AttendanceType,
+    Event,
+    EventTag,
+    EventTag_x_Event,
+    EventTag_x_Org,
+    Location,
+)
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
 from utilities import constants
-from utilities.database import DbManager
-from utilities.database.orm import (
-    Attendance,
-    Event,
-    EventTag,
-    EventTag_x_Org,
-    Location,
-    SlackSettings,
-)
-from utilities.database.special_queries import PreblastInfo, event_attendance_query, event_preblast_query
+from utilities.database.orm import SlackSettings
+from utilities.database.special_queries import event_attendance_query
 from utilities.helper_functions import get_user, get_user_names, safe_convert, safe_get
 from utilities.slack import actions, orm
+
+
+@dataclass
+class PreblastInfo:
+    event_record: Event
+    attendance_records: list[Attendance]
+    preblast_blocks: list[orm.BaseBlock]
+    action_blocks: list[orm.BaseElement]
+    user_is_q: bool = False
 
 
 def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastInfo) -> str:
@@ -27,7 +41,7 @@ def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastIn
         and region_record.preblast_destination_channel
     ):
         return region_record.preblast_destination_channel
-    return preblast_info.event_extended.org_slack_id
+    return preblast_info.event_record.org.meta.get("slack_channel_id")
 
 
 def build_event_preblast_select_form(
@@ -42,7 +56,7 @@ def build_event_preblast_select_form(
         attendance_filter=[
             Attendance.user_id == user_id,
             Attendance.is_planned,
-            Attendance.attendance_type_id.in_([2, 3]),
+            Attendance.attendance_types.any(AttendanceType.id.in_([2, 3])),
         ],
         event_filter=[
             Event.start_date > datetime.date.today(),
@@ -59,8 +73,10 @@ def build_event_preblast_select_form(
             element=orm.StaticSelectElement(
                 placeholder="Select an event",
                 options=orm.as_selector_options(
-                    names=[f"{r.event.start_date} {r.org.name} {r.event_type.name}" for r in event_records],
-                    values=[str(r.event.id) for r in event_records],
+                    names=[
+                        f"{r.start_date} {r.org.name} {r.event_types[0].name}" for r in event_records
+                    ],  # TODO: handle multiple event types and current data format
+                    values=[str(r.id) for r in event_records],
                 ),
             ),
         )
@@ -112,7 +128,7 @@ def build_event_preblast_form(
     update_view_id: str = None,
 ):
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_id)
-    record = preblast_info.event_extended
+    record = preblast_info.event_record
     view_id = safe_get(body, "view", "id")
     action_value = safe_get(body, "actions", 0, "value") or safe_get(body, "actions", 0, "selected_option", "value")
 
@@ -140,13 +156,19 @@ def build_event_preblast_form(
             }
         )
         initial_values = {
-            actions.EVENT_PREBLAST_TITLE: record.event.name,
+            actions.EVENT_PREBLAST_TITLE: record.name,
             actions.EVENT_PREBLAST_LOCATION: str(record.location.id),
-            actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.event.preblast_rich,
-            actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tag, "id", None), str),
+            actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich,
+            # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
+        if record.event_tags:
+            initial_values[actions.EVENT_PREBLAST_TAG] = str(
+                record.event_tags[0].id
+            )  # TODO: handle multiple event types and current data format
         coq_list = [
-            r.slack_user.slack_id for r in preblast_info.attendance_records if r.attendance.attendance_type_id == 3
+            r.slack_user.slack_id
+            for r in preblast_info.attendance_records
+            if 3 in [t.attendance_type_id for t in r.attendance_x_attendance_types]
         ]
         if coq_list:
             initial_values[actions.EVENT_PREBLAST_COQS] = coq_list
@@ -155,7 +177,7 @@ def build_event_preblast_form(
         title_text = "Edit Event Preblast"
         submit_button_text = "Update"
         # TODO: take out the send block if AO not associated with a channel
-        if not preblast_channel or not view_id or preblast_info.event_extended.event.preblast_ts:
+        if not preblast_channel or not view_id or preblast_info.event_record.preblast_ts:
             form.blocks = form.blocks[:-1]
         else:
             form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
@@ -164,10 +186,10 @@ def build_event_preblast_form(
             *preblast_info.preblast_blocks,
             orm.ActionsBlock(elements=preblast_info.action_blocks),
         ]
-        if preblast_info.event_extended.event.preblast_ts:
+        if preblast_info.event_record.preblast_ts:
             blocks.append(
                 orm.SectionBlock(
-                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_channel}&ts={preblast_info.event_extended.event.preblast_ts}|check it out in the channel>*"  # noqa
+                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_channel}&ts={preblast_info.event_record.preblast_ts}|check it out in the channel>*"  # noqa
                 )
             )  # noqa
 
@@ -177,7 +199,7 @@ def build_event_preblast_form(
 
     metadata = {
         "event_id": event_id,
-        "preblast_ts": str(preblast_info.event_extended.event.preblast_ts),
+        "preblast_ts": str(preblast_info.event_record.preblast_ts),
     }
 
     if update_view_id:
@@ -219,8 +241,10 @@ def handle_event_preblast_edit(
         Event.name: form_data[actions.EVENT_PREBLAST_TITLE],
         Event.location_id: form_data[actions.EVENT_PREBLAST_LOCATION],
         Event.preblast_rich: form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT],
-        Event.event_tag_id: form_data[actions.EVENT_PREBLAST_TAG],
+        # Event.event_tag_id: form_data[actions.EVENT_PREBLAST_TAG],
     }
+    if form_data[actions.EVENT_PREBLAST_TAG]:
+        update_fields[Event.event_x_event_tags] = EventTag_x_Event(event_tag_id=form_data[actions.EVENT_PREBLAST_TAG])
     DbManager.update_record(Event, event_id, update_fields)
 
     coq_list = safe_get(form_data, actions.EVENT_PREBLAST_COQS) or []
@@ -231,16 +255,17 @@ def handle_event_preblast_edit(
             cls=Attendance,
             filters=[
                 Attendance.event_id == event_id,
-                Attendance.attendance_type_id == 3,
+                Attendance.attendance_x_attendance_types.has(Attendance_x_AttendanceType.attendance_type_id == 3),
                 Attendance.is_planned,
                 Attendance.user_id.in_(user_ids),
             ],
+            joinedloads=[Attendance.attendance_x_attendance_types],
         )
         new_records = [
             Attendance(
                 event_id=event_id,
                 user_id=user_id,
-                attendance_type_id=3,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=3)],
                 is_planned=True,
             )
             for user_id in user_ids
@@ -261,17 +286,21 @@ def handle_event_preblast_edit(
         metadata = {
             "event_id": event_id,
             "attendees": [r.user.id for r in preblast_info.attendance_records],
-            "qs": [r.user.id for r in preblast_info.attendance_records if r.attendance.attendance_type_id in [2, 3]],
+            "qs": [
+                r.user.id
+                for r in preblast_info.attendance_records
+                if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+            ],
         }
         q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
         q_name = (q_name or [""])[0]
         q_url = q_url[0]
         preblast_channel = get_preblast_channel(region_record, preblast_info)
 
-        if preblast_info.event_extended.event.preblast_ts or safe_get(metadata, "preblast_ts"):
+        if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts"):
             client.chat_update(
                 channel=preblast_channel,
-                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_extended.event.preblast_ts),
+                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
                 blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
@@ -304,7 +333,10 @@ def build_preblast_info(
     region_record: SlackSettings,
     event_id: int,
 ) -> PreblastInfo:
-    event_record, attendance_records = event_preblast_query(event_id)
+    event_record: Event = DbManager.get(Event, event_id, joinedloads="all")
+    attendance_records: List[Attendance] = DbManager.find_records(
+        Attendance, [Attendance.event_id == event_id], joinedloads="all"
+    )
 
     action_blocks = []
     hc_list = " ".join([f"<@{r.slack_user.slack_id}>" for r in attendance_records])
@@ -312,10 +344,18 @@ def build_preblast_info(
     hc_count = len({r.user.id for r in attendance_records})
 
     user_id = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger).user_id
-    user_is_q = any(r.user.id == user_id for r in attendance_records if r.attendance.attendance_type_id in [2, 3])
+    user_is_q = any(
+        r.user.id == user_id
+        for r in attendance_records
+        if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+    )
 
     q_list = " ".join(
-        [f"<@{r.slack_user.slack_id}>" for r in attendance_records if r.attendance.attendance_type_id in [2, 3]]
+        [
+            f"<@{r.slack_user.slack_id}>"
+            for r in attendance_records
+            if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+        ]
     )
     if not q_list:
         q_list = "Open!"
@@ -323,7 +363,7 @@ def build_preblast_info(
             orm.ButtonElement(
                 label="Take Q",
                 action=actions.EVENT_PREBLAST_TAKE_Q,
-                value=str(event_record.event.id),
+                value=str(event_record.id),
             )
         )
     elif user_is_q:
@@ -331,7 +371,7 @@ def build_preblast_info(
             orm.ButtonElement(
                 label="Remove Q",
                 action=actions.EVENT_PREBLAST_REMOVE_Q,
-                value=str(event_record.event.id),
+                value=str(event_record.id),
             )
         )
 
@@ -341,7 +381,7 @@ def build_preblast_info(
             orm.ButtonElement(
                 label="Un-HC",
                 action=actions.EVENT_PREBLAST_UN_HC,
-                value=str(event_record.event.id),
+                value=str(event_record.id),
             )
         )
     else:
@@ -349,35 +389,35 @@ def build_preblast_info(
             orm.ButtonElement(
                 label="HC",
                 action=actions.EVENT_PREBLAST_HC,
-                value=str(event_record.event.id),
+                value=str(event_record.id),
             )
         )
 
     location = ""
-    if event_record.org_slack_id:
-        location += f"<#{event_record.org_slack_id}> - "
+    if event_record.org.meta.get("slack_channel_id"):
+        location += f"<#{event_record.org.meta["slack_channel_id"]}> - "
     if event_record.location.lat and event_record.location.lon:
         location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.lat},{event_record.location.lon}|{event_record.location.name}>"
     else:
         location += event_record.location.name
 
-    event_details = f"*Preblast: {event_record.event.name}*"
-    event_details += f"\n*Date:* {event_record.event.start_date.strftime('%A, %B %d')}"
-    event_details += f"\n*Time:* {event_record.event.start_time.strftime('%H%M')}"
+    event_details = f"*Preblast: {event_record.name}*"
+    event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
+    event_details += f"\n*Time:* {event_record.start_time.strftime('%H%M')}"
     event_details += f"\n*Where:* {location}"
-    event_details += f"\n*Event Type:* {event_record.event_type.name}"
-    if event_record.event_tag:
-        event_details += f"\n*Event Tag:* {event_record.event_tag.name}"
+    event_details += f"\n*Event Type:* {event_record.name}"  # TODO: handle multiple event types and current data format
+    if event_record.event_tags:
+        event_details += f"\n*Event Tag:* {[tag.name for tag in event_record.event_tags].join(', ')}"
     event_details += f"\n*Q:* {q_list}"
     event_details += f"\n*HC Count:* {hc_count}"
     event_details += f"\n*HCs:* {hc_list}"
 
     preblast_blocks = [
         orm.SectionBlock(label=event_details),
-        orm.RichTextBlock(label=event_record.event.preblast_rich or DEFAULT_PREBLAST),
+        orm.RichTextBlock(label=event_record.preblast_rich or DEFAULT_PREBLAST),
     ]
     return PreblastInfo(
-        event_extended=event_record,
+        event_record=event_record,
         attendance_records=attendance_records,
         preblast_blocks=preblast_blocks,
         action_blocks=action_blocks,
@@ -403,7 +443,7 @@ def handle_event_preblast_action(
                 Attendance(
                     event_id=event_id,
                     user_id=user_id,
-                    attendance_type_id=1,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
                     is_planned=True,
                 )
             )
@@ -413,16 +453,17 @@ def handle_event_preblast_action(
                 filters=[
                     Attendance.event_id == event_id,
                     Attendance.user_id == user_id,
-                    Attendance.attendance_type_id == 1,
                     Attendance.is_planned,
+                    Attendance.attendance_x_attendance_types.has(Attendance_x_AttendanceType.attendance_type_id == 1),
                 ],
+                joinedloads=[Attendance.attendance_x_attendance_types],
             )
         elif action_id == actions.EVENT_PREBLAST_TAKE_Q:
             DbManager.create_record(
                 Attendance(
                     event_id=event_id,
                     user_id=user_id,
-                    attendance_type_id=2,
+                    Attendance_x_AttendanceType=[Attendance_x_AttendanceType(attendance_type_id=2)],
                     is_planned=True,
                 )
             )
@@ -432,9 +473,12 @@ def handle_event_preblast_action(
                 filters=[
                     Attendance.event_id == event_id,
                     Attendance.user_id == user_id,
-                    Attendance.attendance_type_id.in_([2, 3]),
+                    Attendance.attendance_x_attendance_types.any(
+                        Attendance_x_AttendanceType.attendance_type_id.in_([2, 3])
+                    ),
                     Attendance.is_planned,
                 ],
+                joinedloads=[Attendance.attendance_x_attendance_types],
             )
         if metadata.get("preblast_ts"):
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_id)
@@ -469,16 +513,17 @@ def handle_event_preblast_action(
                     filters=[
                         Attendance.event_id == event_id,
                         Attendance.user_id == user_id,
-                        Attendance.attendance_type_id == 1,
+                        Attendance.attendance_types.any(AttendanceType.id == 1),
                         Attendance.is_planned,
                     ],
+                    joinedloads=[Attendance.attendance_types],
                 )
             else:
                 DbManager.create_record(
                     Attendance(
                         event_id=event_id,
                         user_id=user_id,
-                        attendance_type_id=1,
+                        Attendance_x_AttendanceType=[Attendance_x_AttendanceType(attendance_type_id=1)],
                         is_planned=True,
                     )
                 )
@@ -487,7 +532,9 @@ def handle_event_preblast_action(
                 "event_id": event_id,
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": [
-                    r.user.id for r in preblast_info.attendance_records if r.attendance.attendance_type_id in [2, 3]
+                    r.user.id
+                    for r in preblast_info.attendance_records
+                    if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
                 ],
             }
             blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS)]

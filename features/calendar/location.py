@@ -2,11 +2,12 @@ import copy
 import json
 from logging import Logger
 
+from f3_data_models.models import Location
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from features.calendar import ao
-from utilities.database import DbManager
-from utilities.database.orm import Location, SlackSettings
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -162,7 +163,7 @@ def handle_location_edit_delete(
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        location = DbManager.get_record(Location, location_id)
+        location = DbManager.get(Location, location_id)
         build_location_add_form(body, client, logger, context, region_record, location)
     elif action == "Delete":
         DbManager.update_record(Location, location_id, fields={"is_active": False})

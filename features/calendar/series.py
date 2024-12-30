@@ -2,21 +2,21 @@ import copy
 import json
 from datetime import datetime, timedelta
 from logging import Logger
+from typing import List
 
+from f3_data_models.models import (
+    Event,
+    EventTag_x_Event,
+    EventType,
+    EventType_x_Event,
+    EventType_x_Org,
+    Org,
+)
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities import constants
-from utilities.database import DbManager
-from utilities.database.orm import (
-    Event,
-    EventTag,
-    EventTag_x_Org,
-    EventType,
-    EventType_x_Org,
-    Location,
-    Org,
-    SlackSettings,
-)
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -48,14 +48,11 @@ def build_series_add_form(
         form = copy.deepcopy(EVENT_FORM)
         parent_metadata.update({"is_series": "False"})
 
-    aos = DbManager.find_records(Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type_id == 1])
-    locations = DbManager.find_records(Location, [Location.org_id == region_record.org_id, Location.is_active])
-    event_types = DbManager.find_join_records2(
-        EventType, EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id]
+    aos: List[Org] = DbManager.find_records(
+        Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type_id == 1]
     )
-    event_types = [x[0] for x in event_types]
-    event_tags = DbManager.find_join_records2(EventTag, EventTag_x_Org, [EventTag_x_Org.org_id == region_record.org_id])
-    event_tags = [x[0] for x in event_tags]
+    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    locations = [location for location in region_org_record.locations if location.is_active]
 
     form.set_options(
         {
@@ -72,12 +69,12 @@ def build_series_add_form(
                 values=[str(location.id) for location in locations],
             ),
             actions.CALENDAR_ADD_SERIES_TYPE: orm.as_selector_options(
-                names=[event_type.name for event_type in event_types],
-                values=[str(event_type.id) for event_type in event_types],
+                names=[event_type.name for event_type in region_org_record.event_types],
+                values=[str(event_type.id) for event_type in region_org_record.event_types],
             ),
             actions.CALENDAR_ADD_SERIES_TAG: orm.as_selector_options(
-                names=[tag.name for tag in event_tags],
-                values=[str(tag.id) for tag in event_tags],
+                names=[tag.name for tag in region_org_record.event_tags],
+                values=[str(tag.id) for tag in region_org_record.event_tags],
             ),
         }
     )
@@ -89,7 +86,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_AO: str(edit_event.org_id),
             actions.CALENDAR_ADD_EVENT_AO: str(edit_event.org_id),
             actions.CALENDAR_ADD_SERIES_LOCATION: str(edit_event.location_id),
-            actions.CALENDAR_ADD_SERIES_TYPE: str(edit_event.event_type_id),
+            actions.CALENDAR_ADD_SERIES_TYPE: str(edit_event.event_types[0].id),  # TODO: handle multiple event types
             actions.CALENDAR_ADD_SERIES_START_DATE: safe_convert(
                 edit_event.start_date, datetime.strftime, ["%Y-%m-%d"]
             ),
@@ -101,8 +98,10 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_INTERVAL: edit_event.recurrence_interval,
             actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
         }
-        if edit_event.event_tag_id:
-            initial_values[actions.CALENDAR_ADD_SERIES_TAG] = str(edit_event.event_tag_id)
+        if edit_event.event_tags:
+            initial_values[actions.CALENDAR_ADD_SERIES_TAG] = str(
+                edit_event.event_tags[0].id
+            )  # TODO: handle multiple event tags
     else:
         initial_values = {
             actions.CALENDAR_ADD_SERIES_START_DATE: datetime.now().strftime("%Y-%m-%d"),
@@ -119,8 +118,8 @@ def build_series_add_form(
             form_data = SERIES_FORM.get_selected_values(body)
         else:
             form_data = EVENT_FORM.get_selected_values(body)
-        ao: Org = DbManager.get_record(Org, safe_convert(safe_get(form_data, action_id), int))
-        default_event_type = DbManager.find_records(
+        ao: Org = DbManager.get(Org, safe_convert(safe_get(form_data, action_id), int))
+        default_event_type: List[EventType_x_Org] = DbManager.find_records(
             EventType_x_Org,
             [EventType_x_Org.org_id == safe_convert(safe_get(form_data, action_id), int), EventType_x_Org.is_default],
         )
@@ -188,15 +187,15 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     if safe_get(form_data, actions.CALENDAR_ADD_SERIES_NAME):
         series_name = safe_get(form_data, actions.CALENDAR_ADD_SERIES_NAME)
     else:
-        org = DbManager.get_record(Org, org_id)
-        event_type = DbManager.get_record(EventType, event_type_id)
+        org: Org = DbManager.get(Org, org_id)
+        event_type: EventType = DbManager.get(EventType, event_type_id)
         series_name = f"{org.name} {event_type.name if event_type else ''}"
 
     series_records = []
     day_of_weeks = safe_get(form_data, actions.CALENDAR_ADD_SERIES_DOW)
 
     if safe_get(metadata, "series_id"):
-        edit_series_record = DbManager.get_record(Event, metadata["series_id"])
+        edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
         day_of_weeks = [str(edit_series_record.day_of_week)]
 
     # day_of_weeks will be None if this is a one-time event
@@ -282,6 +281,8 @@ def create_events(records: list[Event]):
         max_interval = series.recurrence_interval or 1
         current_interval = 1
         current_index = 0
+        series_type_id = series.event_types[0].id  # TODO: handle multiple event types
+        series_tag_id = series.event_tags[0].id if series.event_tags else None  # TODO: handle multiple event tags
 
         # for monthly series, figure out which occurence of the day of the week the start date is within the month
         if series.recurrence_pattern == "Monthly":
@@ -302,8 +303,8 @@ def create_events(records: list[Event]):
                             description=series.description,
                             org_id=series.org_id,
                             location_id=series.location_id,
-                            event_type_id=series.event_type_id,
-                            event_tag_id=series.event_tag_id,
+                            event_x_event_types=[EventType_x_Event(series_type_id)],
+                            event_x_event_tags=[EventTag_x_Event(series_tag_id)] if series_tag_id else None,
                             start_date=current_date,
                             end_date=current_date,
                             start_time=series.start_time,
@@ -405,7 +406,7 @@ def handle_series_edit_delete(
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        series = DbManager.get_record(Event, series_id)
+        series: Event = DbManager.get(Event, series_id)
         build_series_add_form(body, client, logger, context, region_record, edit_event=series)
     elif action == "Delete":
         DbManager.update_record(Event, series_id, fields={"is_active": False})

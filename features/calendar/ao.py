@@ -2,13 +2,15 @@ import copy
 import datetime
 import json
 from logging import Logger
+from typing import List
 
 import requests
+from f3_data_models.models import Event, EventType, EventType_x_Org, Location, Org
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities import constants
-from utilities.database import DbManager
-from utilities.database.orm import Event, EventType, EventType_x_Org, Location, Org, Org_x_Slack, SlackSettings
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -35,13 +37,9 @@ def build_ao_add_form(
     form = copy.deepcopy(AO_FORM)
 
     # Pull locations and event types for the region
-    locations = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
-    locations = sorted(locations, key=lambda x: x.name)
-    event_types = DbManager.find_join_records2(
-        EventType, EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id]
-    )
-    event_types = [x[0] for x in event_types]
-    event_types = sorted(event_types, key=lambda x: x.name)
+    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
+    event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
 
     form.set_options(
         {
@@ -63,7 +61,7 @@ def build_ao_add_form(
             DbManager.find_records(EventType_x_Org, [EventType_x_Org.org_id == edit_ao.id, EventType_x_Org.is_default]),
             0,
         )
-        slack_id = DbManager.find_records(Org_x_Slack, [Org_x_Slack.org_id == edit_ao.id])[0].slack_id
+        slack_id = edit_ao.meta.get("slack_channel_id")
         form.set_initial_values(
             {
                 actions.CALENDAR_ADD_AO_NAME: edit_ao.name,
@@ -73,7 +71,7 @@ def build_ao_add_form(
         )
         if edit_ao.default_location_id:
             form.set_initial_values({actions.CALENDAR_ADD_AO_LOCATION: str(edit_ao.default_location_id)})
-        if edit_ao.default_event_type:
+        if default_event_type:
             form.set_initial_values({actions.CALENDAR_ADD_AO_TYPE: str(default_event_type.event_type_id)})
         title_text = "Edit AO"
     else:
@@ -115,26 +113,24 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
     else:
         logo = None
 
+    slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
     ao: Org = Org(
         parent_id=region_org_id,
         org_type_id=constants.ORG_TYPES["AO"],
         is_active=True,
         name=safe_get(form_data, actions.CALENDAR_ADD_AO_NAME),
         description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
-        # slack_id=safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL),
+        meta={"slack_channel_id": slack_id},
         default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
         logo=logo,
     )
-    slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
 
     if safe_get(metatdata, "ao_id"):
         update_dict = ao.__dict__
         update_dict.pop("_sa_instance_state")
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
-        DbManager.update_records(Org_x_Slack, [Org_x_Slack.org_id == metatdata["ao_id"]], fields={"slack_id": slack_id})
     else:
-        ao_org = DbManager.create_record(ao)
-        DbManager.create_record(Org_x_Slack(org_id=ao_org.id, slack_id=slack_id))
+        DbManager.create_record(ao)
 
     if safe_get(form_data, actions.CALENDAR_ADD_AO_TYPE):
         event_type_x_org: EventType_x_Org = EventType_x_Org(
@@ -146,7 +142,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    ao_records = DbManager.find_records(Org, [Org.parent_id == region_record.org_id, Org.org_type_id == 1])
+    ao_records: List[Org] = DbManager.find_records(Org, [Org.parent_id == region_record.org_id, Org.org_type_id == 1])
 
     blocks = [
         orm.SectionBlock(
@@ -182,7 +178,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        ao = DbManager.get_record(Org, ao_id)
+        ao: Org = DbManager.get(Org, ao_id, joinedloads="all")
         build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao)
     elif action == "Delete":
         DbManager.update_record(Org, ao_id, fields={"is_active": False})

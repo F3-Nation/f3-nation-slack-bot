@@ -5,6 +5,18 @@ from typing import Any, Dict, List, Tuple
 
 import boto3
 import requests
+from f3_data_models.models import (
+    Achievement_x_Org,
+    EventTag_x_Org,
+    EventType_x_Org,
+    Org,
+    Org_x_SlackSpace,
+    Role_x_User_x_Org,
+    SlackSpace,
+    SlackUser,
+    User,
+)
+from f3_data_models.utils import DbManager
 from PIL import Image
 from slack_bolt.adapter.aws_lambda.lambda_s3_oauth_flow import LambdaS3OAuthFlow
 from slack_bolt.oauth.oauth_settings import OAuthSettings
@@ -14,19 +26,7 @@ from slack_sdk.web import WebClient
 
 from utilities import constants
 from utilities.constants import LOCAL_DEVELOPMENT
-from utilities.database import DbManager
-from utilities.database.orm import (
-    Achievement_x_Org,
-    EventTag_x_Org,
-    EventType_x_Org,
-    Org,
-    Org_x_Slack,
-    Role_x_User_x_Org,
-    SlackSettings,
-    SlackSpace,
-    SlackUser,
-    User,
-)
+from utilities.database.orm import SlackSettings
 from utilities.slack import actions
 
 REGION_RECORDS: Dict[str, SlackSettings] = {}
@@ -211,7 +211,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         except Exception:
             team_name = team_domain
 
-        org_record = DbManager.find_join_records2(Org, Org_x_Slack, filters=[Org_x_Slack.slack_id == team_id])
+        org_record = DbManager.find_join_records2(Org, Org_x_SlackSpace, filters=[Org_x_SlackSpace.slack_id == team_id])
         org_record = safe_get(org_record, 0, 0)
 
         if not org_record:
@@ -238,7 +238,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         slack_space_record: SlackSpace = DbManager.create_record(slack_space_record)
 
         DbManager.create_record(
-            Org_x_Slack(
+            Org_x_SlackSpace(
                 org_id=org_record.id,
                 slack_id=team_id,
             )

@@ -8,28 +8,29 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from typing import List, Tuple
 
-from utilities.database import DbManager, get_session
-from utilities.database.orm import (
+from f3_data_models.models import (
     Event,
     Org,
-    Org_x_Slack,
-    SlackSettings,
+    Org_x_SlackSpace,
     SlackSpace,
 )
+from f3_data_models.utils import DbManager, get_session
+
+from utilities.database.orm import SlackSettings
 from utilities.slack import orm
 
 
 def create_special_events_blocks(
-    records: List[Tuple[Event, Org, Org_x_Slack]], slack_settings: SlackSettings
+    records: List[Tuple[Event, Org, Org_x_SlackSpace]], slack_settings: SlackSettings
 ) -> List[dict]:
     blocks: List[orm.BaseBlock] = []
-    for i, (event, org, org_x_slack) in enumerate(records):
+    for i, (event, org, org_x_slack_space) in enumerate(records):
         text = f"*{i+1}. {event.name}*\n{event.start_date.strftime('%A, %B %d')} - {event.start_time.strftime('%H%M')}\n{org.name}"  # noqa
 
         if event.preblast_ts:
             # TODO: need to make this work when the preblast gets posted to a particular channel rather than the AO channel # noqa
             # TODO: also need to make this work for region-level events
-            text += f"\n<slack://channel?team={slack_settings.team_id}&id={org_x_slack.slack_id}&ts={event.preblast_ts}|Click here to go to the preblast thread!>"  # noqa
+            text += f"\n<slack://channel?team={slack_settings.team_id}&id={org_x_slack_space.slack_space_id}&ts={event.preblast_ts}|Click here to go to the preblast thread!>"  # noqa
         blocks.append(
             orm.SectionBlock(
                 label=text,
@@ -45,12 +46,12 @@ def update_special_events():
         query = (
             session.query(
                 Org,
-                Org_x_Slack,
+                Org_x_SlackSpace,
                 SlackSpace,
             )
             .select_from(Org)
-            .join(Org_x_Slack, Org.id == Org_x_Slack.org_id)
-            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
+            .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
             .filter(Org.org_type_id == 2)
         )
         all_regions_records = query.all()
@@ -60,10 +61,10 @@ def update_special_events():
         region = record[0]
         if slack_settings.special_events_enabled:
             number_of_days = slack_settings.special_events_post_days or 30
-            records: List[Tuple[Event, Org, Org_x_Slack]] = DbManager.find_join_records3(
+            records: List[Tuple[Event, Org, Org_x_SlackSpace]] = DbManager.find_join_records3(
                 Event,
                 Org,
-                Org_x_Slack,
+                Org_x_SlackSpace,
                 [
                     (Event.org_id == region.id or Org.parent_id == region.id),
                     Event.start_date >= date.today(),

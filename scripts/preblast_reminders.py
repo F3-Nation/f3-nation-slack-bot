@@ -7,22 +7,24 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import List
 
+from f3_data_models.models import (
+    Attendance,
+    Attendance_x_AttendanceType,
+    Event,
+    EventType,
+    EventType_x_Event,
+    Org,
+    Org_x_SlackSpace,
+    SlackSpace,
+    SlackUser,
+    User,
+)
 from slack_sdk.web import WebClient
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import aliased
 
 from utilities.database import get_session
-from utilities.database.orm import (
-    Attendance,
-    Event,
-    EventType,
-    Org,
-    Org_x_Slack,
-    SlackSettings,
-    SlackSpace,
-    SlackUser,
-    User,
-)
+from utilities.database.orm import SlackSettings
 from utilities.slack import actions, orm
 
 MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa
@@ -57,7 +59,8 @@ class PreblastList:
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
             .join(SlackUser, User.id == SlackUser.user_id)
-            .filter(Attendance.attendance_type_id == 2)
+            .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
 
@@ -73,14 +76,15 @@ class PreblastList:
             )
             .select_from(Event)
             .join(Org, Org.id == Event.org_id)
-            .join(EventType, EventType.id == Event.event_type_id)
+            .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
+            .join(EventType, EventType.id == EventType_x_Event.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
             .join(
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
             )
-            .join(Org_x_Slack, Org.id == Org_x_Slack.org_id)
-            .join(SlackSpace, Org_x_Slack.slack_id == SlackSpace.team_id)
+            .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
             .filter(
                 Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
                 Event.preblast_ts.is_(None),  # not already sent

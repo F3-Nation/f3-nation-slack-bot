@@ -1,10 +1,12 @@
 import copy
 from logging import Logger
+from typing import List
 
+from f3_data_models.models import EventCategory, EventType, EventType_x_Org
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
-from utilities.database import DbManager
-from utilities.database.orm import EventCategory, EventType, EventType_x_Org, SlackSettings
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
 from utilities.slack import actions, orm
 
@@ -13,17 +15,19 @@ def build_event_type_form(body: dict, client: WebClient, logger: Logger, context
     form = copy.deepcopy(EVENT_TYPE_FORM)
 
     # get event types that are not already in EventType_x_Org
-    event_types: list[EventType] = DbManager.find_records(EventType, [True])
-    event_types_org = DbManager.find_records(EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id])
+    event_types_all: List[EventType] = DbManager.find_records(EventType, [True])
+    event_types_org: List[EventType_x_Org] = DbManager.find_records(
+        EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id]
+    )
     event_types_org = [event_type_org.event_type_id for event_type_org in event_types_org]
-    event_types_other_org = [event_type for event_type in event_types if event_type.id not in event_types_org]
-    event_types_in_org = [event_type for event_type in event_types if event_type.id in event_types_org]
+    event_types_other_org = [event_type for event_type in event_types_all if event_type.id not in event_types_org]
+    event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
     if not event_types_other_org:
         form.blocks.pop(0)
         form.blocks.pop(0)
         form.blocks[0].label = "Create a new event type"
 
-    event_categories = DbManager.find_records(EventCategory, [True])
+    event_categories: List[EventCategory] = DbManager.find_records(EventCategory, [True])
     form.set_options(
         {
             actions.CALENDAR_ADD_EVENT_TYPE_SELECT: orm.as_selector_options(
@@ -67,7 +71,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
         )
 
     elif event_type_name and event_category_id:
-        event_type = DbManager.create_record(
+        event_type: EventType = DbManager.create_record(
             EventType(
                 name=event_type_name,
                 category_id=event_category_id,

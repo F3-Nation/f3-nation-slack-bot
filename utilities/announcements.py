@@ -3,9 +3,9 @@ import time
 from logging import Logger
 from typing import List
 
+from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
-from utilities.database import DbManager
 from utilities.database.orm import SlackSettings
 
 msg = "Hello, {region}! This is Moneyball, lead developer of the Slackblast app. I wanted to make you aware of updates "

@@ -4,6 +4,7 @@ from typing import List, Tuple, TypeVar
 
 import pg8000
 import sqlalchemy
+from f3_data_models.models import BaseClass
 from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import and_
 
@@ -13,7 +14,6 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker
 
 from utilities import constants
-from utilities.database.orm import BaseClass
 
 
 @dataclass

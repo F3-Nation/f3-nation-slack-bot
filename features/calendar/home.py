@@ -1,6 +1,8 @@
 import datetime
 from logging import Logger
 
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType, Event, EventType, EventType_x_Org, Org
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
@@ -10,8 +12,7 @@ from features.calendar.event_preblast import (
     build_preblast_info,
 )
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
-from utilities.database import DbManager
-from utilities.database.orm import Attendance, Event, EventType, EventType_x_Org, Org, SlackSettings
+from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import CalendarHomeQuery, home_schedule_query
 from utilities.helper_functions import get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
@@ -172,7 +173,7 @@ def build_home_form(
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER):
         event_type_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER)]
-        filter.append(Event.event_type_id.in_(event_type_ids))
+        filter.append(EventType.id.in_(event_type_ids))
 
     open_q_only = actions.FILTER_OPEN_Q in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or [])
     # Run the query
@@ -196,7 +197,7 @@ def build_home_form(
             active_date = event.event.start_date
             blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
             block_count += 1
-        label = f"{event.org.name} {event.event_type.name} @ {event.event.start_time.strftime('%H%M')}"
+        label = f"{event.org.name} {" / ".join(t.name for t in event.event_types)} @ {event.event.start_time.strftime('%H%M')}"  # noqa
         if event.planned_qs:
             label += f" / Q: {event.planned_qs}"
         else:
@@ -248,7 +249,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             Attendance(
                 event_id=event_id,
                 user_id=user_id,
-                attendance_type_id=2,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
                 is_planned=True,
             )
         )
@@ -260,7 +261,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             Attendance(
                 event_id=event_id,
                 user_id=user_id,
-                attendance_type_id=1,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
                 is_planned=True,
             )
         )
@@ -272,15 +273,16 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             filters=[
                 Attendance.event_id == event_id,
                 Attendance.user_id == user_id,
-                Attendance.attendance_type_id == 1,
+                Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),
                 Attendance.is_planned,
             ],
+            joinedloads=[Attendance.attendance_types],
         )
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
     if update_post:
         preblast_info = build_preblast_info(body, client, logger, context, region_record, event_id)
-        if preblast_info.event_extended.event.preblast_ts:
+        if preblast_info.event_record.preblast_ts:
             blocks = [
                 *preblast_info.preblast_blocks,
                 orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
@@ -290,12 +292,14 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
                 "event_id": event_id,
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": [
-                    r.user.id for r in preblast_info.attendance_records if r.attendance.attendance_type_id in [2, 3]
+                    r.user.id
+                    for r in preblast_info.attendance_records
+                    if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
                 ],  # noqa
             }
             client.chat_update(
-                channel=preblast_info.event_extended.org_slack_id,
-                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_extended.event.preblast_ts),
+                channel=preblast_info.event_record.meta.get("slack_channel_id"),
+                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
                 blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
