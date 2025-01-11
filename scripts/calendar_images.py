@@ -11,6 +11,7 @@ import dataframe_image as dfi
 import pandas as pd
 from f3_data_models.models import (
     Attendance,
+    Attendance_x_AttendanceType,
     AttendanceType,
     Event,
     EventTag,
@@ -21,6 +22,7 @@ from f3_data_models.models import (
     Org,
     Org_x_SlackSpace,
     SlackSpace,
+    User,
 )
 
 # import dataframe_image as dfi
@@ -65,15 +67,13 @@ def generate_calendar_images():
         firstq_subquery = (
             select(
                 Attendance.event_id,
-                Attendance.user.f3_name.label("q_name"),
+                User.f3_name.label("q_name"),
                 func.row_number().over(partition_by=Attendance.event_id, order_by=Attendance.created).label("rn"),
             )
-            .select(Attendance)
-            .options(
-                joinedload(Attendance.attendance_types),
-                joinedload(Attendance.user),
-            )
-            .filter(Attendance.attendance_types.any(AttendanceType.id == 2))
+            .select_from(Attendance)
+            .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .join(Attendance.user)
+            .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
 
@@ -150,7 +150,7 @@ def generate_calendar_images():
             session.query(Org, Org_x_SlackSpace, SlackSpace)
             .select_from(Org)
             .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
-            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
             .filter(Org.org_type_id == 2)
             .all()
         )

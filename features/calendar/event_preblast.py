@@ -59,7 +59,7 @@ def build_event_preblast_select_form(
             Attendance.attendance_types.any(AttendanceType.id.in_([2, 3])),
         ],
         event_filter=[
-            Event.start_date > datetime.date.today(),
+            Event.start_date <= datetime.date.today(),
             Event.preblast_ts.is_(None),
             Event.is_active,
         ],
@@ -133,7 +133,6 @@ def build_event_preblast_form(
     action_value = safe_get(body, "actions", 0, "value") or safe_get(body, "actions", 0, "selected_option", "value")
 
     preblast_channel = get_preblast_channel(region_record, preblast_info)
-
     if action_value == "Edit Preblast" or preblast_info.user_is_q:
         form = deepcopy(EVENT_PREBLAST_FORM)
 
@@ -158,7 +157,7 @@ def build_event_preblast_form(
         initial_values = {
             actions.EVENT_PREBLAST_TITLE: record.name,
             actions.EVENT_PREBLAST_LOCATION: str(record.location.id),
-            actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich,
+            actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich or region_record.preblast_moleskin_template,
             # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
         if record.event_tags:
@@ -166,9 +165,7 @@ def build_event_preblast_form(
                 record.event_tags[0].id
             )  # TODO: handle multiple event types and current data format
         coq_list = [
-            r.slack_user.slack_id
-            for r in preblast_info.attendance_records
-            if 3 in [t.attendance_type_id for t in r.attendance_x_attendance_types]
+            r.slack_user.slack_id for r in preblast_info.attendance_records if 3 in [t.id for t in r.attendance_types]
         ]
         if coq_list:
             initial_values[actions.EVENT_PREBLAST_COQS] = coq_list
@@ -189,7 +186,7 @@ def build_event_preblast_form(
         if preblast_info.event_record.preblast_ts:
             blocks.append(
                 orm.SectionBlock(
-                    label=f"\n*This preblast has been posted, <slack://channel?team={body["team"]["id"]}&id={preblast_channel}&ts={preblast_info.event_record.preblast_ts}|check it out in the channel>*"  # noqa
+                    label=f"\n*This preblast has been posted, <slack://channel?team={body['team']['id']}&id={preblast_channel}&ts={preblast_info.event_record.preblast_ts}|check it out in the channel>*"  # noqa
                 )
             )  # noqa
 
@@ -241,11 +238,19 @@ def handle_event_preblast_edit(
         Event.name: form_data[actions.EVENT_PREBLAST_TITLE],
         Event.location_id: form_data[actions.EVENT_PREBLAST_LOCATION],
         Event.preblast_rich: form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT],
-        # Event.event_tag_id: form_data[actions.EVENT_PREBLAST_TAG],
     }
-    if form_data[actions.EVENT_PREBLAST_TAG]:
-        update_fields[Event.event_x_event_tags] = EventTag_x_Event(event_tag_id=form_data[actions.EVENT_PREBLAST_TAG])
     DbManager.update_record(Event, event_id, update_fields)
+    if form_data[actions.EVENT_PREBLAST_TAG]:
+        DbManager.delete_records(
+            cls=EventTag_x_Event,
+            filters=[EventTag_x_Event.event_id == event_id],
+        )
+        DbManager.create_record(
+            EventTag_x_Event(
+                event_id=event_id,
+                event_tag_id=form_data[actions.EVENT_PREBLAST_TAG],
+            )
+        )
 
     coq_list = safe_get(form_data, actions.EVENT_PREBLAST_COQS) or []
     user_ids = [get_user(slack_id, region_record, client, logger).user_id for slack_id in coq_list]
@@ -395,7 +400,7 @@ def build_preblast_info(
 
     location = ""
     if event_record.org.meta.get("slack_channel_id"):
-        location += f"<#{event_record.org.meta["slack_channel_id"]}> - "
+        location += f"<#{event_record.org.meta['slack_channel_id']}> - "
     if event_record.location.lat and event_record.location.lon:
         location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.lat},{event_record.location.lon}|{event_record.location.name}>"
     else:
@@ -405,9 +410,9 @@ def build_preblast_info(
     event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
     event_details += f"\n*Time:* {event_record.start_time.strftime('%H%M')}"
     event_details += f"\n*Where:* {location}"
-    event_details += f"\n*Event Type:* {event_record.name}"  # TODO: handle multiple event types and current data format
+    event_details += f"\n*Event Type:* {' / '.join([t.name for t in event_record.event_types])}"
     if event_record.event_tags:
-        event_details += f"\n*Event Tag:* {[tag.name for tag in event_record.event_tags].join(', ')}"
+        event_details += f"\n*Event Tag:* {', '.join([tag.name for tag in event_record.event_tags])}"
     event_details += f"\n*Q:* {q_list}"
     event_details += f"\n*HC Count:* {hc_count}"
     event_details += f"\n*HCs:* {hc_list}"
@@ -463,7 +468,7 @@ def handle_event_preblast_action(
                 Attendance(
                     event_id=event_id,
                     user_id=user_id,
-                    Attendance_x_AttendanceType=[Attendance_x_AttendanceType(attendance_type_id=2)],
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
                     is_planned=True,
                 )
             )
@@ -523,7 +528,7 @@ def handle_event_preblast_action(
                     Attendance(
                         event_id=event_id,
                         user_id=user_id,
-                        Attendance_x_AttendanceType=[Attendance_x_AttendanceType(attendance_type_id=1)],
+                        attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
                         is_planned=True,
                     )
                 )

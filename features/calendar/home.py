@@ -24,7 +24,7 @@ def handle_event_preblast_select_button(
     action = safe_get(body, "actions", 0, "action_id")
     view_id = safe_get(body, "view", "id")
     if action == actions.EVENT_PREBLAST_NEW_BUTTON:
-        series.build_series_add_form(body, client, logger, context, region_record)
+        series.build_series_add_form(body, client, logger, context, region_record, new_preblast=True)
     elif action == actions.OPEN_CALENDAR_BUTTON:
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
@@ -245,6 +245,9 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     if action in ["View Preblast", "Edit Preblast"]:
         build_event_preblast_form(body, client, logger, context, region_record, event_id=event_id)
     elif action == "Take Q":
+        print("Taking Q")
+        print(event_id)
+        print(user_id)
         DbManager.create_record(
             Attendance(
                 event_id=event_id,
@@ -253,6 +256,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
                 is_planned=True,
             )
         )
+        print("Created record")
         # TODO: build the q / preblast form
         update_post = True
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)

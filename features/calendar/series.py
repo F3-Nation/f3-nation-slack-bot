@@ -37,6 +37,7 @@ def build_series_add_form(
     context: dict,
     region_record: SlackSettings,
     edit_event: Event | None = None,
+    new_preblast: bool = False,
 ):
     parent_metadata = {"series_id": edit_event.id} if edit_event else {}
     if safe_get(body, "actions", 0, "action_id") in (actions.CALENDAR_MANAGE_SERIES, actions.CALENDAR_ADD_SERIES_AO):
@@ -47,6 +48,21 @@ def build_series_add_form(
         title_text = "Add an Event"
         form = copy.deepcopy(EVENT_FORM)
         parent_metadata.update({"is_series": "False"})
+        if new_preblast:
+            # Add a moleskin block if this is a new event
+            form.blocks.insert(
+                -1,
+                orm.InputBlock(
+                    label="Preblast",
+                    action=actions.CALENDAR_ADD_SERIES_PREBLAST,
+                    element=orm.PlainTextInputElement(
+                        placeholder="Give us a preview!",
+                        multiline=True,
+                    ),
+                    optional=True,
+                ),
+            )
+            parent_metadata.update({"is_preblast": "True"})
 
     aos: List[Org] = DbManager.find_records(
         Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type_id == 1]
@@ -205,8 +221,8 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 name=series_name,
                 org_id=org_id,
                 location_id=location_id,
-                event_type_id=event_type_id,
-                event_tag_id=event_tag_id,
+                event_x_event_types=[EventType_x_Event(event_type_id=event_type_id)],
+                event_x_event_tags=[EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
                 start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
                 start_time=datetime.strptime(
                     safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
@@ -224,8 +240,8 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 description=safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
                 org_id=org_id,
                 location_id=location_id,
-                event_type_id=event_type_id,
-                event_tag_id=event_tag_id,
+                event_x_event_types=[EventType_x_Event(event_type_id=event_type_id)],
+                event_x_event_tags=[EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
                 start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
                 end_date=end_date,
                 start_time=datetime.strptime(
@@ -264,6 +280,9 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     # Now that the series has been created, we need to create the individual events
     if day_of_weeks:
+        event_ids = [record.id for record in records]
+        records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
+        print(records)
         create_events(records)
 
     if safe_get(metadata, "series_id"):
@@ -277,7 +296,7 @@ def create_events(records: list[Event]):
     event_records = []
     for series in records:
         current_date = series.start_date
-        end_date = series.end_date or series.start_date.replace(year=series.start_date.year + 1)
+        end_date = series.end_date or series.start_date.replace(year=series.start_date.year + 2)
         max_interval = series.recurrence_interval or 1
         current_interval = 1
         current_index = 0
@@ -303,8 +322,8 @@ def create_events(records: list[Event]):
                             description=series.description,
                             org_id=series.org_id,
                             location_id=series.location_id,
-                            event_x_event_types=[EventType_x_Event(series_type_id)],
-                            event_x_event_tags=[EventTag_x_Event(series_tag_id)] if series_tag_id else None,
+                            event_x_event_types=[EventType_x_Event(event_type_id=series_type_id)],
+                            event_x_event_tags=[EventTag_x_Event(event_tag_id=series_tag_id)] if series_tag_id else [],
                             start_date=current_date,
                             end_date=current_date,
                             start_time=series.start_time,
@@ -548,6 +567,7 @@ EVENT_FORM = orm.BlockView(
         orm.InputBlock(
             label="Event Type",
             action=actions.CALENDAR_ADD_SERIES_TYPE,
+            # element=orm.MultiStaticSelectElement(placeholder="Select the event types"),
             element=orm.StaticSelectElement(placeholder="Select the event type"),
             optional=False,
         ),

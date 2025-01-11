@@ -2,14 +2,13 @@ import copy
 import re
 from logging import Logger
 
-import requests
 from f3_data_models.models import Org, Role_x_User_x_Org, SlackUser
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users_list
-from utilities.helper_functions import get_user, safe_get
+from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
 from utilities.slack import actions, orm
 
 
@@ -54,15 +53,10 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
 
     file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
     if file:
-        try:
-            r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
-            r.raise_for_status()
-            logo = r.content
-        except Exception as exc:
-            logger.error(f"Error downloading file: {exc}")
-            logo = None
+        file_list, file_send_list = upload_files_to_storage(files=[file], logger=logger, client=client)
+        logo_url = file_list[0]
     else:
-        logo = None
+        logo_url = None
 
     email = safe_get(form_data, actions.REGION_EMAIL)
     if email and not re.match(r"[^@]+@[^@]+\.[^@]+", email):
@@ -77,7 +71,7 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     fields = {
         Org.name: safe_get(form_data, actions.REGION_NAME),
         Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
-        Org.logo_url: logo,
+        Org.logo_url: logo_url,
         Org.website: website,
         Org.email: email,
         Org.twitter: safe_get(form_data, actions.REGION_TWITTER),

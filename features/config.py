@@ -133,8 +133,10 @@ def handle_config_email_post(
         region_record.email_password = email_password_encrypted
         region_record.postie_format = 1 if safe_get(config_data, actions.CONFIG_POSTIE_ENABLE) == "yes" else 0
 
-    DbManager.update_record(
-        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
     )
 
     update_local_region_records()
@@ -161,8 +163,10 @@ def handle_config_general_post(
         safe_get(config_data, actions.CONFIG_BACKBLAST_REMINDER_DAYS), int
     )
 
-    DbManager.update_record(
-        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
     )
 
     update_local_region_records()

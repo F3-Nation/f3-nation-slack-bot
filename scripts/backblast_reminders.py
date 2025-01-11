@@ -1,10 +1,10 @@
 import os
 import sys
+from datetime import date, timedelta
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass, field
-from datetime import date, timedelta
 from typing import List
 
 from f3_data_models.models import (
@@ -79,15 +79,15 @@ class BackblastList:
             .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
             .join(EventType, EventType.id == EventType_x_Event.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
-            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == Org.id)
-            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
+            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
             .join(
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
             )
             .filter(
                 Event.start_date < date.today(),  # + timedelta(days=1),  # eventually configurable
-                Event.start_date >= (date.today() - timedelta(days=3)),  # eventually configurable
+                Event.start_date >= (date.today() - timedelta(days=5)),  # eventually configurable
                 Event.backblast_ts.is_(None),  # not already sent
                 Event.is_active,  # not canceled
                 ~Event.is_series,  # not a series
@@ -95,6 +95,8 @@ class BackblastList:
             .order_by(ParentOrg.name, Org.name, Event.start_time)
         )
         records = query.all()
+        session.expunge_all()
+        print(records)
         self.items = [
             BackblastItem(
                 event=r[0],
@@ -107,13 +109,13 @@ class BackblastList:
             )
             for r in records
         ]
-        session.expunge_all()
         session.close()
 
 
 def send_backblast_reminders():
     backblast_list = BackblastList()
     backblast_list.pull_data()
+    print(f"Found {len(backblast_list.items)} backblasts to remind about")
 
     for backblast in backblast_list.items:
         # TODO: add some handling for missing stuff

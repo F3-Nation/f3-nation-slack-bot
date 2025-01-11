@@ -4,7 +4,7 @@ from typing import List, Tuple, TypeVar
 
 import pg8000
 import sqlalchemy
-from f3_data_models.models import BaseClass
+from f3_data_models.models import Base
 from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import and_
 
@@ -168,7 +168,7 @@ class DbManager:
             session.commit()
             close_session(session)
 
-    def create_record(record: BaseClass, schema=None) -> BaseClass:
+    def create_record(record: Base, schema=None) -> Base:
         session = get_session(schema=schema)
         try:
             session.add(record)
@@ -179,7 +179,7 @@ class DbManager:
             close_session(session)
             return record  # noqa
 
-    def create_records(records: List[BaseClass], schema=None):
+    def create_records(records: List[Base], schema=None):
         session = get_session(schema=schema)
         try:
             session.add_all(records)
@@ -190,7 +190,7 @@ class DbManager:
             close_session(session)
             return records  # noqa
 
-    def create_or_ignore(cls: T, records: List[BaseClass], schema=None):
+    def create_or_ignore(cls: T, records: List[Base], schema=None):
         session = get_session(schema=schema)
         try:
             for record in records:

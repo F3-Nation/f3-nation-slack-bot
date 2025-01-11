@@ -9,6 +9,7 @@ import pytz
 from cryptography.fernet import Fernet
 from f3_data_models.models import (
     Attendance,
+    Attendance_x_AttendanceType,
     AttendanceType,
     Event,
     EventType_x_Event,
@@ -95,7 +96,7 @@ def backblast_middleware(
                 placeholder="Select an event",
                 options=slack_orm.as_selector_options(
                     names=[
-                        f"{r.start_date} {r.org.name} {" / ".join([t.name for t in r.event_types])}"
+                        f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"
                         for r in event_records
                     ],
                     values=[str(r.id) for r in event_records],
@@ -156,22 +157,28 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         initial_backblast_data[actions.BACKBLAST_MOLESKIN] = moleskin_block
     elif event_id:
         event_record: Event = DbManager.get(Event, event_id, joinedloads="all")
+        already_posted = event_record.backblast_ts is not None
         attendance_records: List[Attendance] = DbManager.find_records(
-            Attendance, [Attendance.event_id == event_id], joinedloads="all"
+            Attendance, [Attendance.event_id == event_id, Attendance.is_planned != already_posted], joinedloads="all"
         )
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
-            actions.BACKBLAST_DATE: event_record.start_date.strftime("%Y-%m-%d"),
-            actions.BACKBLAST_AO: event_record.org.meta["slack_channel_id"],
+            actions.BACKBLAST_INFO: f"""
+*AO:* {event_record.org.name}
+*DATE:* {event_record.start_date.strftime("%Y-%m-%d")}
+*EVENT TYPE:* {" / ".join([t.name for t in event_record.event_types])}
+""",
+            # actions.BACKBLAST_DATE: event_record.start_date.strftime("%Y-%m-%d"),
+            # actions.BACKBLAST_AO: event_record.org.meta["slack_channel_id"],
             actions.BACKBLAST_Q: safe_get(
-                [a.slack_user.slack_id for a in attendance_records if a.attendance.attendance_type_id == 2], 0
+                [a.slack_user.slack_id for a in attendance_records if 2 in [t.id for t in a.attendance_types]], 0
             ),
             actions.BACKBLAST_COQ: [
-                a.slack_user.slack_id for a in attendance_records if a.attendance.attendance_type_id == 3
+                a.slack_user.slack_id for a in attendance_records if 3 in [t.id for t in a.attendance_types]
             ],
             actions.BACKBLAST_PAX: [a.slack_user.slack_id for a in attendance_records],
             actions.BACKBLAST_MOLESKIN: region_record.backblast_moleskin_template,
-            actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
+            # actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
         }
         backblast_metadata["event_id"] = event_id
     else:
@@ -228,9 +235,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     backblast_data: dict = backblast_form.get_selected_values(body)
     logger.debug(f"Backblast data: {backblast_data}")
 
+    metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
+    if safe_get(metadata, "event_id"):
+        event: Event = DbManager.get(Event, safe_get(metadata, "event_id"), joinedloads="all")
+
     title = safe_get(backblast_data, actions.BACKBLAST_TITLE)
-    the_date = safe_get(backblast_data, actions.BACKBLAST_DATE)
-    the_ao = safe_get(backblast_data, actions.BACKBLAST_AO)
+    the_date = safe_get(backblast_data, actions.BACKBLAST_DATE) or event.start_date.strftime("%Y-%m-%d")
+    the_ao = safe_get(backblast_data, actions.BACKBLAST_AO) or event.org.meta["slack_channel_id"]
     the_q = safe_get(backblast_data, actions.BACKBLAST_Q)
     the_coq = safe_get(backblast_data, actions.BACKBLAST_COQ)
     pax = safe_get(backblast_data, actions.BACKBLAST_PAX)
@@ -240,12 +251,11 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     moleskin = safe_get(backblast_data, actions.BACKBLAST_MOLESKIN)
     email_send = safe_get(backblast_data, actions.BACKBLAST_EMAIL_SEND)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
-    event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int)
+    event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event.event_types[0].id
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list = upload_files_to_storage(files=files, user_id=user_id, logger=logger, client=client)
-    metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
+    file_list, file_send_list = upload_files_to_storage(files=files, logger=logger, client=client)
     event_id = safe_get(metadata, "event_id")
     if (
         region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
@@ -313,7 +323,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     custom_fields = {}
     for field, value in backblast_data.items():
         if (field[: len(actions.CUSTOM_FIELD_PREFIX)] == actions.CUSTOM_FIELD_PREFIX) and value:
-            post_msg += f"\n*{field[len(actions.CUSTOM_FIELD_PREFIX):]}*: {str(value)}"
+            post_msg += f"\n*{field[len(actions.CUSTOM_FIELD_PREFIX) :]}*: {str(value)}"
             custom_fields[field[len(actions.CUSTOM_FIELD_PREFIX) :]] = value
 
     if file_list:
@@ -495,7 +505,7 @@ COUNT: {count}
         Attendance(
             event_id=event_id,
             user_id=user.user_id,
-            attendance_type_id=attendance_type,
+            attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=attendance_type)],
             is_planned=False,
         )
         for user, attendance_type in zip(db_users, attendance_types)

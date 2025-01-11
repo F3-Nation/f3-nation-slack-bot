@@ -211,8 +211,9 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         except Exception:
             team_name = team_domain
 
-        org_record = DbManager.find_join_records2(Org, Org_x_SlackSpace, filters=[Org_x_SlackSpace.slack_id == team_id])
-        org_record = safe_get(org_record, 0, 0)
+        org_record = DbManager.find_first_record(
+            Org, [Org.slack_space.has(SlackSpace.team_id == team_id)], joinedloads=[Org.slack_space]
+        )
 
         if not org_record:
             org_record = Org(
@@ -240,7 +241,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         DbManager.create_record(
             Org_x_SlackSpace(
                 org_id=org_record.id,
-                slack_id=team_id,
+                slack_space_id=slack_space_record.id,
             )
         )
 
@@ -524,7 +525,7 @@ def time_str_to_int(time: str) -> int:
 
 
 def upload_files_to_storage(
-    files: List[Dict[str, str]], user_id: str, client: WebClient, logger: Logger
+    files: List[Dict[str, str]], client: WebClient, logger: Logger
 ) -> Tuple[List[str], List[Dict[str, Any]]]:
     file_list = []
     file_send_list = []

@@ -37,7 +37,7 @@ def build_event_tag_form(
     org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
 
     event_tags_new = [
-        event_tag for event_tag in all_event_tags if event_tag.id not in [e[0].id for e in org_record.event_tags]
+        event_tag for event_tag in all_event_tags if event_tag.id not in [e.id for e in org_record.event_tags]
     ]
 
     if edit_event_tag:

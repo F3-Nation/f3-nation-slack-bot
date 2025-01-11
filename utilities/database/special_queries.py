@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List, Tuple
+from typing import Any, List
 
 from f3_data_models.models import (
     Attendance,
@@ -82,8 +82,10 @@ def home_schedule_query(
     )
 
     # To execute the query and fetch all results
-    result = session.execute(query)
-    results: List[Tuple[Event, Org, EventType, str, str, str]] = result.scalars().all()
+    results = session.execute(query).all()
+
+    # results: List[Tuple[Event, Org, EventType, str, str, str]] = result.scalars().all()
+    # print(results)
 
     # Turn EventType into a list of EventType objects for each Event.id
     event_types = {}

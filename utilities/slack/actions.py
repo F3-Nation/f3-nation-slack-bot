@@ -24,6 +24,7 @@ BACKBLAST_SELECT_CALLBACK_ID = "backblast-select-id"
 BACKBLAST_FILL_SELECT = "backblast-fill-select"
 BACKBLAST_NEW_BLANK_BUTTON = "new-blank-backblast"
 BACKBLAST_EVENT_TYPE = "event_type"
+BACKBLAST_INFO = "backblast_info"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"
@@ -258,6 +259,8 @@ DB_ADMIN_DOWNGRADE = "db-admin-downgrade"
 DB_ADMIN_RESET = "db-admin-reset"
 SECRET_MENU_CALENDAR_IMAGES = "secret-menu-calendar-images"
 SECRET_MENU_PAXMINER_MIGRATION = "secret-menu-paxminer-migration"
+
+CALENDAR_ADD_SERIES_PREBLAST = "calendar-add-series-preblast"
 
 ACTION_PREFIXES = [
     STRAVA_ACTIVITY_BUTTON,

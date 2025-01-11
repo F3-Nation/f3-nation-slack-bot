@@ -4,14 +4,13 @@ import json
 from logging import Logger
 from typing import List
 
-import requests
 from f3_data_models.models import Event, EventType, EventType_x_Org, Location, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get
+from utilities.helper_functions import safe_convert, safe_get, upload_files_to_storage
 from utilities.slack import actions, orm
 
 
@@ -103,15 +102,17 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
 
     file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
     if file:
-        try:
-            r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
-            r.raise_for_status()
-            logo = r.content
-        except Exception as exc:
-            logger.error(f"Error downloading file: {exc}")
-            logo = None
+        file_list, file_send_list = upload_files_to_storage(files=[file], logger=logger, client=client)
+        logo_url = file_list[0]
+        # try:
+        #     r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
+        #     r.raise_for_status()
+        #     logo = r.content
+        # except Exception as exc:
+        #     logger.error(f"Error downloading file: {exc}")
+        #     logo = None
     else:
-        logo = None
+        logo_url = None
 
     slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
     ao: Org = Org(
@@ -122,7 +123,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
         meta={"slack_channel_id": slack_id},
         default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
-        logo=logo,
+        logo_url=logo_url,
     )
 
     if safe_get(metatdata, "ao_id"):

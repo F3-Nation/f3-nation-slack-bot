@@ -23,24 +23,28 @@ BACKBLAST_FORM = orm.BlockView(
             action=actions.BACKBLAST_FILE,
             optional=True,
         ),
-        orm.InputBlock(
-            label="The AO",
-            action=actions.BACKBLAST_AO,
-            optional=False,
-            element=orm.ChannelsSelectElement(placeholder="Select the AO..."),
+        orm.SectionBlock(
+            label="This is where the AO name, Event Types, and Workout Date will be filled in automatically.",
+            action=actions.BACKBLAST_INFO,
         ),
-        orm.InputBlock(
-            label="Event Type",
-            action=actions.BACKBLAST_EVENT_TYPE,
-            optional=False,
-            element=orm.StaticSelectElement(placeholder="Select the event type..."),
-        ),
-        orm.InputBlock(
-            label="Workout Date",
-            action=actions.BACKBLAST_DATE,
-            optional=False,
-            element=orm.DatepickerElement(placeholder="Select the date..."),
-        ),
+        # orm.InputBlock(
+        #     label="The AO",
+        #     action=actions.BACKBLAST_AO,
+        #     optional=False,
+        #     element=orm.ChannelsSelectElement(placeholder="Select the AO..."),
+        # ),
+        # orm.InputBlock(
+        #     label="Event Type",
+        #     action=actions.BACKBLAST_EVENT_TYPE,
+        #     optional=False,
+        #     element=orm.StaticSelectElement(placeholder="Select the event type..."),
+        # ),
+        # orm.InputBlock(
+        #     label="Workout Date",
+        #     action=actions.BACKBLAST_DATE,
+        #     optional=False,
+        #     element=orm.DatepickerElement(placeholder="Select the date..."),
+        # ),
         orm.InputBlock(
             label="The Q",
             action=actions.BACKBLAST_Q,

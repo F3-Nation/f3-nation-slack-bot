@@ -19,11 +19,11 @@ from f3_data_models.models import (
     SlackUser,
     User,
 )
+from f3_data_models.utils import get_session
 from slack_sdk.web import WebClient
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import aliased
 
-from utilities.database import get_session
 from utilities.database.orm import SlackSettings
 from utilities.slack import actions, orm
 
@@ -83,8 +83,8 @@ class PreblastList:
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
             )
-            .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
-            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.team_id)
+            .join(Org_x_SlackSpace, ParentOrg.id == Org_x_SlackSpace.org_id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
             .filter(
                 Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
                 Event.preblast_ts.is_(None),  # not already sent
@@ -113,6 +113,7 @@ class PreblastList:
 def send_preblast_reminders():
     preblast_list = PreblastList()
     preblast_list.pull_data()
+    print(f"Found {len(preblast_list.items)} preblasts to send.")
 
     for preblast in preblast_list.items:
         # TODO: add some handling for missing stuff

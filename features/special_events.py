@@ -49,8 +49,10 @@ def handle_special_settings_edit(
     region_record.special_events_channel = safe_get(form_data, actions.SPECIAL_EVENTS_CHANNEL)
     region_record.special_events_post_days = safe_convert(safe_get(form_data, actions.SPECIAL_EVENTS_POST_DAYS), int)
 
-    DbManager.update_record(
-        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
     )
 
     update_local_region_records()
