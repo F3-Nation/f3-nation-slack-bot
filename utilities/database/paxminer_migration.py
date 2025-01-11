@@ -2,7 +2,9 @@ from typing import Dict, List
 
 from f3_data_models.models import (
     Attendance,
+    Attendance_x_AttendanceType,
     Event,
+    EventType_x_Event,
     Org_x_SlackSpace,
     SlackSpace,
     SlackUser,
@@ -64,7 +66,6 @@ def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, r
     events = [
         Event(
             org_id=slack_org_dict.get(backblast.ao_id) or region_org_id,  # will return none if not found
-            event_type_id=1,  # can we assume a type based on ao name?
             is_series=False,
             is_active=True,
             highlight=False,
@@ -76,6 +77,7 @@ def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, r
             backblast=backblast.backblast_parsed,
             meta=backblast.json,
             backblast_ts=backblast.timestamp,
+            event_x_event_types=[EventType_x_Event(event_type_id=1)],  # can we assume a type based on ao name?
         )
         for backblast in paxminer_backblasts
     ]
@@ -99,13 +101,12 @@ def convert_attendance(
     for attendance in paxminer_attendance:
         event_id = get_event_id(event_lookup_dict, attendance.ao_id, attendance.date, attendance.q_user_id)
         if event_id:
+            attendance_type_id = 2 if attendance.q_user_id == attendance.user_id else 1  # need to update for coqs
             attendance_list.append(
                 Attendance(
                     event_id=event_id,
                     user_id=slack_user_dict.get(attendance.user_id),  # need to handle if user not found?
-                    attendance_type_id=2
-                    if attendance.q_user_id == attendance.user_id
-                    else 1,  # need to update for coqs
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=attendance_type_id)],
                     is_planned=False,
                 )
             )
