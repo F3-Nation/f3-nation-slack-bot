@@ -11,6 +11,8 @@ from f3_data_models.models import (
     Location,
     Org,
     Permission,
+    Position,
+    Position_x_Org_x_User,
     Role,
     Role_x_Permission,
     Role_x_User_x_Org,
@@ -18,7 +20,7 @@ from f3_data_models.models import (
     User,
 )
 from f3_data_models.utils import _joinedloads, get_session
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
@@ -169,3 +171,36 @@ def get_admin_users_list(org_id: int) -> list[SlackUser]:
             .filter(Permission.name == PERMISSIONS[ALL_PERMISSIONS], Role_x_User_x_Org.org_id == org_id)
         )
         return query.all()
+
+
+@dataclass
+class PositionExtended:
+    position: Position
+    slack_users: List[SlackUser]
+
+
+def get_position_users(org_id: int, region_org_id: int) -> List[PositionExtended]:
+    org_type_level = 2 if region_org_id == org_id else 1
+    with get_session() as session:
+        query = (
+            session.query(Position, SlackUser)
+            .select_from(Position)
+            .join(
+                Position_x_Org_x_User,
+                and_(Position_x_Org_x_User.position_id == Position.id, Position_x_Org_x_User.org_id == org_id),
+                isouter=True,
+            )
+            .join(User, User.id == Position_x_Org_x_User.user_id, isouter=True)
+            .join(SlackUser, SlackUser.user_id == User.id, isouter=True)
+            .filter(or_(Position.org_type_id == org_type_level, Position.org_type_id.is_(None)))
+            .order_by(Position.id)
+        )
+        positions = {}
+        for position, slack_user in query.all():
+            positions.setdefault(position, []).append(slack_user)
+
+        output = []
+        for position, slack_users in positions.items():
+            output.append(PositionExtended(position=position, slack_users=slack_users))
+
+        return output

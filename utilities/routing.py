@@ -55,6 +55,8 @@ VIEW_MAPPER = {
     actions.CALENDAR_ADD_EVENT_TAG_CALLBACK_ID: (event_tag.handle_event_tag_add, False),
     actions.REGION_CALLBACK_ID: (region.handle_region_edit, False),
     actions.SPECIAL_EVENTS_CALLBACK_ID: (special_events.handle_special_settings_edit, False),
+    actions.CONFIG_SLT_CALLBACK_ID: (config.handle_config_slt_post, False),
+    actions.NEW_POSITION_CALLBACK_ID: (config.handle_new_position_post, False),
 }
 
 ACTION_MAPPER = {
@@ -112,6 +114,9 @@ ACTION_MAPPER = {
     actions.DB_ADMIN_RESET: (db_admin.handle_db_admin_reset, False),
     actions.SECRET_MENU_CALENDAR_IMAGES: (db_admin.handle_calendar_image_refresh, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION: (db_admin.handle_paxminer_migration, False),
+    actions.CONFIG_SLT: (config.build_config_slt_form, False),
+    actions.SLT_LEVEL_SELECT: (config.build_config_slt_form, False),
+    actions.CONFIG_NEW_POSITION: (config.build_new_position_form, False),
 }
 
 VIEW_CLOSED_MAPPER = {

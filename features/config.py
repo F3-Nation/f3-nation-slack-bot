@@ -2,23 +2,24 @@ import copy
 import json
 import os
 from logging import Logger
+from typing import List
 
 from cryptography.fernet import Fernet
-from f3_data_models.models import SlackSpace
+from f3_data_models.models import Org, Position, Position_x_Org_x_User, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from features import db_admin
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import get_user_permission_list
+from utilities.database.special_queries import get_position_users, get_user_permission_list
 from utilities.helper_functions import (
     get_user,
     safe_convert,
     safe_get,
     update_local_region_records,
 )
-from utilities.slack import actions, forms
+from utilities.slack import actions, forms, orm
 
 
 def build_config_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -171,3 +172,166 @@ def handle_config_general_post(
 
     update_local_region_records()
     print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))
+
+
+def build_config_slt_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+    update_view_id: str = None,
+    selected_org_id: int = None,
+):
+    if safe_get(body, "actions", 0, "action_id") == actions.SLT_LEVEL_SELECT:
+        org_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+        org_id = org_id if org_id != 0 else region_record.org_id
+        update_view_id = safe_get(body, "view", "id")
+    else:
+        org_id = selected_org_id or region_record.org_id
+
+    position_users = get_position_users(org_id, region_record.org_id)
+    aos: List[Org] = DbManager.find_records(
+        cls=Org,
+        filters=[Org.parent_id == region_record.org_id],
+    )
+    level_options = [orm.SelectorOption(name="Region", value="0")]
+    for a in aos:
+        level_options.append(orm.SelectorOption(name=a.name, value=str(a.id)))
+
+    blocks = [
+        orm.InputBlock(
+            label="Select the SLT positions for...",
+            action=actions.SLT_LEVEL_SELECT,
+            element=orm.StaticSelectElement(
+                options=level_options,
+                initial_value="0" if org_id == region_record.org_id else str(org_id),
+            ),
+            dispatch_action=True,
+        ),
+    ]
+
+    for p in position_users:
+        blocks.append(
+            orm.InputBlock(
+                label=p.position.name,
+                action=actions.SLT_SELECT + str(p.position.id),
+                optional=True,
+                element=orm.MultiUsersSelectElement(
+                    placeholder="Select SLT Members...",
+                    initial_value=[u.slack_id for u in p.slack_users if u is not None],
+                ),
+                hint=p.position.description,
+            )
+        )
+
+    blocks.append(
+        orm.ActionsBlock(
+            elements=[
+                orm.ButtonElement(
+                    label=":heavy_plus_sign: New Position",
+                    action=actions.CONFIG_NEW_POSITION,
+                )
+            ]
+        )
+    )
+
+    form = orm.BlockView(blocks=blocks)
+    if update_view_id:
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            callback_id=actions.CONFIG_SLT_CALLBACK_ID,
+            title_text="SLT Members",
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            callback_id=actions.CONFIG_SLT_CALLBACK_ID,
+            title_text="SLT Members",
+            new_or_add="add",
+        )
+
+
+def build_new_position_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+    form = copy.deepcopy(forms.CONFIG_NEW_POSITION_FORM)
+    selected_org_id = safe_convert(
+        safe_get(
+            body,
+            "view",
+            "state",
+            "values",
+            actions.SLT_LEVEL_SELECT,
+            actions.SLT_LEVEL_SELECT,
+            "selected_option",
+            "value",
+        ),
+        int,
+    )
+
+    form.post_modal(
+        client=client,
+        trigger_id=safe_get(body, "trigger_id"),
+        callback_id=actions.NEW_POSITION_CALLBACK_ID,
+        title_text="New Position",
+        new_or_add="add",
+        parent_metadata={"org_id": selected_org_id},
+    )
+
+
+def handle_new_position_post(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    form_data = forms.CONFIG_NEW_POSITION_FORM.get_selected_values(body)
+    metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
+    org_type_id = 2 if metadata.get("org_id") == region_record.org_id else 1
+
+    DbManager.create_record(
+        Position(
+            name=safe_get(form_data, actions.CONFIG_NEW_POSITION_NAME),
+            description=safe_get(form_data, actions.CONFIG_NEW_POSITION_DESCRIPTION),
+            org_id=region_record.org_id,
+            org_type_id=org_type_id,
+        )
+    )
+    build_config_slt_form(
+        body,
+        client,
+        logger,
+        context,
+        region_record,
+        update_view_id=safe_get(body, "view", "previous_view_id"),
+        selected_org_id=metadata.get("org_id"),
+    )
+
+
+def handle_config_slt_post(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+    form_data = body["view"]["state"]["values"]
+    org_id = safe_convert(
+        safe_get(form_data, actions.SLT_LEVEL_SELECT, actions.SLT_LEVEL_SELECT, "selected_option", "value"), int
+    )
+    org_id = org_id if org_id != 0 else region_record.org_id
+    new_assignments: List[Position_x_Org_x_User] = []
+
+    for key, value in form_data.items():
+        if key.startswith(actions.SLT_SELECT):
+            position_id = int(key.replace(actions.SLT_SELECT, ""))
+            users = [get_user(u, region_record, client, logger) for u in value[key]["selected_users"]]
+
+            for u in users:
+                if u:
+                    new_assignments.append(
+                        Position_x_Org_x_User(
+                            org_id=org_id,
+                            position_id=position_id,
+                            user_id=u.user_id,
+                        )
+                    )
+
+    DbManager.delete_records(
+        Position_x_Org_x_User,
+        filters=[Position_x_Org_x_User.org_id == org_id],
+    )
+
+    DbManager.create_records(new_assignments)

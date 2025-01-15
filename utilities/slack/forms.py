@@ -216,6 +216,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":tada: Special Event Settings",
                     action=actions.CONFIG_SPECIAL_EVENTS,
                 ),
+                orm.ButtonElement(
+                    label=":classical_building: SLT Settings",
+                    action=actions.CONFIG_SLT,
+                ),
             ],
         ),
     ]
@@ -629,5 +633,22 @@ CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
         orm.SectionBlock(
             label="You must be a Slack admin to access your F3 Nation region settings. Your local Slack admin can follow <https://slack.com/help/articles/218124397-Change-a-members-role|these instructions> to grant you admin access.",  # noqa: E501
         )
+    ]
+)
+
+CONFIG_NEW_POSITION_FORM = orm.BlockView(
+    blocks=[
+        orm.InputBlock(
+            label="Position Name",
+            action=actions.CONFIG_NEW_POSITION_NAME,
+            optional=False,
+            element=orm.PlainTextInputElement(placeholder="Enter the new position name..."),
+        ),
+        orm.InputBlock(
+            label="Position Description",
+            action=actions.CONFIG_NEW_POSITION_DESCRIPTION,
+            optional=False,
+            element=orm.PlainTextInputElement(placeholder="Enter the new position description..."),
+        ),
     ]
 )
