@@ -309,7 +309,7 @@ def populate_users(client: WebClient, team_id: str):
             user_name=u["profile"]["display_name"] or u["profile"]["real_name"],
             email=u["profile"].get("email") or u["id"],
             avatar_url=u["profile"]["image_192"],
-            slack_team_id=team_id,
+            slack_team_id=team_id or "NOT FOUND",
             is_admin=u.get("is_admin") or False,
             is_owner=u.get("is_owner") or False,
             is_bot=u.get("is_bot") or False,
@@ -377,13 +377,13 @@ def parse_rich_block(
         if text["type"] == "text":
             msg += text["text"]
         if text["type"] == "emoji":
-            msg += f':{text["name"]}:'
+            msg += f":{text['name']}:"
         if text["type"] == "link":
             msg += text["url"]
         if text["type"] == "user":
-            msg += f'<@{text["user_id"]}>'
+            msg += f"<@{text['user_id']}>"
         if text["type"] == "channel":
-            msg += f'<#{text["channel_id"]}>'
+            msg += f"<#{text['channel_id']}>"
         if element["type"] == "rich_text_quote":
             msg += '"'
         return msg
@@ -404,7 +404,7 @@ def parse_rich_block(
                 line_msg = ""
                 for text in item["elements"]:
                     line_msg += process_text_element(text, item)
-                line_start = f"{list_num+1}. " if element["style"] == "ordered" else "- "  # TODO: handle nested lists
+                line_start = f"{list_num + 1}. " if element["style"] == "ordered" else "- "  # TODO: handle nested lists
                 msg += f"{line_start}{line_msg}\n"
     return msg
 

@@ -1,10 +1,15 @@
+import os
 from datetime import date, datetime
 from typing import Any, Optional
 
+import sqlalchemy
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table
 from sqlalchemy.dialects.mysql import DATE, JSON, LONGTEXT, TEXT, TINYINT
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, registry
 from typing_extensions import Annotated
+
+from utilities import constants
 
 mapper_registry = registry()
 
@@ -24,6 +29,16 @@ dt_create = Annotated[datetime, mapped_column(DateTime, default=datetime.utcnow)
 dt_update = Annotated[datetime, mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)]
 str45pk = Annotated[str, mapped_column(String(45), primary_key=True)]
 datepk = Annotated[date, mapped_column(DATE, primary_key=True)]
+
+
+def get_pm_engine(schema: str, echo: bool = False) -> Engine:
+    host = os.environ[constants.PAXMINER_DATABASE_HOST]
+    user = os.environ[constants.PAXMINER_DATABASE_USER]
+    passwd = os.environ[constants.PAXMINER_DATABASE_PASSWORD]
+    database = schema or os.environ[constants.PAXMINER_DATABASE_SCHEMA]
+    db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
+    engine = sqlalchemy.create_engine(db_url, echo=echo)
+    return engine
 
 
 class BaseClass(DeclarativeBase):
@@ -167,7 +182,10 @@ class PaxminerAO(BaseClass, GetDBClass):
     channel_created: Mapped[int]
     archived: Mapped[tinyint]
     backblast: Mapped[tinyint]
-    # site_q_user_id = Mapped[Optional[str]]
+    qsignups_enabled: Mapped[Optional[tinyint]]
+    ao_display_name: Mapped[Optional[str45]]
+    ao_location_subtitle: Mapped[Optional[int]]
+    site_q_user_id = Mapped[Optional[str]]
 
     def get_id():
         return PaxminerAO.channel_id
@@ -216,6 +234,7 @@ paxminer_region = Table(
     Column("send_mid_month_charts", String(45), default="0"),
     Column("comments", TEXT),
     Column("scrape_backblasts", TINYINT),
+    Column("team_id", String(45)),
     schema="paxminer",
 )
 
