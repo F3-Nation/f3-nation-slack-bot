@@ -2,15 +2,16 @@ import copy
 import os
 from logging import Logger
 
+from alembic import command, config, script
+from alembic.runtime import migration
 from f3_data_models.utils import get_engine
 from slack_sdk.web import WebClient
 from sqlalchemy import engine
 
-from alembic import command, config, script
-from alembic.runtime import migration
 from scripts.calendar_images import generate_calendar_images
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration import run_paxminer_migration
+from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.helper_functions import safe_get
 from utilities.slack import actions, orm
 
@@ -134,6 +135,16 @@ def handle_paxminer_migration(
     run_paxminer_migration("f3stcharles", slack_team_id)
 
 
+def handle_paxminer_migration_all(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    run_paxminer_migration_bulk()
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -143,8 +154,12 @@ DB_ADMIN_FORM = orm.BlockView(
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
                 ),
                 orm.ButtonElement(
-                    label="Paxminer Migration",
+                    label="Paxminer Migration (My Region)",
                     action=actions.SECRET_MENU_PAXMINER_MIGRATION,
+                ),
+                orm.ButtonElement(
+                    label="Paxminer Migration (All Regions)",
+                    action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
                 ),
             ],
         ),

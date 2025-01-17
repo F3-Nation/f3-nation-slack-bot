@@ -176,6 +176,7 @@ def get_user(slack_user_id: str, region_record: SlackSettings, client: WebClient
                     is_owner=safe_get(user_info, "user", "is_owner") or False,
                     is_bot=safe_get(user_info, "user", "is_bot") or False,
                     slack_updated=safe_convert(user_info.get("user", "updated"), int),
+                    slack_team_id=region_record.team_id,
                 )
             )
 
