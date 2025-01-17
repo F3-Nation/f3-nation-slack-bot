@@ -4,7 +4,6 @@ from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
-from f3_data_models.utils import get_engine
 from slack_sdk.web import WebClient
 from sqlalchemy import engine
 
@@ -38,39 +37,39 @@ def build_db_admin_form(
     update_view_id = update_view_id or safe_get(body, actions.LOADING_ID)
     if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD"):
         form = copy.deepcopy(DB_ADMIN_FORM)
-        alembic_cfg = config.Config("alembic.ini")
-        engine = get_engine()
-        db_at_head = check_current_head(alembic_cfg, engine)
-        if message:
-            msg = message + "\n\n"
-        else:
-            msg = ""
+        # alembic_cfg = config.Config("alembic.ini")
+        # engine = get_engine()
+        # db_at_head = check_current_head(alembic_cfg, engine)
+        # if message:
+        #     msg = message + "\n\n"
+        # else:
+        #     msg = ""
 
-        if db_at_head:
-            msg += "Database is at the latest version."
-            form.blocks.append(
-                orm.ActionsBlock(
-                    elements=[
-                        orm.ButtonElement(
-                            label="Reset database",
-                            action=actions.DB_ADMIN_RESET,
-                        ),
-                    ],
-                )
-            )
-        else:
-            msg += "Database is not at the latest version."
-            form.blocks.append(
-                orm.ActionsBlock(
-                    elements=[
-                        orm.ButtonElement(
-                            label="Upgrade database",
-                            action=actions.DB_ADMIN_UPGRADE,
-                        ),
-                    ],
-                )
-            )
-        form.blocks[1].label = msg
+        # if db_at_head:
+        #     msg += "Database is at the latest version."
+        #     form.blocks.append(
+        #         orm.ActionsBlock(
+        #             elements=[
+        #                 orm.ButtonElement(
+        #                     label="Reset database",
+        #                     action=actions.DB_ADMIN_RESET,
+        #                 ),
+        #             ],
+        #         )
+        #     )
+        # else:
+        #     msg += "Database is not at the latest version."
+        #     form.blocks.append(
+        #         orm.ActionsBlock(
+        #             elements=[
+        #                 orm.ButtonElement(
+        #                     label="Upgrade database",
+        #                     action=actions.DB_ADMIN_UPGRADE,
+        #                 ),
+        #             ],
+        #         )
+        #     )
+        # form.blocks[1].label = msg
     else:
         form = copy.deepcopy(DB_WRONG_PASSWORD_FORM)
 
