@@ -117,6 +117,7 @@ ACTION_MAPPER = {
     actions.CONFIG_SLT: (config.build_config_slt_form, False),
     actions.SLT_LEVEL_SELECT: (config.build_config_slt_form, False),
     actions.CONFIG_NEW_POSITION: (config.build_new_position_form, False),
+    actions.SECRET_MENU_PAXMINER_MIGRATION_ALL: (db_admin.handle_paxminer_migration_all, False),
 }
 
 VIEW_CLOSED_MAPPER = {
