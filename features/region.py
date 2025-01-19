@@ -39,6 +39,9 @@ def build_region_form(
         }
     )
 
+    if org_record.logo_url:
+        form.blocks.insert(2, orm.ImageBlock(image_url=org_record.logo_url, alt_text="Region Logo"))
+
     form.post_modal(
         client=client,
         trigger_id=safe_get(body, "trigger_id"),

@@ -73,6 +73,8 @@ def build_ao_add_form(
         if default_event_type:
             form.set_initial_values({actions.CALENDAR_ADD_AO_TYPE: str(default_event_type.event_type_id)})
         title_text = "Edit AO"
+        if edit_ao.logo_url:
+            form.blocks.insert(5, orm.ImageBlock(image_url=edit_ao.logo_url, alt_text="AO Logo"))
     else:
         title_text = "Add an AO"
 
