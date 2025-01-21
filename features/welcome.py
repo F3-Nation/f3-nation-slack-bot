@@ -76,8 +76,10 @@ def handle_welcome_message_config_post(
     )
     region_record.welcome_channel = safe_get(welcome_config_data, actions.WELCOME_CHANNEL) or ""
 
-    DbManager.update_record(
-        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
     )
 
     update_local_region_records()
