@@ -86,6 +86,7 @@ SLT_LEVEL_SELECT = "slt-level-select"
 CONFIG_NEW_POSITION_NAME = "new_position_name"
 CONFIG_NEW_POSITION_DESCRIPTION = "new_position_description"
 NEW_POSITION_CALLBACK_ID = "new-position-id"
+PAXMINER_MIGRATION_REGION = "paxminer_migration_region"
 
 WELCOME_MESSAGE_CONFIG_CALLBACK_ID = "welcome-message-config-id"
 WELCOME_DM_TEMPLATE = "welcome-dm-template"

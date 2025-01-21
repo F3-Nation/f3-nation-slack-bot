@@ -141,7 +141,10 @@ def handle_paxminer_migration_all(
     context: dict,
     region_record: SlackSettings,
 ):
-    run_paxminer_migration_bulk()
+    form_data = DB_ADMIN_FORM.get_selected_values(body)
+    region = safe_get(form_data, actions.PAXMINER_MIGRATION_REGION)
+    region = None if region == "" else region
+    run_paxminer_migration_bulk(region)
 
 
 DB_ADMIN_FORM = orm.BlockView(
@@ -161,6 +164,11 @@ DB_ADMIN_FORM = orm.BlockView(
                     action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
                 ),
             ],
+        ),
+        orm.InputBlock(
+            label="Paxminer region to migrate",
+            action=actions.PAXMINER_MIGRATION_REGION,
+            element=orm.PlainTextInputElement(placeholder="Enter the region to migrate"),
         ),
         orm.SectionBlock(
             action=actions.DB_ADMIN_TEXT,
