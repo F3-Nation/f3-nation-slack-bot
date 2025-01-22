@@ -78,7 +78,6 @@ def build_db_admin_form(
         view_id=update_view_id,
         callback_id=actions.DB_ADMIN_CALLBACK_ID,
         title_text="DB Admin",
-        submit_button_text="None",
     )
 
 
