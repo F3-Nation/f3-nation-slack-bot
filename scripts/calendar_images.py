@@ -175,11 +175,20 @@ def generate_calendar_images():
                         (df_full["start_date"] >= next_week_start) & (df_full["start_date"] < next_week_end)
                     ].copy()
 
-                max_changed = max(df["event_updated"].max(), df["q_last_updated"].max())
+                max_event_updated = (
+                    datetime(year=1900, month=1, day=1)
+                    if df["event_updated"].isnull().all()
+                    else df["event_updated"].max()
+                )
+                max_q_last_updated = (
+                    datetime(year=1900, month=1, day=1)
+                    if df["q_last_updated"].isnull().all()
+                    else df["q_last_updated"].max()
+                )
+                print(f"max_event_updated: {max_event_updated}, max_q_last_updated: {max_q_last_updated}")
+                max_changed = max(max_event_updated, max_q_last_updated)
                 max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
                 first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
-                print(type(max_changed), max_changed)
-                print(type(datetime.now() - timedelta(hours=1)), datetime.now() - timedelta(hours=1))
 
                 if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run:
                     # convert start_date from date to string
