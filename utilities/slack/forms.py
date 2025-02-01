@@ -200,10 +200,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":speech_balloon: Welcomebot Settings",
                     action=actions.CONFIG_WELCOME_MESSAGE,
                 ),
-                # orm.ButtonElement(
-                #     label=":robot_face: Achievement Settings",
-                #     action=actions.CONFIG_WEASELBOT,
-                # ),
+                orm.ButtonElement(
+                    label=":robot_face: Achievement Settings",
+                    action=actions.CONFIG_WEASELBOT,
+                ),
                 orm.ButtonElement(
                     label=":date: Calendar Settings",
                     action=actions.CONFIG_CALENDAR,

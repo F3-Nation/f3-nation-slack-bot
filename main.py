@@ -94,7 +94,7 @@ def main_response(body, logger: logging.Logger, client, ack, context):
     else:
         logger.warning(
             f"no handler for path: "
-            f"{safe_get(safe_get(MAIN_MAPPER, request_type), request_id) or request_type+', '+request_id}"
+            f"{safe_get(safe_get(MAIN_MAPPER, request_type), request_id) or request_type + ', ' + request_id}"
         )
 
 

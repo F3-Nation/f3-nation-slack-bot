@@ -100,9 +100,9 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
 
     for pax in achievement_pax_list:
         msg = f"Congrats to our man <@{pax}>! He has achieved *{achievement_name}* for {achievement_verb}!"
-        msg += f" This is achievement #{pax_awards_total[pax]+1} for him this year"
+        msg += f" This is achievement #{pax_awards_total[pax] + 1} for him this year"
         if pax_awards_this_achievement[pax] > 0:
-            msg += f" and #{pax_awards_this_achievement[pax]+1} time this year for this achievement."
+            msg += f" and #{pax_awards_this_achievement[pax] + 1} time this year for this achievement."
         else:
             msg += "."
         client.chat_postMessage(channel=region_record.achievement_channel, text=msg)
@@ -139,7 +139,7 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
             trigger_id=trigger_id,
             callback_id=callback_id,
             new_or_add="add",
-            title_text="Weaselbot Settings",
+            title_text="Achievement Settings",
             submit_button_text="None",
         )
     else:
@@ -167,7 +167,7 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
             trigger_id=trigger_id,
             callback_id=callback_id,
             new_or_add="add",
-            title_text="Weaselbot Settings",
+            title_text="Achievement Settings",
         )
 
 
