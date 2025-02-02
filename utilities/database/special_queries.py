@@ -163,7 +163,7 @@ def get_user_permission_list(user_id: int, org_id: int) -> list[Permission]:
         return query.all()
 
 
-def get_admin_users_list(org_id: int) -> list[SlackUser]:
+def get_admin_users_list(org_id: int, slack_team_id: str) -> list[SlackUser]:
     with get_session() as session:
         query = (
             session.query(SlackUser)
@@ -171,7 +171,11 @@ def get_admin_users_list(org_id: int) -> list[SlackUser]:
             .join(Role, Role.id == Role_x_User_x_Org.role_id)
             .join(Role_x_Permission, Role_x_Permission.role_id == Role.id)
             .join(Permission, Permission.id == Role_x_Permission.permission_id)
-            .filter(Permission.name == PERMISSIONS[ALL_PERMISSIONS], Role_x_User_x_Org.org_id == org_id)
+            .filter(
+                Permission.name == PERMISSIONS[ALL_PERMISSIONS],
+                Role_x_User_x_Org.org_id == org_id,
+                SlackUser.slack_team_id == slack_team_id,
+            )
         )
         return query.all()
 

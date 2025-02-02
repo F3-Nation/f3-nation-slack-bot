@@ -35,18 +35,22 @@ def build_custom_field_menu(
 
     blocks = []
     custom_fields = region_record.custom_fields or {}
-    if region_record.custom_fields is None:
-        custom_fields = {
-            "Event Type": {
-                "name": "Event Type",
-                "type": "Dropdown",
-                "options": ["Bootcamp", "QSource", "Rucking", "2nd F"],
-                "enabled": False,
-            }
-        }
-        region_record.custom_fields = custom_fields
-        DbManager.update_record(cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record})
-        update_local_region_records()
+    # if region_record.custom_fields is None:
+    #     custom_fields = {
+    #         "Event Type": {
+    #             "name": "Event Type",
+    #             "type": "Dropdown",
+    #             "options": ["Bootcamp", "QSource", "Rucking", "2nd F"],
+    #             "enabled": False,
+    #         }
+    #     }
+    #     region_record.custom_fields = custom_fields
+    #     DbManager.update_records(
+    #         cls=SlackSpace,
+    #         filters=[SlackSpace.team_id == region_record.team_id],
+    #         fields={SlackSpace.settings: region_record.__dict__},
+    #     )
+    #     update_local_region_records()
 
     for custom_field in custom_fields.values():
         label = f"Name: {custom_field['name']}\nType: {custom_field['type']}"
@@ -181,13 +185,16 @@ def handle_custom_field_delete(
 
 def delete_custom_field(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     custom_field_name = safe_get(body, "actions", 0, "value")
-    team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     view_id = safe_get(body, "container", "view_id")
 
     custom_fields: dict = region_record.custom_fields
     custom_fields.pop(custom_field_name)
     region_record.custom_fields = custom_fields
-    DbManager.update_record(cls=SlackSpace, id=team_id, fields={SlackSpace.settings: region_record})
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
+    )
     update_local_region_records()
     build_custom_field_menu(body, client, logger, context, region_record, update_view_id=view_id)
 
@@ -208,7 +215,11 @@ def handle_custom_field_add(body: dict, client: WebClient, logger: Logger, conte
     }
     region_record.custom_fields = custom_fields
 
-    DbManager.update_record(cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record})
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
+    )
     update_local_region_records()
 
     print(
@@ -238,7 +249,9 @@ def handle_custom_field_menu(
             )
     region_record.custom_fields = custom_fields
 
-    DbManager.update_record(
-        cls=SlackSpace, id=region_record.team_id, fields={SlackSpace.settings: region_record.__dict__}
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
     )
     update_local_region_records()

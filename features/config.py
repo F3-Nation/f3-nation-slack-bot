@@ -269,6 +269,7 @@ def build_new_position_form(body: dict, client: WebClient, logger: Logger, conte
         ),
         int,
     )
+    selected_org_id = selected_org_id if selected_org_id != 0 else region_record.org_id
 
     form.post_modal(
         client=client,

@@ -22,7 +22,7 @@ def build_region_form(
     form = copy.deepcopy(REGION_FORM)
     org_record: Org = DbManager.get(Org, region_record.org_id)
 
-    admin_users = get_admin_users_list(region_record.org_id)
+    admin_users = get_admin_users_list(region_record.org_id, slack_team_id=region_record.team_id)
     admin_user_ids = [u.slack_id for u in admin_users]
 
     form.set_initial_values(

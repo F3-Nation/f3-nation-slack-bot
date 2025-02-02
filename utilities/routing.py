@@ -1,6 +1,7 @@
 from features import (
     backblast,
     config,
+    connect,
     custom_fields,
     db_admin,
     preblast,
@@ -57,6 +58,8 @@ VIEW_MAPPER = {
     actions.SPECIAL_EVENTS_CALLBACK_ID: (special_events.handle_special_settings_edit, False),
     actions.CONFIG_SLT_CALLBACK_ID: (config.handle_config_slt_post, False),
     actions.NEW_POSITION_CALLBACK_ID: (config.handle_new_position_post, False),
+    connect.CONNECT_EXISTING_REGION_CALLBACK_ID: (connect.handle_existing_region_selection, False),
+    connect.CREATE_NEW_REGION_CALLBACK_ID: (connect.handle_new_region_creation, False),
 }
 
 ACTION_MAPPER = {
@@ -118,6 +121,9 @@ ACTION_MAPPER = {
     actions.SLT_LEVEL_SELECT: (config.build_config_slt_form, False),
     actions.CONFIG_NEW_POSITION: (config.build_new_position_form, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION_ALL: (db_admin.handle_paxminer_migration_all, False),
+    actions.CONFIG_CONNECT: (connect.build_connect_options_form, False),
+    connect.CONNECT_EXISTING_REGION: (connect.build_existing_region_form, False),
+    connect.CREATE_NEW_REGION: (connect.build_new_region_form, False),
 }
 
 VIEW_CLOSED_MAPPER = {
