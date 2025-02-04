@@ -424,7 +424,7 @@ class NumberInputElement(BaseElement):
             "is_decimal_allowed": self.is_decimal_allowed,
         }
         if self.initial_value:
-            j["initial_value"] = str(self.initial_value)
+            j["initial_value"] = str(round(self.initial_value, 4))
         if self.min_value:
             j["min_value"] = str(self.min_value)
         if self.max_value:

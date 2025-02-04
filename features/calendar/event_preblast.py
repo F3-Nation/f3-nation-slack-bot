@@ -401,8 +401,8 @@ def build_preblast_info(
     location = ""
     if event_record.org.meta.get("slack_channel_id"):
         location += f"<#{event_record.org.meta['slack_channel_id']}> - "
-    if event_record.location.lat and event_record.location.lon:
-        location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.lat},{event_record.location.lon}|{event_record.location.name}>"
+    if event_record.location.latitude and event_record.location.longitude:
+        location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{event_record.location.name}>"
     else:
         location += event_record.location.name
 

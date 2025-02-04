@@ -37,13 +37,19 @@ def build_location_add_form(
             {
                 actions.CALENDAR_ADD_LOCATION_NAME: edit_location.name,
                 actions.CALENDAR_ADD_LOCATION_DESCRIPTION: edit_location.description,
+                actions.CALENDAR_ADD_LOCATION_STREET: edit_location.address_street,
+                actions.CALENDAR_ADD_LOCATION_STREET2: edit_location.address_street2,
+                actions.CALENDAR_ADD_LOCATION_CITY: edit_location.address_city,
+                actions.CALENDAR_ADD_LOCATION_STATE: edit_location.address_state,
+                actions.CALENDAR_ADD_LOCATION_ZIP: edit_location.address_zip,
+                actions.CALENDAR_ADD_LOCATION_COUNTRY: edit_location.address_country,
             }
         )
-        if edit_location.lat and edit_location.lon:
+        if edit_location.latitude and edit_location.longitude:
             form.set_initial_values(
                 {
-                    actions.CALENDAR_ADD_LOCATION_LAT: edit_location.lat,
-                    actions.CALENDAR_ADD_LOCATION_LON: edit_location.lon,
+                    actions.CALENDAR_ADD_LOCATION_LAT: edit_location.latitude,
+                    actions.CALENDAR_ADD_LOCATION_LON: edit_location.longitude,
                 }
             )
         title_text = "Edit Location"
@@ -75,8 +81,8 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
     form_data = LOCATION_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
 
-    lat = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LAT), float)
-    lon = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LON), float)
+    latitude = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LAT), float)
+    longitude = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LON), float)
 
     # TODO: some kind of validation of either lat/long or address?
 
@@ -84,12 +90,14 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
         name=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_NAME),
         description=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_DESCRIPTION),
         is_active=True,
-        lat=lat,
-        lon=lon,
+        latitude=latitude,
+        longitude=longitude,
         address_street=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET),
+        address_street2=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET2),
         address_city=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_CITY),
         address_state=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STATE),
         address_zip=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_ZIP),
+        address_country=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_COUNTRY),
         org_id=region_record.org_id,
     )
 
@@ -209,6 +217,12 @@ LOCATION_FORM = orm.BlockView(
             optional=True,
         ),
         orm.InputBlock(
+            label="Location Address Line 2",
+            action=actions.CALENDAR_ADD_LOCATION_STREET2,
+            element=orm.PlainTextInputElement(placeholder="ie Suite 200"),
+            optional=True,
+        ),
+        orm.InputBlock(
             label="Location City",
             action=actions.CALENDAR_ADD_LOCATION_CITY,
             element=orm.PlainTextInputElement(placeholder="ie Los Angeles"),
@@ -225,6 +239,13 @@ LOCATION_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_LOCATION_ZIP,
             element=orm.PlainTextInputElement(placeholder="ie 90210"),
             optional=True,
+        ),
+        orm.InputBlock(
+            label="Location Country",
+            action=actions.CALENDAR_ADD_LOCATION_COUNTRY,
+            element=orm.PlainTextInputElement(placeholder="ie USA"),
+            optional=True,
+            hint="If outside the US, please enter the country name.",
         ),
     ]
 )
