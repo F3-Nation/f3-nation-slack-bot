@@ -121,8 +121,8 @@ def build_series_add_form(
     else:
         initial_values = {
             actions.CALENDAR_ADD_SERIES_START_DATE: datetime.now().strftime("%Y-%m-%d"),
-            actions.CALENDAR_ADD_SERIES_FREQUENCY: constants.FREQUENCY_OPTIONS[0],
-            actions.CALENDAR_ADD_SERIES_INTERVAL: 1,
+            actions.CALENDAR_ADD_SERIES_FREQUENCY: "Weekly",
+            actions.CALENDAR_ADD_SERIES_INTERVAL: "1",
             actions.CALENDAR_ADD_SERIES_INDEX: 1,
         }
 
@@ -375,7 +375,7 @@ def build_series_list_form(
     blocks = []
     for s in series_records:
         if is_series:
-            label = f"{s.name} ({constants.DAY_OF_WEEK_OPTIONS['names'][s.day_of_week-1]} @ {s.start_time.strftime('%H%M')})"[  # noqa
+            label = f"{s.name} ({constants.DAY_OF_WEEK_OPTIONS['names'][s.day_of_week - 1]} @ {s.start_time.strftime('%H%M')})"[  # noqa
                 :50
             ]
         else:
@@ -498,32 +498,44 @@ SERIES_FORM = orm.BlockView(
             optional=False,
         ),
         orm.InputBlock(
+            "Interval",
+            action=actions.CALENDAR_ADD_SERIES_INTERVAL,
+            element=orm.StaticSelectElement(
+                placeholder="Select the interval",
+                options=orm.as_selector_options(
+                    names=constants.INTERVAL_OPTIONS["names"], values=constants.INTERVAL_OPTIONS["values"]
+                ),
+            ),
+        ),
+        orm.InputBlock(
             label="Series Frequency",
             action=actions.CALENDAR_ADD_SERIES_FREQUENCY,
             element=orm.StaticSelectElement(
                 placeholder="Select the frequency",
-                options=orm.as_selector_options(names=constants.FREQUENCY_OPTIONS),
+                options=orm.as_selector_options(
+                    names=constants.FREQUENCY_OPTIONS["names"], values=constants.FREQUENCY_OPTIONS["values"]
+                ),
             ),
         ),
+        # orm.InputBlock(
+        #     label="Interval",
+        #     action=actions.CALENDAR_ADD_SERIES_INTERVAL,
+        #     element=orm.NumberInputElement(
+        #         placeholder="Enter the interval",
+        #         is_decimal_allowed=False,
+        #     ),
+        #     optional=True,
+        #     hint="For example, Interval=2 and Frequency=Weekly would mean every other week. If left blank, the interval will assumed to be 1.",  # noqa
+        # ),
         orm.InputBlock(
-            label="Interval",
-            action=actions.CALENDAR_ADD_SERIES_INTERVAL,
-            element=orm.NumberInputElement(
-                placeholder="Enter the interval",
-                is_decimal_allowed=False,
-            ),
-            optional=True,
-            hint="For example, Interval=2 and Frequency=Weekly would mean every other week. If left blank, the interval will assumed to be 1.",  # noqa
-        ),
-        orm.InputBlock(
-            label="Index within the interval",
+            label="Which week of the month?",
             action=actions.CALENDAR_ADD_SERIES_INDEX,
             element=orm.NumberInputElement(
                 placeholder="Enter the index",
                 is_decimal_allowed=False,
             ),
             optional=True,
-            hint="For example, Index=2 and Frequency=Monthly would mean the second week of the month. If left blank, the index will assumed to be 1.",  # noqa
+            hint="Only relevant if Month is selected above.",  # noqa
         ),
         orm.InputBlock(
             label="Series Name",

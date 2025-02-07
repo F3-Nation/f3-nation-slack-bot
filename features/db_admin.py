@@ -162,6 +162,10 @@ DB_ADMIN_FORM = orm.BlockView(
                     label="Paxminer Migration (All Regions)",
                     action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
                 ),
+                orm.ButtonElement(
+                    label="Update Canvas",
+                    action=actions.SECRET_MENU_UPDATE_CANVAS,
+                ),
             ],
         ),
         orm.InputBlock(

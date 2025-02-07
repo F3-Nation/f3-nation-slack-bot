@@ -19,11 +19,13 @@ def build_special_settings_form(
     region_record: SlackSettings,
 ):
     form = copy.deepcopy(SPECIAL_EVENTS_FORM)
+    print(region_record)
     form.set_initial_values(
         {
             actions.SPECIAL_EVENTS_ENABLED: "enable" if region_record.special_events_enabled else None,
             actions.SPECIAL_EVENTS_CHANNEL: region_record.special_events_channel,
-            actions.SPECIAL_EVENTS_POST_DAYS: region_record.special_events_post_days,
+            actions.SPECIAL_EVENTS_POST_DAYS: str(region_record.special_events_post_days),
+            actions.SPECIAL_EVENTS_INFO_CANVAS_CHANNEL: region_record.canvas_channel,
         }
     )
 
@@ -48,6 +50,7 @@ def handle_special_settings_edit(
     region_record.special_events_enabled = safe_get(form_data, actions.SPECIAL_EVENTS_ENABLED, 0) == "enable"
     region_record.special_events_channel = safe_get(form_data, actions.SPECIAL_EVENTS_CHANNEL)
     region_record.special_events_post_days = safe_convert(safe_get(form_data, actions.SPECIAL_EVENTS_POST_DAYS), int)
+    region_record.canvas_channel = safe_get(form_data, actions.SPECIAL_EVENTS_INFO_CANVAS_CHANNEL)
 
     DbManager.update_records(
         cls=SlackSpace,
@@ -79,6 +82,13 @@ SPECIAL_EVENTS_FORM = orm.BlockView(
             element=orm.PlainTextInputElement(placeholder="Enter the number of days"),
             optional=True,
             hint="This is the number of days before the event that the preblast will be posted to the list. Defaults to 30 days.",  # noqa
+        ),
+        orm.InputBlock(
+            label="Region Info Canvas Channel",
+            action=actions.SPECIAL_EVENTS_INFO_CANVAS_CHANNEL,
+            element=orm.ConversationsSelectElement(),
+            optional=True,
+            hint="This is the channel where the region info canvas will be posted.",
         ),
     ]
 )

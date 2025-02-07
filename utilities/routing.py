@@ -1,5 +1,6 @@
 from features import (
     backblast,
+    canvas,
     config,
     connect,
     custom_fields,
@@ -124,6 +125,7 @@ ACTION_MAPPER = {
     actions.CONFIG_CONNECT: (connect.build_connect_options_form, False),
     connect.CONNECT_EXISTING_REGION: (connect.build_existing_region_form, False),
     connect.CREATE_NEW_REGION: (connect.build_new_region_form, False),
+    actions.SECRET_MENU_UPDATE_CANVAS: (canvas.update_canvas, False),
 }
 
 VIEW_CLOSED_MAPPER = {

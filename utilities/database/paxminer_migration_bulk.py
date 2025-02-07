@@ -107,7 +107,7 @@ def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, r
             backblast=backblast.backblast_parsed,
             meta=json.loads(backblast.json or "{}"),
             backblast_ts=None if backblast.timestamp or "" == "" else float(backblast.timestamp),
-            event_x_event_types=[EventType_x_Event(event_type_id=21)],  # can we assume a type based on ao name?
+            event_x_event_types=[EventType_x_Event(event_type_id=1)],  # can we assume a type based on ao name?
         )
         for backblast in paxminer_backblasts
     ]
