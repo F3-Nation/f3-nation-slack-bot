@@ -7,11 +7,8 @@ import boto3
 import requests
 from f3_data_models.models import (
     Achievement_x_Org,
-    EventTag_x_Org,
-    EventType_x_Org,
     Org,
     Org_x_SlackSpace,
-    Role_x_User_x_Org,
     SlackSpace,
     SlackUser,
     User,
@@ -203,8 +200,6 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
     region_record = safe_get(REGION_RECORDS, team_id)
     team_domain = safe_get(body, "team", "domain")
 
-    slack_user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-
     if not region_record:
         try:
             team_info = client.team_info()
@@ -248,34 +243,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 
         REGION_RECORDS[team_id] = region_record
 
-        event_type_x_org_records = [
-            EventType_x_Org(
-                org_id=org_record.id,
-                event_type_id=i,
-                is_default=False,
-            )
-            for i in range(1, 5)
-        ]
-        DbManager.create_records(event_type_x_org_records)
-
-        event_tag_x_org_records = [
-            EventTag_x_Org(
-                org_id=org_record.id,
-                event_tag_id=i,
-            )
-            for i in range(1, 5)
-        ]
-        DbManager.create_records(event_tag_x_org_records)
-
         populate_users(client, team_id)
-
-        slack_user = get_user(slack_user_id, region_record, client, logger)
-        role_x_user_x_org_record = Role_x_User_x_Org(
-            role_id=1,  # admin
-            user_id=slack_user.user_id,
-            org_id=org_record.id,
-        )
-        DbManager.create_record(role_x_user_x_org_record)
 
         achievement_x_org_records = [
             Achievement_x_Org(

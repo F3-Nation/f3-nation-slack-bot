@@ -26,6 +26,7 @@ BACKBLAST_NEW_BLANK_BUTTON = "new-blank-backblast"
 BACKBLAST_EVENT_TYPE = "event_type"
 BACKBLAST_INFO = "backblast_info"
 SECRET_MENU_UPDATE_CANVAS = "canvas-action"
+SECRET_MENU_MAKE_ADMIN = "make-admin"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"

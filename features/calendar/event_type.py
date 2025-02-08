@@ -2,7 +2,7 @@ import copy
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import EventCategory, EventType, EventType_x_Org
+from f3_data_models.models import EventCategory, EventType
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -14,12 +14,12 @@ from utilities.slack import actions, orm
 def build_event_type_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form = copy.deepcopy(EVENT_TYPE_FORM)
 
-    # get event types that are not already in EventType_x_Org
     event_types_all: List[EventType] = DbManager.find_records(EventType, [True])
-    event_types_org: List[EventType_x_Org] = DbManager.find_records(
-        EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id]
-    )
-    event_types_org = [event_type_org.event_type_id for event_type_org in event_types_org]
+    event_types_org = [
+        type.id
+        for type in event_types_all
+        if type.specific_org_id == region_record.org_id or type.specific_org_id is None
+    ]
     event_types_other_org = [event_type for event_type in event_types_all if event_type.id not in event_types_org]
     event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
     if not event_types_other_org:
@@ -62,11 +62,13 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     event_type_acronym = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM)
 
     if event_type_id:
+        event_type: EventType = DbManager.get(EventType, event_type_id)
         DbManager.create_record(
-            EventType_x_Org(
-                org_id=region_record.org_id,
-                event_type_id=event_type_id,
-                is_default=False,
+            EventType(
+                name=event_type.name,
+                category_id=event_type.category_id,
+                acronym=event_type.acronym,
+                specific_org_id=region_record.org_id,
             )
         )
 
@@ -76,13 +78,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
                 name=event_type_name,
                 category_id=event_category_id,
                 acronym=event_type_acronym or event_type_name[:2],
-            )
-        )
-        DbManager.create_record(
-            EventType_x_Org(
-                org_id=region_record.org_id,
-                event_type_id=event_type.id,
-                is_default=False,
+                specific_org_id=region_record.org_id,
             )
         )
 

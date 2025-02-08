@@ -12,7 +12,6 @@ from f3_data_models.models import (
     Event,
     EventTag,
     EventTag_x_Event,
-    EventTag_x_Org,
     Location,
 )
 from f3_data_models.utils import DbManager
@@ -137,8 +136,8 @@ def build_event_preblast_form(
         form = deepcopy(EVENT_PREBLAST_FORM)
 
         location_records: list[Location] = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
-        tag_records: list[tuple[EventTag, EventTag_x_Org]] = DbManager.find_join_records2(
-            EventTag, EventTag_x_Org, [EventTag_x_Org.org_id == region_record.org_id]
+        event_tags: list[EventTag] = DbManager.find_records(
+            EventTag, [EventTag.specific_org_id == region_record.org_id or EventTag.specific_org_id.is_(None)]
         )
         # TODO: filter locations to AO?
         # TODO: show hardcoded details (date, time, etc.)
@@ -149,8 +148,8 @@ def build_event_preblast_form(
                     values=[str(location.id) for location in location_records],
                 ),
                 actions.EVENT_PREBLAST_TAG: orm.as_selector_options(
-                    names=[tag.name for tag, _ in tag_records if tag.name != "Open"],
-                    values=[str(tag.id) for tag, _ in tag_records if tag.name != "Open"],
+                    names=[tag.name for tag in event_tags if tag.name != "Open"],
+                    values=[str(tag.id) for tag in event_tags if tag.name != "Open"],
                 ),
             }
         )

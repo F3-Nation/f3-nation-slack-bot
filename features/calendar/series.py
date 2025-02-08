@@ -9,7 +9,6 @@ from f3_data_models.models import (
     EventTag_x_Event,
     EventType,
     EventType_x_Event,
-    EventType_x_Org,
     Org,
 )
 from f3_data_models.utils import DbManager
@@ -126,7 +125,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_INDEX: 1,
         }
 
-    # This is triggered when the AO is selected, defaults are loaded for the location and event type
+    # This is triggered when the AO is selected, defaults are loaded for the location
     # TODO: is there a better way to update the modal without having to rebuild everything?
     action_id = safe_get(body, "actions", 0, "action_id")
     if action_id in (actions.CALENDAR_ADD_SERIES_AO, actions.CALENDAR_ADD_EVENT_AO):
@@ -135,15 +134,9 @@ def build_series_add_form(
         else:
             form_data = EVENT_FORM.get_selected_values(body)
         ao: Org = DbManager.get(Org, safe_convert(safe_get(form_data, action_id), int))
-        default_event_type: List[EventType_x_Org] = DbManager.find_records(
-            EventType_x_Org,
-            [EventType_x_Org.org_id == safe_convert(safe_get(form_data, action_id), int), EventType_x_Org.is_default],
-        )
         if ao:
             if ao.default_location_id:
                 initial_values[actions.CALENDAR_ADD_SERIES_LOCATION] = str(ao.default_location_id)
-        if default_event_type:
-            initial_values[actions.CALENDAR_ADD_SERIES_TYPE] = str(default_event_type[0].event_type_id)
 
         form.set_initial_values(initial_values)
         form.update_modal(

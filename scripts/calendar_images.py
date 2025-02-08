@@ -16,7 +16,6 @@ from f3_data_models.models import (
     Event,
     EventTag,
     EventTag_x_Event,
-    EventTag_x_Org,
     EventType,
     EventType_x_Event,
     Org,
@@ -29,7 +28,6 @@ from f3_data_models.models import (
 from f3_data_models.utils import get_session
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import aliased, joinedload
-from sqlalchemy.sql.functions import coalesce
 
 from utilities.constants import EVENT_TAG_COLORS, LOCAL_DEVELOPMENT
 from utilities.helper_functions import update_local_region_records
@@ -134,17 +132,7 @@ def generate_calendar_images():
         results = query.all()
         df_all = pd.DataFrame(results)
 
-        color_query = (
-            session.query(
-                EventTag_x_Org.org_id.label("region_id"),
-                EventTag.name,
-                coalesce(EventTag_x_Org.color_override, EventTag.color).label("color"),
-            )
-            .select_from(EventTag_x_Org)
-            .join(EventTag, EventTag_x_Org.event_tag_id == EventTag.id)
-        )
-
-        color_results = color_query.all()
+        event_tags = session.query(EventTag).all()
 
         region_org_records = (
             session.query(Org, Org_x_SlackSpace, SlackSpace)
@@ -161,7 +149,9 @@ def generate_calendar_images():
             region_name = df_full["region_name"].iloc[0]
             print(f"Running for {region_name}")
 
-            color_dict = {c.name: c.color for c in color_results if c.region_id == region_id}
+            color_dict = {
+                t.name: t.color for t in event_tags if t.specific_org_id == region_id or t.specific_org_id is None
+            }
             if "Open" in color_dict:
                 color_dict["OPEN!"] = color_dict.pop("Open")
 
@@ -190,7 +180,7 @@ def generate_calendar_images():
                 max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
                 first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
 
-                if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run:
+                if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run or LOCAL_DEVELOPMENT:
                     # convert start_date from date to string
                     df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
                     df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")

@@ -4,7 +4,7 @@ import json
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Event, EventType, EventType_x_Org, Location, Org
+from f3_data_models.models import Event, EventType, Location, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -56,10 +56,6 @@ def build_ao_add_form(
     )
 
     if edit_ao:
-        default_event_type = safe_get(
-            DbManager.find_records(EventType_x_Org, [EventType_x_Org.org_id == edit_ao.id, EventType_x_Org.is_default]),
-            0,
-        )
         slack_id = edit_ao.meta.get("slack_channel_id")
         form.set_initial_values(
             {
@@ -70,8 +66,6 @@ def build_ao_add_form(
         )
         if edit_ao.default_location_id:
             form.set_initial_values({actions.CALENDAR_ADD_AO_LOCATION: str(edit_ao.default_location_id)})
-        if default_event_type:
-            form.set_initial_values({actions.CALENDAR_ADD_AO_TYPE: str(default_event_type.event_type_id)})
         title_text = "Edit AO"
         if edit_ao.logo_url:
             form.blocks.insert(5, orm.ImageBlock(image_url=edit_ao.logo_url, alt_text="AO Logo"))
@@ -134,14 +128,6 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
     else:
         DbManager.create_record(ao)
-
-    if safe_get(form_data, actions.CALENDAR_ADD_AO_TYPE):
-        event_type_x_org: EventType_x_Org = EventType_x_Org(
-            event_type_id=safe_get(form_data, actions.CALENDAR_ADD_AO_TYPE),
-            org_id=safe_get(metatdata, "ao_id") or ao.id,
-            is_default=True,
-        )
-        DbManager.create_record(event_type_x_org)
 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -222,12 +208,6 @@ AO_FORM = orm.BlockView(
                     value="add",
                 )
             ],
-        ),
-        orm.InputBlock(
-            label="Default Event Type",
-            action=actions.CALENDAR_ADD_AO_TYPE,
-            element=orm.StaticSelectElement(placeholder="Select an event type"),
-            hint="These options can be changed later for specific series or events.",
         ),
         orm.InputBlock(
             label="AO Logo",

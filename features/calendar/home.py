@@ -1,7 +1,8 @@
 import datetime
 from logging import Logger
+from typing import List
 
-from f3_data_models.models import Attendance, Attendance_x_AttendanceType, Event, EventType, EventType_x_Org, Org
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType, Event, EventType, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
@@ -44,10 +45,9 @@ def build_home_form(
     user_id = get_user(slack_user_id, region_record, client, logger).user_id
 
     ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id])
-    event_types = DbManager.find_join_records2(
-        EventType, EventType_x_Org, [EventType_x_Org.org_id == region_record.org_id]
+    event_type_records: List[EventType] = DbManager.find_records(
+        EventType, filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id is None]
     )
-    event_type_records = [x[0] for x in event_types]
 
     if LOCAL_DEVELOPMENT:
         this_week_url = S3_IMAGE_URL.format(

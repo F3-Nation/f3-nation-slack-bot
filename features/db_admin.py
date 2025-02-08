@@ -4,14 +4,15 @@ from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
+from f3_data_models.models import Role_x_User_x_Org
 from slack_sdk.web import WebClient
 from sqlalchemy import engine
 
 from scripts.calendar_images import generate_calendar_images
+from utilities.database import DbManager
 from utilities.database.orm import SlackSettings
-from utilities.database.paxminer_migration import run_paxminer_migration
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
-from utilities.helper_functions import safe_get
+from utilities.helper_functions import get_user, safe_get
 from utilities.slack import actions, orm
 
 
@@ -129,8 +130,11 @@ def handle_paxminer_migration(
     context: dict,
     region_record: SlackSettings,
 ):
-    slack_team_id = safe_get(body, "team", "id")
-    run_paxminer_migration("f3stcharles", slack_team_id)
+    form_data = DB_ADMIN_FORM.get_selected_values(body)
+    region = safe_get(form_data, actions.PAXMINER_MIGRATION_REGION)
+    region = None if region == "" else region
+    if region:
+        run_paxminer_migration_bulk(region)
 
 
 def handle_paxminer_migration_all(
@@ -146,6 +150,24 @@ def handle_paxminer_migration_all(
     run_paxminer_migration_bulk(region)
 
 
+def handle_make_admin(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    slack_user_id = safe_get(body, "user", "id")
+    user = get_user(slack_user_id, region_record, client, logger)
+    DbManager.create_record(
+        Role_x_User_x_Org(
+            user_id=user.user_id,
+            org_id=region_record.org_id,
+            role_id=1,
+        )
+    )
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -155,7 +177,7 @@ DB_ADMIN_FORM = orm.BlockView(
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
                 ),
                 orm.ButtonElement(
-                    label="Paxminer Migration (My Region)",
+                    label="Paxminer Migration (Selected Region)",
                     action=actions.SECRET_MENU_PAXMINER_MIGRATION,
                 ),
                 orm.ButtonElement(
@@ -165,6 +187,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Update Canvas",
                     action=actions.SECRET_MENU_UPDATE_CANVAS,
+                ),
+                orm.ButtonElement(
+                    label="Make myself an admin",
+                    action=actions.SECRET_MENU_MAKE_ADMIN,
                 ),
             ],
         ),

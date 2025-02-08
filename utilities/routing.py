@@ -126,6 +126,7 @@ ACTION_MAPPER = {
     connect.CONNECT_EXISTING_REGION: (connect.build_existing_region_form, False),
     connect.CREATE_NEW_REGION: (connect.build_new_region_form, False),
     actions.SECRET_MENU_UPDATE_CANVAS: (canvas.update_canvas, False),
+    actions.SECRET_MENU_MAKE_ADMIN: (db_admin.handle_make_admin, False),
 }
 
 VIEW_CLOSED_MAPPER = {

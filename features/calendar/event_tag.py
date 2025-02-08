@@ -3,7 +3,7 @@ import json
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import EventTag, EventTag_x_Org, Org
+from f3_data_models.models import EventTag, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -28,11 +28,10 @@ def build_event_tag_form(
     logger: Logger,
     context: dict,
     region_record: SlackSettings,
-    edit_event_tag: EventTag_x_Org = None,
+    edit_event_tag: EventTag = None,
 ):
     form = copy.deepcopy(EVENT_TAG_FORM)
 
-    # get event types that are not already in EventType_x_Org
     all_event_tags: List[EventTag] = DbManager.find_records(EventTag, [True])
     org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
 
@@ -41,11 +40,10 @@ def build_event_tag_form(
     ]
 
     if edit_event_tag:
-        event_tag: EventTag = DbManager.get(EventTag, edit_event_tag.event_tag_id)
         form.set_initial_values(
             {
-                actions.CALENDAR_ADD_EVENT_TAG_NEW: event_tag.name,
-                actions.CALENDAR_ADD_EVENT_TAG_COLOR: edit_event_tag.color_override or event_tag.color,
+                actions.CALENDAR_ADD_EVENT_TAG_NEW: edit_event_tag.name,
+                actions.CALENDAR_ADD_EVENT_TAG_COLOR: edit_event_tag.color,
             }
         )
         form.blocks.pop(0)
@@ -53,7 +51,7 @@ def build_event_tag_form(
         form.blocks[0].label = "Edit Event Tag"
         form.blocks[0].element.placeholder = "Edit Event Tag"
         title_text = "Edit an Event Tag"
-        metadata = {"edit_event_tag_org_id": edit_event_tag.id}
+        metadata = {"edit_event_tag_id": edit_event_tag.id}
     else:
         form.set_options(
             {
@@ -68,10 +66,7 @@ def build_event_tag_form(
         metadata = {}
 
     # set list of colors already in use
-    color_list = [
-        f"{e[0].name} - {e[1].color_override or e[0].color}"
-        for e in zip(org_record.event_tags, org_record.event_tags_x_org)
-    ]
+    color_list = [f"{e.name} - {e.color}" for e in org_record.event_tags]
     form.blocks[-1].label = f"Colors already in use: \n - {'\n - '.join(color_list)}"
 
     form.post_modal(
@@ -90,36 +85,30 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
     event_tag_id = form_data.get(actions.CALENDAR_ADD_EVENT_TAG_SELECT)
     event_color = form_data.get(actions.CALENDAR_ADD_EVENT_TAG_COLOR)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
-    edit_event_tag_org_id = safe_convert(metadata.get("edit_event_tag_org_id"), int)
+    edit_event_tag_id = safe_convert(metadata.get("edit_event_tag_id"), int)
 
     if event_tag_id:
+        event_tag: EventTag = DbManager.get(EventTag, event_tag_id)
         DbManager.create_record(
-            EventTag_x_Org(
-                org_id=region_record.org_id,
-                event_tag_id=event_tag_id,
-                color_override=event_color,
+            EventTag(
+                name=event_tag.name,
+                color=event_tag.color,
+                specific_org_id=region_record.org_id,
             )
         )
 
     elif event_tag_name and event_color:
-        if edit_event_tag_org_id:
+        if edit_event_tag_id:
             DbManager.update_record(
-                EventTag_x_Org,
-                edit_event_tag_org_id,
-                {EventTag_x_Org.color_override: event_color},
+                EventTag,
+                edit_event_tag_id,
+                {EventTag.color: event_color},
             )
         else:
-            event_tag: EventTag = DbManager.create_record(
+            DbManager.create_record(
                 EventTag(
                     name=event_tag_name,
                     color=event_color,
-                )
-            )
-            DbManager.create_record(
-                EventTag_x_Org(
-                    org_id=region_record.org_id,
-                    event_tag_id=event_tag.id,
-                    color_override=event_color,
                 )
             )
 
@@ -131,8 +120,8 @@ def build_event_tag_list_form(
 
     blocks = [
         orm.SectionBlock(
-            label=s[0].name,
-            action=f"{actions.EVENT_TAG_EDIT_DELETE}_{s[1].id}",
+            label=s.name,
+            action=f"{actions.EVENT_TAG_EDIT_DELETE}_{s.id}",
             element=orm.StaticSelectElement(
                 placeholder="Edit or Delete",
                 options=orm.as_selector_options(names=["Edit", "Delete"]),
@@ -144,7 +133,7 @@ def build_event_tag_list_form(
                 ),
             ),
         )
-        for s in zip(org_record.event_tags, org_record.event_tags_x_org)
+        for s in org_record.event_tags
     ]
 
     form = orm.BlockView(blocks=blocks)
@@ -161,14 +150,14 @@ def build_event_tag_list_form(
 def handle_event_tag_edit_delete(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    event_tag_org_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
+    event_tag_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        event_tag_org = DbManager.get(EventTag_x_Org, event_tag_org_id)
-        build_event_tag_form(body, client, logger, context, region_record, edit_event_tag=event_tag_org)
-    elif action == "Delete":
-        DbManager.delete_record(EventTag_x_Org, event_tag_org_id)
+        event_tag = DbManager.get(EventTag, event_tag_id)
+        build_event_tag_form(body, client, logger, context, region_record, edit_event_tag=event_tag)
+    # elif action == "Delete":
+    #     DbManager.delete_record(EventTag_x_Org, event_tag_org_id)
 
 
 EVENT_TAG_FORM = orm.BlockView(
