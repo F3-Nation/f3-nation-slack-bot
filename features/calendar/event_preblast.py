@@ -407,7 +407,7 @@ def build_preblast_info(
 
     event_details = f"*Preblast: {event_record.name}*"
     event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
-    event_details += f"\n*Time:* {event_record.start_time.strftime('%H%M')}"
+    event_details += f"\n*Time:* {event_record.start_time}"
     event_details += f"\n*Where:* {location}"
     event_details += f"\n*Event Type:* {' / '.join([t.name for t in event_record.event_types])}"
     if event_record.event_tags:

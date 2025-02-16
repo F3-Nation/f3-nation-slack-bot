@@ -23,7 +23,9 @@ from utilities.slack import orm
 def create_special_events_blocks(events: List[Event], slack_settings: SlackSettings) -> List[dict]:
     blocks: List[orm.BaseBlock] = []
     for i, event in enumerate(events):
-        text = f"*{i + 1}. {event.name}*\n{event.start_date.strftime('%A, %B %d')} - {event.start_time.strftime('%H%M')}\n{event.org.name}"  # noqa
+        text = (
+            f"*{i + 1}. {event.name}*\n{event.start_date.strftime('%A, %B %d')} - {event.start_time}\n{event.org.name}"  # noqa
+        )
 
         if event.preblast_ts:
             # TODO: need to make this work for region-level events

@@ -184,7 +184,7 @@ def generate_calendar_images():
                     # convert start_date from date to string
                     df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
                     df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
-                    df.loc[:, "event_time"] = df["start_time"].apply(lambda x: x.strftime("%H%M"))
+                    df.loc[:, "event_time"] = df["start_time"]
                     df.loc[df["q_name"].isna(), "q_name"] = "OPEN!"
                     df.loc[:, "q_name"] = df["q_name"].str.replace(r"\(.*\)", "")
 

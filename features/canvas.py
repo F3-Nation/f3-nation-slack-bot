@@ -14,7 +14,7 @@ from utilities.helper_functions import safe_get
 def create_special_events_blocks(events: List[Event], slack_settings: SlackSettings) -> str:
     text = ""
     for i, event in enumerate(events):
-        text += f"{i + 1}. **{event.name}** - {event.start_date.strftime('%A, %B %d')} - {event.start_time.strftime('%H%M')} @ {event.org.name}\n"  # noqa
+        text += f"{i + 1}. **{event.name}** - {event.start_date.strftime('%A, %B %d')} - {event.start_time} @ {event.org.name}\n"  # noqa
 
         if event.preblast_ts:
             # TODO: need to make this work for region-level events

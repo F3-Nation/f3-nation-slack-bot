@@ -199,7 +199,7 @@ def build_home_form(
             active_date = event.event.start_date
             blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
             block_count += 1
-        label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time.strftime('%H%M')}"  # noqa
+        label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
         if event.planned_qs:
             label += f" / Q: {event.planned_qs}"
         else:
