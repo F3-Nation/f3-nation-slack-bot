@@ -11,6 +11,7 @@ from f3_data_models.models import (
     EventType,
     EventType_x_Event,
     Org,
+    Org_Type,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
@@ -65,7 +66,7 @@ def build_series_add_form(
             parent_metadata.update({"is_preblast": "True"})
 
     aos: List[Org] = DbManager.find_records(
-        Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type_id == 1]
+        Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
     )
     region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
     locations = [location for location in region_org_record.locations if location.is_active]

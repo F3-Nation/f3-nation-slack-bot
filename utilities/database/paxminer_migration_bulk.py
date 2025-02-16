@@ -12,6 +12,7 @@ from f3_data_models.models import (
     Event,
     EventType_x_Event,
     Org,
+    Org_Type,
     SlackUser,
     User,
 )
@@ -36,7 +37,7 @@ def extract_name(backblast: str) -> str:
 
 def convert_region(paxminer_region: PaxminerRegion) -> Org:
     return Org(
-        org_type_id=2,
+        org_type=Org_Type.region,
         name=paxminer_region.region,
         is_active=True,
     )
@@ -46,7 +47,7 @@ def convert_aos(paxminer_aos: list[PaxminerAO], org_id: int) -> List[Org]:
     aos: List[Org] = []
     aos = [
         Org(
-            org_type_id=1,
+            org_type_id=Org_Type.ao,
             parent_id=org_id,
             name=ao.ao,
             is_active=True,

@@ -1,7 +1,7 @@
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Org
+from f3_data_models.models import Org, Org_Type
 from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import ActionsBlock, InputBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import Option
@@ -67,7 +67,7 @@ def build_existing_region_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     unassigned_regions: List[Org] = DbManager.find_records(
-        Org, [Org.org_type_id == 2, Org.is_active], joinedloads=[Org.slack_space]
+        Org, [Org.org_type == Org_Type.region, Org.is_active], joinedloads=[Org.slack_space]
     )
     unassigned_regions = [region for region in unassigned_regions if not region.slack_space]
     options = [Option(text=region.name, value=str(region.id)) for region in unassigned_regions]

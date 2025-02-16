@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Tuple
 import boto3
 import requests
 from f3_data_models.models import (
-    Achievement_x_Org,
     Org,
+    Org_Type,
     Org_x_SlackSpace,
     SlackSpace,
     SlackUser,
@@ -213,7 +213,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 
         if not org_record:
             org_record = Org(
-                org_type_id=2,
+                org_type=Org_Type.region,
                 name=team_name,
                 is_active=True,
             )
@@ -244,15 +244,6 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         REGION_RECORDS[team_id] = region_record
 
         populate_users(client, team_id)
-
-        achievement_x_org_records = [
-            Achievement_x_Org(
-                org_id=org_record.id,
-                achievement_id=i,
-            )
-            for i in range(1, 4)
-        ]
-        DbManager.create_records(achievement_x_org_records)
 
     return region_record
 

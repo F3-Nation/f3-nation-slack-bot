@@ -11,6 +11,7 @@ from typing import List
 from f3_data_models.models import (
     Event,
     Org,
+    Org_Type,
 )
 from f3_data_models.utils import DbManager
 
@@ -47,7 +48,9 @@ def create_special_events_blocks(events: List[Event], slack_settings: SlackSetti
 
 
 def update_special_events():
-    regions: List[Org] = DbManager.find_records(cls=Org, filters=[Org.org_type_id == 2], joinedloads=[Org.slack_space])
+    regions: List[Org] = DbManager.find_records(
+        cls=Org, filters=[Org.org_type == Org_Type.region], joinedloads=[Org.slack_space]
+    )
 
     for region in regions:
         slack_settings = SlackSettings(**region.slack_space.settings)

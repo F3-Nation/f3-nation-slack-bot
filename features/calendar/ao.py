@@ -4,11 +4,10 @@ import json
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Event, EventType, Location, Org
+from f3_data_models.models import Event, EventType, Location, Org, Org_Type
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
-from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get, upload_files_to_storage
 from utilities.slack import actions, orm
@@ -113,7 +112,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
     slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
     ao: Org = Org(
         parent_id=region_org_id,
-        org_type_id=constants.ORG_TYPES["AO"],
+        org_type=Org_Type.ao,
         is_active=True,
         name=safe_get(form_data, actions.CALENDAR_ADD_AO_NAME),
         description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
@@ -131,7 +130,9 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    ao_records: List[Org] = DbManager.find_records(Org, [Org.parent_id == region_record.org_id, Org.org_type_id == 1])
+    ao_records: List[Org] = DbManager.find_records(
+        Org, [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao]
+    )
 
     blocks = [
         orm.SectionBlock(

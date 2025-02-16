@@ -19,6 +19,7 @@ from f3_data_models.models import (
     EventType,
     EventType_x_Event,
     Org,
+    Org_Type,
     Org_x_SlackSpace,
     SlackSpace,
     User,
@@ -139,7 +140,7 @@ def generate_calendar_images():
             .select_from(Org)
             .join(Org_x_SlackSpace, Org.id == Org_x_SlackSpace.org_id)
             .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
-            .filter(Org.org_type_id == 2)
+            .filter(Org.org_type == Org_Type.region)
             .all()
         )
 

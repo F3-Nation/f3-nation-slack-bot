@@ -5,7 +5,7 @@ from logging import Logger
 from typing import List
 
 from cryptography.fernet import Fernet
-from f3_data_models.models import Org, Position, Position_x_Org_x_User, SlackSpace
+from f3_data_models.models import Org, Org_Type, Position, Position_x_Org_x_User, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -286,14 +286,14 @@ def handle_new_position_post(
 ):
     form_data = forms.CONFIG_NEW_POSITION_FORM.get_selected_values(body)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
-    org_type_id = 2 if metadata.get("org_id") == region_record.org_id else 1
+    org_type = Org_Type.region if metadata.get("org_id") == region_record.org_id else Org_Type.ao
 
     DbManager.create_record(
         Position(
             name=safe_get(form_data, actions.CONFIG_NEW_POSITION_NAME),
             description=safe_get(form_data, actions.CONFIG_NEW_POSITION_DESCRIPTION),
             org_id=region_record.org_id,
-            org_type_id=org_type_id,
+            org_type=org_type,
         )
     )
     build_config_slt_form(
