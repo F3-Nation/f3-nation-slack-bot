@@ -2,7 +2,7 @@ import copy
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import EventCategory, EventType
+from f3_data_models.models import Event_Category, EventType
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -27,7 +27,6 @@ def build_event_type_form(body: dict, client: WebClient, logger: Logger, context
         form.blocks.pop(0)
         form.blocks[0].label = "Create a new event type"
 
-    event_categories: List[EventCategory] = DbManager.find_records(EventCategory, [True])
     form.set_options(
         {
             actions.CALENDAR_ADD_EVENT_TYPE_SELECT: orm.as_selector_options(
@@ -35,9 +34,8 @@ def build_event_type_form(body: dict, client: WebClient, logger: Logger, context
                 values=[str(event_type.id) for event_type in event_types_other_org],
             ),
             actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY: orm.as_selector_options(
-                names=[event_category.name for event_category in event_categories],
-                values=[str(event_category.id) for event_category in event_categories],
-                descriptions=[event_category.description for event_category in event_categories],
+                names=[c.name.capitalize() for c in Event_Category],
+                values=[c.name for c in Event_Category],
             ),
         }
     )
@@ -58,7 +56,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     form_data = EVENT_TYPE_FORM.get_selected_values(body)
     event_type_name = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_NEW)
     event_type_id = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_SELECT)
-    event_category_id = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY)
+    event_category = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY)
     event_type_acronym = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM)
 
     if event_type_id:
@@ -72,11 +70,11 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
             )
         )
 
-    elif event_type_name and event_category_id:
+    elif event_type_name and event_category:
         event_type: EventType = DbManager.create_record(
             EventType(
                 name=event_type_name,
-                category_id=event_category_id,
+                event_category=event_category,
                 acronym=event_type_acronym or event_type_name[:2],
                 specific_org_id=region_record.org_id,
             )
