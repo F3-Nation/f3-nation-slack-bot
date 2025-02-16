@@ -5,6 +5,7 @@ from logging import Logger
 from typing import List
 
 from f3_data_models.models import (
+    Day_Of_Week,
     Event,
     EventTag_x_Event,
     EventType,
@@ -108,7 +109,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_END_DATE: safe_convert(edit_event.end_date, datetime.strftime, ["%Y-%m-%d"]),
             actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
-            actions.CALENDAR_ADD_SERIES_DOW: [str(edit_event.day_of_week)],
+            actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
             actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern,
             actions.CALENDAR_ADD_SERIES_INTERVAL: edit_event.recurrence_interval,
             actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
@@ -205,7 +206,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     if safe_get(metadata, "series_id"):
         edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
-        day_of_weeks = [str(edit_series_record.day_of_week)]
+        day_of_weeks = [edit_series_record.day_of_week.name]
 
     # day_of_weeks will be None if this is a one-time event
     if not day_of_weeks or day_of_weeks == ["None"]:
@@ -245,7 +246,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 or edit_series_record.recurrence_pattern,
                 recurrence_interval=recurrence_interval or edit_series_record.recurrence_interval,
                 index_within_interval=index_within_interval or edit_series_record.index_within_interval,
-                day_of_week=int(dow) if dow else edit_series_record.day_of_week,
+                day_of_week=dow or edit_series_record.day_of_week,
                 is_series=True,
                 is_active=True,
                 highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
@@ -300,13 +301,13 @@ def create_events(records: list[Event]):
         if series.recurrence_pattern == "Monthly":
             current_date = current_date.replace(day=1)
             while current_date <= series.start_date:
-                if current_date.isoweekday() == series.day_of_week:
+                if current_date.strftime("%A").lower() == series.day_of_week:
                     current_index += 1
                 current_date += timedelta(days=1)
 
         # event creation algorithm
         while current_date <= end_date:
-            if current_date.isoweekday() == series.day_of_week:
+            if current_date.strftime("%A").lower() == series.day_of_week:
                 current_index += 1
                 if (current_index == series.index_within_interval) or (series.recurrence_pattern == "Weekly"):
                     if current_interval == 1:
@@ -368,7 +369,7 @@ def build_series_list_form(
     blocks = []
     for s in series_records:
         if is_series:
-            label = f"{s.name} ({constants.DAY_OF_WEEK_OPTIONS['names'][s.day_of_week - 1]} @ {s.start_time})"[  # noqa
+            label = f"{s.name} ({s.day_of_week.name.capitalize()} @ {s.start_time})"[  # noqa
                 :50
             ]
         else:
@@ -484,8 +485,8 @@ SERIES_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_SERIES_DOW,
             element=orm.CheckboxInputElement(
                 options=orm.as_selector_options(
-                    names=constants.DAY_OF_WEEK_OPTIONS["names"],
-                    values=[str(v) for v in constants.DAY_OF_WEEK_OPTIONS["values"]],
+                    names=[d.name.capitalize() for d in Day_Of_Week],
+                    values=[d.name for d in Day_Of_Week],
                 ),
             ),
             optional=False,

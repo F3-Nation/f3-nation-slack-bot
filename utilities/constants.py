@@ -147,10 +147,6 @@ FREQUENCY_OPTIONS = {
     "names": ["Week", "Month"],
     "values": ["Weekly", "Monthly"],
 }
-DAY_OF_WEEK_OPTIONS = {
-    "names": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
-    "values": [1, 2, 3, 4, 5, 6, 7],
-}
 INTERVAL_OPTIONS = {
     "names": ["Every", "Every Other", "Every Third", "Every Fourth"],
     "values": ["1", "2", "3", "4"],
