@@ -164,6 +164,21 @@ typing-extensions = ">=4"
 tz = ["backports.zoneinfo"]
 
 [[package]]
+name = "alembic-postgresql-enum"
+version = "1.6.1"
+description = "Alembic autogenerate support for creation, alteration and deletion of enums"
+optional = false
+python-versions = "<4.0,>=3.7"
+files = [
+    {file = "alembic_postgresql_enum-1.6.1-py3-none-any.whl", hash = "sha256:37f08e5721616eace2495ed6262613ae7bb37ba17512dfa377c9a279d3f15265"},
+    {file = "alembic_postgresql_enum-1.6.1.tar.gz", hash = "sha256:23b1ab046f47e83b5f304b83be27eb712ace29303539a75b5227463838d1b2db"},
+]
+
+[package.dependencies]
+alembic = ">=1.7"
+SQLAlchemy = ">=1.4"
+
+[[package]]
 name = "annotated-types"
 version = "0.7.0"
 description = "Reusable constraint types to use with typing.Annotated"
@@ -772,17 +787,18 @@ files = [
 
 [[package]]
 name = "f3-data-models"
-version = "0.2.5"
+version = "0.3.5"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 files = [
-    {file = "f3_data_models-0.2.5-py3-none-any.whl", hash = "sha256:efd9c41e6d1c8b1ab617fbb943b67854ce5abc8bd8e2bac9477612a551686ca8"},
-    {file = "f3_data_models-0.2.5.tar.gz", hash = "sha256:94764ea1946e609ba9fe50a4eca1c0555003c7ca108f13721dbd971fccfbba15"},
+    {file = "f3_data_models-0.3.5-py3-none-any.whl", hash = "sha256:fba320e164af65abc04a2896c613e55f8c9e25786aeba19f0ffdb53a30590320"},
+    {file = "f3_data_models-0.3.5.tar.gz", hash = "sha256:252c2030a239a0cd7dffb997753d87b314de5f9e5bf793d90777502efe399d5d"},
 ]
 
 [package.dependencies]
 alembic = ">=1.14.0,<2.0.0"
+alembic-postgresql-enum = ">=1.6.1,<2.0.0"
 cloud-sql-python-connector = ">=1.13.0,<2.0.0"
 graphviz = ">=0.20.3,<0.21.0"
 pg8000 = ">=1.31.2,<2.0.0"
@@ -4064,4 +4080,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "753f152fd29a771935c214bac68779ffc32bc61bc4e7bc30b0d4797426febb67"
+content-hash = "74be96401cf865b82ee4f38ba03c7ed09e794f9029c13b010d48a9a973e008f8"

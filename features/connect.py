@@ -32,7 +32,7 @@ def build_connect_options_form(
         title="Connect your workspace",
         blocks=[
             SectionBlock(
-                text="This Slack workspace is not currently connected to a F3 region. Please select an option below to request a connection.",
+                text="This Slack workspace is not currently connected to a F3 region. Please select an option below to request a connection.",  # noqa
             ),
             ActionsBlock(
                 elements=[

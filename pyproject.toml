@@ -50,7 +50,7 @@ pandas = "^2.2.2"
 playwright = "^1.44.0"
 alembic = "^1.13.0"
 pymysql = "^1.1.1"
-f3-data-models = "^0.2.0"
+f3-data-models = "^0.3.0"
 
 [tool.poetry.group.dev.dependencies]
 sqlalchemy-schemadisplay = "^2.0"

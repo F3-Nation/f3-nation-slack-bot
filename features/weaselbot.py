@@ -5,12 +5,12 @@ from logging import Logger
 import pytz
 from f3_data_models.models import (
     Achievement,
-    Achievement_x_Org,
     Achievement_x_User,
     SlackSpace,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
+from sqlalchemy import or_
 from sqlalchemy.exc import ProgrammingError
 
 from utilities.database.orm import SlackSettings
@@ -31,11 +31,10 @@ def build_achievement_form(body: dict, client: WebClient, logger: Logger, contex
 
     # build achievement list
     achievement_list = []
-    # gather achievements from paxminer
-    achievement_list = DbManager.find_join_records2(
-        Achievement, Achievement_x_Org, [Achievement_x_Org.org_id == region_record.org_id]
+    # gather achievements from paxminer org_id is the same as region_record.org_id or none
+    achievement_list: list[Achievement] = DbManager.find_records(
+        Achievement, [or_(Achievement.specific_org_id == region_record.org_id, Achievement.specific_org_id.is_(None))]
     )
-    achievement_list: list[Achievement] = [a[0] for a in achievement_list]
 
     if achievement_list:
         achievement_list = slack_orm.as_selector_options(
@@ -123,12 +122,10 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
     trigger_id = safe_get(body, "trigger_id")
 
     try:
-        weaselbot_achievements = DbManager.find_join_records2(
+        weaselbot_achievements = DbManager.find_records(
             Achievement,
-            Achievement_x_Org,
-            [Achievement_x_Org.org_id == region_record.org_id],
+            [or_(Achievement.specific_org_id == region_record.org_id, Achievement.specific_org_id.is_(None))],
         )
-        weaselbot_achievements = [a[0] for a in weaselbot_achievements]
     except ProgrammingError:
         weaselbot_achievements = None
 
