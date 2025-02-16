@@ -7,6 +7,7 @@ from typing import List
 from f3_data_models.models import (
     Day_Of_Week,
     Event,
+    Event_Cadence,
     EventTag_x_Event,
     EventType,
     EventType_x_Event,
@@ -299,7 +300,7 @@ def create_events(records: list[Event]):
         series_tag_id = series.event_tags[0].id if series.event_tags else None  # TODO: handle multiple event tags
 
         # for monthly series, figure out which occurence of the day of the week the start date is within the month
-        if series.recurrence_pattern == "Monthly":
+        if series.recurrence_pattern.name == "monthly":
             current_date = current_date.replace(day=1)
             while current_date <= series.start_date:
                 if current_date.strftime("%A").lower() == series.day_of_week:
@@ -310,7 +311,7 @@ def create_events(records: list[Event]):
         while current_date <= end_date:
             if current_date.strftime("%A").lower() == series.day_of_week:
                 current_index += 1
-                if (current_index == series.index_within_interval) or (series.recurrence_pattern == "Weekly"):
+                if (current_index == series.index_within_interval) or (series.recurrence_pattern.name == "weekly"):
                     if current_interval == 1:
                         event = Event(
                             name=series.name,
@@ -498,7 +499,7 @@ SERIES_FORM = orm.BlockView(
             element=orm.StaticSelectElement(
                 placeholder="Select the interval",
                 options=orm.as_selector_options(
-                    names=constants.INTERVAL_OPTIONS["names"], values=constants.INTERVAL_OPTIONS["values"]
+                    names=[p.name.capitalize() for p in Event_Cadence], values=[p.name for p in Event_Cadence]
                 ),
             ),
         ),
