@@ -18,6 +18,7 @@ CONNECT_EXISTING_REGION_CALLBACK_ID = "connect_existing_region"
 CREATE_NEW_REGION_CALLBACK_ID = "create_new_region"
 SELECT_REGION = "select_region"
 NEW_REGION_NAME = "new_region_name"
+STARFISH_EXISTING_REGION = "connect_region_starfish"
 
 
 def build_connect_options_form(
@@ -31,7 +32,7 @@ def build_connect_options_form(
         title="Connect your workspace",
         blocks=[
             SectionBlock(
-                text="Connect your workspace to a F3 region",
+                text="This Slack workspace is not currently connected to a F3 region. Please select an option below to request a connection.",
             ),
             ActionsBlock(
                 elements=[
@@ -42,6 +43,10 @@ def build_connect_options_form(
                     ButtonElement(
                         text="Create a new region",
                         action_id=CREATE_NEW_REGION,
+                    ),
+                    ButtonElement(
+                        text="Starfish from an exisiting region",
+                        action_id=STARFISH_EXISTING_REGION,
                     ),
                 ]
             ),
@@ -66,7 +71,6 @@ def build_existing_region_form(
     )
     unassigned_regions = [region for region in unassigned_regions if not region.slack_space]
     options = [Option(text=region.name, value=str(region.id)) for region in unassigned_regions]
-    print(f"Found {len(options)} unassigned regions")
     form: View = View(
         type="modal",
         callback_id=CONNECT_EXISTING_REGION_CALLBACK_ID,

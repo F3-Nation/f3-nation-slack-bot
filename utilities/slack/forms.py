@@ -220,10 +220,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":classical_building: SLT Settings",
                     action=actions.CONFIG_SLT,
                 ),
-                # orm.ButtonElement(
-                #     label="Connect Region",
-                #     action=actions.CONFIG_CONNECT,
-                # ),
+                orm.ButtonElement(
+                    label="Connect Region",
+                    action=actions.CONFIG_CONNECT,
+                ),
             ],
         ),
     ]
