@@ -53,7 +53,7 @@ If you don’t have a development environment of choice, I’m going to make two
 1. **VSCode:** [Download Visual Studio Code - Mac, Linux, Windows](https://code.visualstudio.com/download)
 2. **Unix environment:** if on Windows 10+, you can enable “Windows Subsystem for Linux” (WSL), that will allow you to run a version of linux directly on top of / inside of Windows. VSCode makes it very easy to “remote” into WSL: [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (I use Ubuntu FWIW).
 3. **Python 3.12:** you may already have this, but if not I recommend pyenv to manage python installations: [pyenv/pyenv: Simple Python version management](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation). Specifically, F3 Nation currently uses **Python 3.12**
-4. **Postgresql:** this app uses postgresql 16 on the backend, so you will need to set up a local instance for testing. Instructions TBD
+4. **Postgresql:** this app uses postgresql 16 on the backend, so you will need to set up a local instance for testing.
 5. **Ngrok:** you will use this to forward network traffic to your locally running development app: [Download (ngrok.com)](https://ngrok.com/download). You will need to create a free account and install your authtoken: [Your Authtoken - ngrok](https://dashboard.ngrok.com/get-started/your-authtoken)
 6. **Poetry:** I use Poetry for of my apps’ dependency / environment management: [Introduction | Documentation | Poetry - Python dependency management and packaging made easy (python-poetry.org)](https://python-poetry.org/docs/)
 7. **Git:** Git should be installed in most unix environments, here’s unix: [Git (git-scm.com)](https://git-scm.com/download/linux)
@@ -72,17 +72,18 @@ If you don’t have a development environment of choice, I’m going to make two
 
 ### Project setup
 
-1. Clone the repo:
+1. Replicate the F3 Nation data structure through the instructions found here: https://github.com/F3-Nation/F3-Data-Models?tab=readme-ov-file#running-locally
+2. Clone the repo:
 ```sh
 git clone https://github.com/F3-Nation/f3-nation-slack-bot.git
 ```
-2. Use Poetry to install dependencies:
+3. Use Poetry to install dependencies:
 ```sh
 cd f3-nation-slack-bot
 poetry env use 3.12
 poetry install
 ```
-3. Create your development Slack bot: 
+4. Create your development Slack bot: 
     1. Navigate to [api.slack.com]()
     2. Click "Create an app"
     3. Click "From a manifest", select your workspace
@@ -151,11 +152,7 @@ settings:
   socket_mode_enabled: false
   token_rotation_enabled: false
 ```
-4. Copy `.env.example`, replacing `ADMIN_DATABASE_PASSWORD` with the one you used to set up Postgresql, `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above, and save the new file as `.env` in the base directory. There are several secrets you will need from Moneyball.
-5. Initialize your local database by running the script:
-```sh
-source .env && poetry run python utilities/database/create_clear_local_db.py --reset
-```
+5. Copy `.env.example`, replacing `ADMIN_DATABASE_PASSWORD` with the one you used to set up Postgresql, `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above, and save the new file as `.env` in the base directory. There are several secrets you will need from Moneyball.
 6. Run Ngrok with the following command from your terminal:
 ```sh
 ngrok http 3000
@@ -189,9 +186,3 @@ This codebase utilizes the slack-bolt python sdk throughout, and will eventually
 - `utilities/slack/orm.py` - this is where I've defined most of the Slack API UI elements in python class form, that is then used throughout. The ORM defines "blocks", that can then be converted to Slack's required json format via the `.as_form_field()` method
 - `utilities/database/orm/__init__.py` - this is where the SQLAlchemy ORM classes are defined
 - `utilities/database/create_clear_local_db.py` - this can be run to drop the database and recreate it using the ORM definition in the file above
-
-## Database Structure
-
-Below is the current structure of the database:
-
-<img src="utilities/database/schema.png" width="500">
