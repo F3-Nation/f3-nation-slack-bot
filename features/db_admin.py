@@ -5,11 +5,11 @@ from logging import Logger
 from alembic import command, config, script
 from alembic.runtime import migration
 from f3_data_models.models import Role_x_User_x_Org
+from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import engine
 
 from scripts.calendar_images import generate_calendar_images
-from utilities.database import DbManager
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.helper_functions import get_user, safe_get

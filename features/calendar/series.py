@@ -123,7 +123,7 @@ def build_series_add_form(
     else:
         initial_values = {
             actions.CALENDAR_ADD_SERIES_START_DATE: datetime.now().strftime("%Y-%m-%d"),
-            actions.CALENDAR_ADD_SERIES_FREQUENCY: "Weekly",
+            actions.CALENDAR_ADD_SERIES_FREQUENCY: Event_Cadence.weekly.name,
             actions.CALENDAR_ADD_SERIES_INTERVAL: "1",
             actions.CALENDAR_ADD_SERIES_INDEX: 1,
         }
@@ -257,10 +257,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     if safe_get(metadata, "series_id"):
         # series_id is passed in the metadata if this is an edit
-        update_dict = series_records[0].__dict__
-        update_dict.pop("_sa_instance_state")
-        DbManager.update_record(Event, metadata["series_id"], fields=update_dict)
-        records = [Event(id=metadata["series_id"], **update_dict)]
+        # update_dict = series_records[0].__dict__
+
+        DbManager.update_record(Event, metadata["series_id"], fields=series_records[0].to_update_dict())
+        records = [DbManager.get(Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags])]
 
         # Delete all future events associated with the series
         # TODO: I could do a check to see if dates / times have changed, if not we could update the events instead of deleting them # noqa
@@ -270,6 +270,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 Event.series_id == metadata["series_id"],
                 Event.start_date >= datetime.now(),
             ],
+            joinedloads=[Event.event_x_event_types],  # need to delete attendnace as well
         )
     else:
         records = DbManager.create_records(series_records)
@@ -278,7 +279,6 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     if day_of_weeks:
         event_ids = [record.id for record in records]
         records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
-        print(records)
         create_events(records)
 
     if safe_get(metadata, "series_id"):
@@ -298,20 +298,21 @@ def create_events(records: list[Event]):
         current_index = 0
         series_type_id = series.event_types[0].id  # TODO: handle multiple event types
         series_tag_id = series.event_tags[0].id if series.event_tags else None  # TODO: handle multiple event tags
-
         # for monthly series, figure out which occurence of the day of the week the start date is within the month
-        if series.recurrence_pattern.name == "monthly":
+        if series.recurrence_pattern.name == Event_Cadence.monthly.name:
             current_date = current_date.replace(day=1)
             while current_date <= series.start_date:
-                if current_date.strftime("%A").lower() == series.day_of_week:
+                if current_date.strftime("%A").lower() == series.day_of_week.name:
                     current_index += 1
                 current_date += timedelta(days=1)
 
         # event creation algorithm
         while current_date <= end_date:
-            if current_date.strftime("%A").lower() == series.day_of_week:
+            if current_date.strftime("%A").lower() == series.day_of_week.name:
                 current_index += 1
-                if (current_index == series.index_within_interval) or (series.recurrence_pattern.name == "weekly"):
+                if (current_index == series.index_within_interval) or (
+                    series.recurrence_pattern.name == Event_Cadence.weekly.name
+                ):
                     if current_interval == 1:
                         event = Event(
                             name=series.name,
@@ -421,7 +422,7 @@ def handle_series_edit_delete(
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        series: Event = DbManager.get(Event, series_id)
+        series: Event = DbManager.get(Event, series_id, joinedloads="all")
         build_series_add_form(body, client, logger, context, region_record, edit_event=series)
     elif action == "Delete":
         DbManager.update_record(Event, series_id, fields={"is_active": False})
@@ -498,9 +499,7 @@ SERIES_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_SERIES_INTERVAL,
             element=orm.StaticSelectElement(
                 placeholder="Select the interval",
-                options=orm.as_selector_options(
-                    names=[p.name.capitalize() for p in Event_Cadence], values=[p.name for p in Event_Cadence]
-                ),
+                options=orm.as_selector_options(**constants.INTERVAL_OPTIONS),
             ),
         ),
         orm.InputBlock(
@@ -508,9 +507,7 @@ SERIES_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_SERIES_FREQUENCY,
             element=orm.StaticSelectElement(
                 placeholder="Select the frequency",
-                options=orm.as_selector_options(
-                    names=constants.FREQUENCY_OPTIONS["names"], values=constants.FREQUENCY_OPTIONS["values"]
-                ),
+                options=orm.as_selector_options(names=["Week", "Month"], values=[p.name for p in Event_Cadence]),
             ),
         ),
         # orm.InputBlock(

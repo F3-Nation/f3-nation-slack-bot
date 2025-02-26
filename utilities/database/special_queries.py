@@ -188,7 +188,7 @@ class PositionExtended:
 
 
 def get_position_users(org_id: int, region_org_id: int) -> List[PositionExtended]:
-    org_type_level = Org_Type.region if region_org_id == org_id else 1
+    org_type_level = Org_Type.region if region_org_id == org_id else Org_Type.ao
     with get_session() as session:
         query = (
             session.query(Position, SlackUser)
