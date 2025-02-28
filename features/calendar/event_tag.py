@@ -102,13 +102,14 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
             DbManager.update_record(
                 EventTag,
                 edit_event_tag_id,
-                {EventTag.color: event_color},
+                {EventTag.color: event_color, EventTag.name: event_tag_name},
             )
         else:
             DbManager.create_record(
                 EventTag(
                     name=event_tag_name,
                     color=event_color,
+                    specific_org_id=region_record.org_id,
                 )
             )
 
