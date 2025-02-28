@@ -13,6 +13,7 @@ from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
 import scripts
 from features import strava
+from features.calendar import event_tag  # noqa: F401
 from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
