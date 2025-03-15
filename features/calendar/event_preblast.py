@@ -17,6 +17,7 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from features import preblast_legacy
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
 from utilities import constants
 from utilities.database.orm import SlackSettings
@@ -41,6 +42,19 @@ def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastIn
     ):
         return region_record.preblast_destination_channel
     return preblast_info.event_record.org.meta.get("slack_channel_id")
+
+
+def preblast_middleware(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    if region_record.org_id is None:
+        preblast_legacy.build_preblast_form(body, client, logger, context, region_record)
+    else:
+        build_event_preblast_select_form(body, client, logger, context, region_record)
 
 
 def build_event_preblast_select_form(

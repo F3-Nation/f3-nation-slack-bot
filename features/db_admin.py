@@ -36,7 +36,7 @@ def build_db_admin_form(
     message: str = None,
 ):
     update_view_id = update_view_id or safe_get(body, actions.LOADING_ID)
-    if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD"):
+    if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD") or message:
         form = copy.deepcopy(DB_ADMIN_FORM)
         # alembic_cfg = config.Config("alembic.ini")
         # engine = get_engine()
@@ -70,7 +70,7 @@ def build_db_admin_form(
         #             ],
         #         )
         #     )
-        # form.blocks[1].label = msg
+        form.blocks[-1].label = message or " "
     else:
         form = copy.deepcopy(DB_WRONG_PASSWORD_FORM)
 
@@ -133,8 +133,27 @@ def handle_paxminer_migration(
     form_data = DB_ADMIN_FORM.get_selected_values(body)
     region = safe_get(form_data, actions.PAXMINER_MIGRATION_REGION)
     region = None if region == "" else region
+    view_id = safe_get(body, "view", "id")
     if region:
-        run_paxminer_migration_bulk(region)
+        build_db_admin_form(
+            body,
+            client,
+            logger,
+            context,
+            region_record,
+            update_view_id=view_id,
+            message="Paxminer migration started!",
+        )
+        msg = run_paxminer_migration_bulk(region)
+    build_db_admin_form(
+        body,
+        client,
+        logger,
+        context,
+        region_record,
+        update_view_id=view_id,
+        message=f"Paxminer migration complete!\n{msg}",
+    )
 
 
 def handle_paxminer_migration_all(
@@ -180,10 +199,10 @@ DB_ADMIN_FORM = orm.BlockView(
                     label="Paxminer Migration (Selected Region)",
                     action=actions.SECRET_MENU_PAXMINER_MIGRATION,
                 ),
-                orm.ButtonElement(
-                    label="Paxminer Migration (All Regions)",
-                    action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
-                ),
+                # orm.ButtonElement(
+                #     label="Paxminer Migration (All Regions)",
+                #     action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
+                # ),
                 orm.ButtonElement(
                     label="Update Canvas",
                     action=actions.SECRET_MENU_UPDATE_CANVAS,
@@ -201,7 +220,7 @@ DB_ADMIN_FORM = orm.BlockView(
         ),
         orm.SectionBlock(
             action=actions.DB_ADMIN_TEXT,
-            label="Database is at the latest version.",
+            label=" ",
         ),
     ]
 )

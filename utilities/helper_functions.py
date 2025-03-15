@@ -7,8 +7,6 @@ import boto3
 import requests
 from f3_data_models.models import (
     Org,
-    Org_Type,
-    Org_x_SlackSpace,
     SlackSpace,
     SlackUser,
     User,
@@ -20,10 +18,12 @@ from slack_bolt.oauth.oauth_settings import OAuthSettings
 from slack_sdk.oauth.installation_store import FileInstallationStore
 from slack_sdk.oauth.state_store import FileOAuthStateStore
 from slack_sdk.web import WebClient
+from sqlalchemy import text
 
 from utilities import constants
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
+from utilities.database.orm.paxminer import get_pm_engine
 from utilities.slack import actions
 
 REGION_RECORDS: Dict[str, SlackSettings] = {}
@@ -211,20 +211,27 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
             Org, [Org.slack_space.has(SlackSpace.team_id == team_id)], joinedloads=[Org.slack_space]
         )
 
-        if not org_record:
-            org_record = Org(
-                org_type=Org_Type.region,
-                name=team_name,
-                is_active=True,
-            )
-            org_record: Org = DbManager.create_record(org_record)
+        settings_starters = {
+            "team_id": team_id,
+            "bot_token": context["bot_token"],
+            "workspace_name": team_name,
+        }
 
-        region_record = SlackSettings(
-            team_id=team_id,
-            bot_token=context["bot_token"],
-            workspace_name=team_name,
-            org_id=org_record.id,  # NOTE: eventually we can just rely on the x table
-        )
+        if not org_record:
+            region_record = migrate_slackblast_settings(team_id, settings_starters)
+            # if True:  # not LOCAL_DEVELOPMENT:
+            #     print("Not connected")
+            #     return None
+            # else:
+            #     org_record = Org(
+            #         org_type=Org_Type.region,
+            #         name=team_name,
+            #         is_active=True,
+            #     )
+            #     org_record: Org = DbManager.create_record(org_record)
+        else:
+            settings_starters.update({"org_id": org_record.id})
+            region_record = SlackSettings(**settings_starters)
 
         slack_space_record = SlackSpace(
             team_id=team_id,
@@ -234,18 +241,27 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         )
         slack_space_record: SlackSpace = DbManager.create_record(slack_space_record)
 
-        DbManager.create_record(
-            Org_x_SlackSpace(
-                org_id=org_record.id,
-                slack_space_id=slack_space_record.id,
-            )
-        )
-
         REGION_RECORDS[team_id] = region_record
 
         populate_users(client, team_id)
 
     return region_record
+
+
+def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackSettings:
+    engine = get_pm_engine("slackblast", echo=False)
+    with engine.connect() as conn:
+        slackblast_region = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).fetchone()
+    engine.dispose()
+    if slackblast_region:
+        settings_starters.update({k: v for k, v in slackblast_region.items() if k in SlackSettings.__annotations__})
+    else:
+        engine = get_pm_engine("paxminer", echo=False)
+        with engine.connect() as conn:
+            paxminer_region = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).fetchone()
+        engine.dispose()
+        settings_starters.update({"paxminer_schema": safe_get(paxminer_region, "schema_name")})
+    return SlackSettings(**settings_starters)
 
 
 def populate_users(client: WebClient, team_id: str):

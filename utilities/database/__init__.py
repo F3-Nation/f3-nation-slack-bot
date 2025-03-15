@@ -27,7 +27,7 @@ GLOBAL_SESSION = None
 GLOBAL_SCHEMA = None
 
 
-def get_engine(echo=False, schema=None, paxminer_db=False) -> Engine:
+def get_engine(echo=False, schema=None, paxminer_db=True) -> Engine:
     if paxminer_db:
         host = os.environ[constants.PAXMINER_DATABASE_HOST]
         user = os.environ[constants.PAXMINER_DATABASE_USER]
@@ -76,7 +76,7 @@ def get_engine(echo=False, schema=None, paxminer_db=False) -> Engine:
         return engine
 
 
-def get_session(echo=False, schema=None, paxminer_db=False):
+def get_session(echo=False, schema=None, paxminer_db=True):
     if GLOBAL_SESSION:
         return GLOBAL_SESSION
 

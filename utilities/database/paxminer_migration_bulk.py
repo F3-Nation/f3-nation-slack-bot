@@ -2,6 +2,8 @@ import argparse
 import json
 import os
 import sys
+import uuid
+from datetime import date
 from typing import Dict, List
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
@@ -23,11 +25,12 @@ from utilities.database.orm.paxminer import Attendance as PaxminerAttendance
 from utilities.database.orm.paxminer import Backblast, PaxminerAO, PaxminerRegion, PaxminerUser, get_pm_engine
 
 
-def extract_name(backblast: str) -> str:
+def extract_name(backblast: str = "No title") -> str:
     # extract the name of the event from the backblast
     # this is a very basic implementation, and will need to be updated
     # to handle the various ways that backblasts are formatted
     # this is just a placeholder
+    backblast = backblast or "No title"
     name = backblast.split("\n")[0]
     if name:
         return name[:50]
@@ -47,7 +50,7 @@ def convert_aos(paxminer_aos: list[PaxminerAO], org_id: int) -> List[Org]:
     aos: List[Org] = []
     aos = [
         Org(
-            org_type_id=Org_Type.ao,
+            org_type=Org_Type.ao,
             parent_id=org_id,
             name=ao.ao,
             is_active=True,
@@ -65,7 +68,7 @@ def convert_users(paxminer_users: list[PaxminerUser], slack_team_id: str) -> Lis
             f3_name=user.user_name,
             first_name=user.real_name.split(" ")[0],
             last_name=" ".join(user.real_name.split(" ")[1:]),
-            email=user.user_id if user.email == "None" else user.email,
+            email=(user.user_id or uuid.uuid4()) if (user.email or "None") == "None" else user.email,
             phone=user.phone,
         )
         for user in paxminer_users
@@ -76,10 +79,10 @@ def convert_users(paxminer_users: list[PaxminerUser], slack_team_id: str) -> Lis
 
     slack_users: List[SlackUser] = []
     for user in paxminer_users:
-        email = user.user_id if user.email == "None" else user.email
+        email = (user.user_id or uuid.uuid4()) if (user.email or "None") == "None" else user.email
         slack_users.append(
             SlackUser(
-                slack_id=user.user_id,
+                slack_id=user.user_id or uuid.uuid4(),
                 user_name=user.user_name,
                 email=email,
                 is_admin=False,
@@ -94,14 +97,17 @@ def convert_users(paxminer_users: list[PaxminerUser], slack_team_id: str) -> Lis
 
 def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, region_org_id: int) -> List[Event]:
     events: List[Event] = []
+    for backblast in paxminer_backblasts:
+        if type(backblast.bd_date) is str:
+            backblast.bd_date = date(2020, 1, 1)
     events = [
         Event(
             org_id=slack_org_dict.get(backblast.ao_id) or region_org_id,  # will return none if not found
             is_series=False,
             is_active=True,
             highlight=False,
-            start_date=backblast.bd_date,
-            end_date=backblast.bd_date,
+            start_date=backblast.bd_date if backblast.bd_date > date(2020, 1, 1) else date(2020, 1, 1),
+            end_date=backblast.bd_date if backblast.bd_date > date(2020, 1, 1) else date(2020, 1, 1),
             name=extract_name(backblast.backblast),
             pax_count=backblast.pax_count,
             fng_count=backblast.fng_count,
@@ -145,7 +151,10 @@ def convert_attendance(
                         is_planned=False,
                     )
                 )
-
+    # remove duplicates on event_id, user_id, and is_planned
+    # TODO: this is a hack, need to fix the root cause
+    attendance_dict = {f"{a.event_id}-{a.user_id}-{a.is_planned}": a for a in attendance_list}
+    attendance_list = list(attendance_dict.values())
     return attendance_list
 
 
@@ -158,7 +167,7 @@ def build_event_lookup_dict(paxminer_backblasts: List[Backblast], events: List[E
     return event_lookup_dict
 
 
-def run_paxminer_migration(from_pm_schema: str = None):
+def run_paxminer_migration(from_pm_schema: str = None) -> str:
     total_events = 0
     total_attendance = 0
     engine = get_pm_engine(schema="paxminer")
@@ -166,7 +175,9 @@ def run_paxminer_migration(from_pm_schema: str = None):
         if from_pm_schema:
             regions = conn.execute(text(f"SELECT * FROM regions WHERE schema_name = '{from_pm_schema}'")).fetchall()
         else:
-            regions = conn.execute(text("SELECT * FROM regions WHERE active = 1 AND team_id IS NOT NULL")).fetchall()
+            regions = conn.execute(
+                text("SELECT * FROM regions WHERE active = 1 and region <= 'Gwinnett' AND team_id IS NOT NULL")
+            ).fetchall()
     regions = [PaxminerRegion(**region._mapping) for region in regions]
     engine.dispose()
     for paxminer_region in regions:
@@ -177,10 +188,24 @@ def run_paxminer_migration(from_pm_schema: str = None):
             paxminer_backblasts = conn.execute(text("SELECT * FROM beatdowns")).fetchall()
             paxminer_attendance = conn.execute(text("SELECT * FROM bd_attendance")).fetchall()
             paxminer_users = conn.execute(text("SELECT * FROM users")).fetchall()
-        paxminer_aos = [PaxminerAO(**ao._mapping) for ao in paxminer_aos]
-        paxminer_backblasts = [Backblast(**backblast._mapping) for backblast in paxminer_backblasts]
-        paxminer_attendance = [PaxminerAttendance(**attendance._mapping) for attendance in paxminer_attendance]
-        paxminer_users = [PaxminerUser(**user._mapping) for user in paxminer_users]
+        paxminer_aos = [
+            PaxminerAO(**{k: v for k, v in ao._mapping.items() if k in PaxminerAO.__annotations__})
+            for ao in paxminer_aos
+        ]
+        paxminer_backblasts = [
+            Backblast(**{k: v for k, v in backblast._mapping.items() if k in Backblast.__annotations__})
+            for backblast in paxminer_backblasts
+        ]
+        paxminer_attendance = [
+            PaxminerAttendance(
+                **{k: v for k, v in attendance._mapping.items() if k in PaxminerAttendance.__annotations__}
+            )
+            for attendance in paxminer_attendance
+        ]
+        paxminer_users = [
+            PaxminerUser(**{k: v for k, v in user._mapping.items() if k in PaxminerUser.__annotations__})
+            for user in paxminer_users
+        ]
         engine.dispose()
 
         # region record
@@ -216,8 +241,9 @@ def run_paxminer_migration(from_pm_schema: str = None):
         total_events += len(events)
         total_attendance += len(attendance)
 
-    print(f"Total events created: {total_events}")
-    print(f"Total attendance records created: {total_attendance}")
+    msg = f"Total events created: {total_events}\nTotal attendance records created: {total_attendance}"
+    print(msg)
+    return msg
 
 
 if __name__ == "__main__":

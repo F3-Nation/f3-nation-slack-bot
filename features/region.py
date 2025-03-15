@@ -6,6 +6,7 @@ from f3_data_models.models import Org, Role_x_User_x_Org, SlackUser
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from features import connect
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users_list
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
@@ -22,33 +23,36 @@ def build_region_form(
     form = copy.deepcopy(REGION_FORM)
     org_record: Org = DbManager.get(Org, region_record.org_id)
 
-    admin_users = get_admin_users_list(region_record.org_id, slack_team_id=region_record.team_id)
-    admin_user_ids = [u.slack_id for u in admin_users]
+    if not org_record:
+        connect.build_connect_options_form(body, client, logger, context)
+    else:
+        admin_users = get_admin_users_list(region_record.org_id, slack_team_id=region_record.team_id)
+        admin_user_ids = [u.slack_id for u in admin_users]
 
-    form.set_initial_values(
-        {
-            actions.REGION_NAME: org_record.name,
-            actions.REGION_DESCRIPTION: org_record.description,
-            actions.REGION_LOGO: org_record.logo_url,
-            actions.REGION_WEBSITE: org_record.website,
-            actions.REGION_EMAIL: org_record.email,
-            actions.REGION_TWITTER: org_record.twitter,
-            actions.REGION_FACEBOOK: org_record.facebook,
-            actions.REGION_INSTAGRAM: org_record.instagram,
-            actions.REGION_ADMINS: admin_user_ids,
-        }
-    )
+        form.set_initial_values(
+            {
+                actions.REGION_NAME: org_record.name,
+                actions.REGION_DESCRIPTION: org_record.description,
+                actions.REGION_LOGO: org_record.logo_url,
+                actions.REGION_WEBSITE: org_record.website,
+                actions.REGION_EMAIL: org_record.email,
+                actions.REGION_TWITTER: org_record.twitter,
+                actions.REGION_FACEBOOK: org_record.facebook,
+                actions.REGION_INSTAGRAM: org_record.instagram,
+                actions.REGION_ADMINS: admin_user_ids,
+            }
+        )
 
-    if org_record.logo_url:
-        form.blocks.insert(2, orm.ImageBlock(image_url=org_record.logo_url, alt_text="Region Logo"))
+        if org_record.logo_url:
+            form.blocks.insert(2, orm.ImageBlock(image_url=org_record.logo_url, alt_text="Region Logo"))
 
-    form.post_modal(
-        client=client,
-        trigger_id=safe_get(body, "trigger_id"),
-        title_text="Edit Region",
-        callback_id=actions.REGION_CALLBACK_ID,
-        new_or_add="add",
-    )
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Edit Region",
+            callback_id=actions.REGION_CALLBACK_ID,
+            new_or_add="add",
+        )
 
 
 def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
