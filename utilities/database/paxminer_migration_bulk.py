@@ -68,7 +68,7 @@ def convert_users(paxminer_users: list[PaxminerUser], slack_team_id: str) -> Lis
             f3_name=user.user_name,
             first_name=user.real_name.split(" ")[0],
             last_name=" ".join(user.real_name.split(" ")[1:]),
-            email=(user.user_id or uuid.uuid4()) if (user.email or "None") == "None" else user.email,
+            email=(user.user_id.lower() or uuid.uuid4()) if (user.email or "None") == "None" else user.email.lower(),
             phone=user.phone,
         )
         for user in paxminer_users
@@ -79,7 +79,7 @@ def convert_users(paxminer_users: list[PaxminerUser], slack_team_id: str) -> Lis
 
     slack_users: List[SlackUser] = []
     for user in paxminer_users:
-        email = (user.user_id or uuid.uuid4()) if (user.email or "None") == "None" else user.email
+        email = (user.user_id.lower() or uuid.uuid4()) if (user.email or "None") == "None" else user.email.lower()
         slack_users.append(
             SlackUser(
                 slack_id=user.user_id or uuid.uuid4(),

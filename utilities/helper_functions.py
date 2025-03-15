@@ -145,6 +145,7 @@ def get_user(slack_user_id: str, region_record: SlackSettings, client: WebClient
             user_info = client.users_info(user=slack_user_id)
             email = safe_get(user_info, "user", "profile", "email")
             email = email or slack_user_id  # this means it's a bot
+            email = email.lower()
             user_name = safe_get(user_info, "user", "profile", "display_name") or safe_get(
                 user_info, "user", "profile", "real_name"
             )
