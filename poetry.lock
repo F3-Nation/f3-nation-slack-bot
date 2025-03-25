@@ -787,13 +787,13 @@ files = [
 
 [[package]]
 name = "f3-data-models"
-version = "0.3.8"
+version = "0.4.3"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 files = [
-    {file = "f3_data_models-0.3.8-py3-none-any.whl", hash = "sha256:d835c836e78171e7e7e09afcf81cbf57ee7deb81995b951d1788c02f0b7c7bf7"},
-    {file = "f3_data_models-0.3.8.tar.gz", hash = "sha256:39b35391369b59c048d7811a159e1987a9160dfe65403a887b3c0cab0a45b841"},
+    {file = "f3_data_models-0.4.3-py3-none-any.whl", hash = "sha256:cb9f1bb66a59bacdea2247160a3c66f165757df3e5f2bef04c5e6568253a2663"},
+    {file = "f3_data_models-0.4.3.tar.gz", hash = "sha256:43149279c3e455361f55312c2e4d21267ff9ff3cda34bd987d611af825de0abb"},
 ]
 
 [package.dependencies]
@@ -808,6 +808,7 @@ sphinx-autodoc-typehints = ">=2.5.0,<3.0.0"
 sphinx-multiversion = ">=0.2.4,<0.3.0"
 sphinx-rtd-theme = ">=3.0.2,<4.0.0"
 sqlalchemy = ">=2.0.36,<3.0.0"
+sqlalchemy-citext = ">=1.8.0,<2.0.0"
 sqlalchemy-schemadisplay = ">=2.0,<3.0"
 sqlmodel = ">=0.0.22,<0.0.23"
 
@@ -3593,6 +3594,19 @@ pymysql = ["pymysql"]
 sqlcipher = ["sqlcipher3_binary"]
 
 [[package]]
+name = "sqlalchemy-citext"
+version = "1.8.0"
+description = "A sqlalchemy plugin that allows postgres use of CITEXT."
+optional = false
+python-versions = "*"
+files = [
+    {file = "sqlalchemy-citext-1.8.0.tar.gz", hash = "sha256:a1740e693a9a334e7c8f60ae731083fe75ce6c1605bb9ca6644a6f1f63b15b77"},
+]
+
+[package.dependencies]
+SQLAlchemy = ">=0.6"
+
+[[package]]
 name = "sqlalchemy-schemadisplay"
 version = "2.0"
 description = "Package for the generation of diagrams based on SQLAlchemy ORM models and or the database itself"
@@ -4080,4 +4094,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "74be96401cf865b82ee4f38ba03c7ed09e794f9029c13b010d48a9a973e008f8"
+content-hash = "b5ab0498e3bcfd24948dd96a22eea9e6c2bae230bc73c49496a18d5809e510b9"

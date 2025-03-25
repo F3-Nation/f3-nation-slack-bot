@@ -4,7 +4,7 @@ from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
-from f3_data_models.models import Role_x_User_x_Org
+from f3_data_models.models import Org, Org_Type, Org_x_SlackSpace, Role_x_User_x_Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import engine
@@ -187,6 +187,41 @@ def handle_make_admin(
     )
 
 
+def handle_make_org(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    try:
+        team_info = client.team_info()
+        team_name = team_info["team"]["name"]
+    except Exception:
+        team_name = safe_get(body, "team", "domain")
+    org_record = Org(
+        org_type=Org_Type.region,
+        name=team_name,
+        is_active=True,
+    )
+    org_record: Org = DbManager.create_record(org_record)
+
+    region_record.org_id = org_record.id
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
+    )
+
+    slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == region_record.team_id])
+    DbManager.create_record(
+        Org_x_SlackSpace(
+            org_id=org_record.id,
+            slack_space_id=slack_space_record.id,
+        )
+    )
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -195,10 +230,10 @@ DB_ADMIN_FORM = orm.BlockView(
                     label="Calendar Images",
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
                 ),
-                orm.ButtonElement(
-                    label="Paxminer Migration (Selected Region)",
-                    action=actions.SECRET_MENU_PAXMINER_MIGRATION,
-                ),
+                # orm.ButtonElement(
+                #     label="Paxminer Migration (Selected Region)",
+                #     action=actions.SECRET_MENU_PAXMINER_MIGRATION,
+                # ),
                 # orm.ButtonElement(
                 #     label="Paxminer Migration (All Regions)",
                 #     action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
@@ -206,6 +241,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Update Canvas",
                     action=actions.SECRET_MENU_UPDATE_CANVAS,
+                ),
+                orm.ButtonElement(
+                    label="Create Org and Connect",
+                    action=actions.SECRET_MENU_MAKE_ORG,
                 ),
                 orm.ButtonElement(
                     label="Make myself an admin",

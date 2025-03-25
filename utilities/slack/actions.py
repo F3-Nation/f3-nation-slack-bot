@@ -281,6 +281,7 @@ DB_ADMIN_RESET = "db-admin-reset"
 SECRET_MENU_CALENDAR_IMAGES = "secret-menu-calendar-images"
 SECRET_MENU_PAXMINER_MIGRATION = "secret-menu-paxminer-migration"
 SECRET_MENU_PAXMINER_MIGRATION_ALL = "secret-menu-paxminer-migration-all"
+SECRET_MENU_MAKE_ORG = "secret-menu-make-org"
 
 CALENDAR_ADD_SERIES_PREBLAST = "calendar-add-series-preblast"
 
