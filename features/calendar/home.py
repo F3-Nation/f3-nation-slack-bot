@@ -46,7 +46,8 @@ def build_home_form(
 
     ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id])
     event_type_records: List[EventType] = DbManager.find_records(
-        EventType, filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id is None]
+        EventType,
+        filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id.is_(None)],
     )
 
     if LOCAL_DEVELOPMENT:
