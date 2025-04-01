@@ -38,6 +38,7 @@ class PreblastItem:
     parent_org: Org
     q_name: str
     slack_user_id: str
+    q_avatar_url: str
     slack_settings: SlackSettings
 
 
@@ -45,7 +46,7 @@ class PreblastItem:
 class PreblastList:
     items: List[PreblastItem] = field(default_factory=list)
 
-    def pull_data(self):
+    def pull_data(self, filters: List):
         session = get_session()
         ParentOrg = aliased(Org)
 
@@ -54,6 +55,7 @@ class PreblastList:
                 Attendance.event_id,
                 User.f3_name.label("q_name"),
                 SlackUser.slack_id,
+                User.avatar_url.label("q_avatar_url"),
                 func.row_number().over(partition_by=Attendance.event_id, order_by=Attendance.created).label("rn"),
             )
             .select_from(Attendance)
@@ -72,6 +74,7 @@ class PreblastList:
                 ParentOrg,
                 firstq_subquery.c.q_name,
                 firstq_subquery.c.slack_id,
+                firstq_subquery.c.q_avatar_url,
                 SlackSpace.settings,
             )
             .select_from(Event)
@@ -82,15 +85,11 @@ class PreblastList:
             .join(
                 firstq_subquery,
                 and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
+                isouter=True,
             )
             .join(Org_x_SlackSpace, ParentOrg.id == Org_x_SlackSpace.org_id)
             .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
-            .filter(
-                Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
-                Event.preblast_ts.is_(None),  # not already sent
-                Event.is_active,  # not canceled
-                ~Event.is_series,  # not a series
-            )
+            .filter(*filters)
             .order_by(ParentOrg.name, Org.name, Event.start_time)
         )
         records = query.all()
@@ -102,7 +101,8 @@ class PreblastList:
                 parent_org=r[3],
                 q_name=r[4],
                 slack_user_id=r[5],
-                slack_settings=SlackSettings(**r[6]),
+                q_avatar_url=r[6],
+                slack_settings=SlackSettings(**r[7]),
             )
             for r in records
         ]
@@ -112,7 +112,15 @@ class PreblastList:
 
 def send_preblast_reminders():
     preblast_list = PreblastList()
-    preblast_list.pull_data()
+    preblast_list.pull_data(
+        filters=[
+            Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
+            Event.preblast_ts.is_(None),  # not already sent
+            Event.is_active,  # not canceled
+            ~Event.is_series,  # not a series
+        ]
+    )
+    preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
     print(f"Found {len(preblast_list.items)} preblasts to send.")
 
     for preblast in preblast_list.items:

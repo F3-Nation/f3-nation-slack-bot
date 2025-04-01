@@ -10,6 +10,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import engine
 
 from scripts.calendar_images import generate_calendar_images
+from scripts.q_lineups import send_lineups
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.helper_functions import get_user, safe_get
@@ -222,6 +223,28 @@ def handle_make_org(
     )
 
 
+def handle_ao_lineups(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    send_lineups()
+
+
+def handle_preblast_reminders(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    from scripts.preblast_reminders import send_preblast_reminders
+
+    send_preblast_reminders()
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -229,6 +252,14 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Calendar Images",
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
+                ),
+                orm.ButtonElement(
+                    label="AO Lineups",
+                    action=actions.SECRET_MENU_AO_LINEUPS,
+                ),
+                orm.ButtonElement(
+                    label="Preblast Reminders",
+                    action=actions.SECRET_MENU_PREBLAST_REMINDERS,
                 ),
                 # orm.ButtonElement(
                 #     label="Paxminer Migration (Selected Region)",

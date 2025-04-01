@@ -67,6 +67,7 @@ VIEW_MAPPER = {
     actions.NEW_POSITION_CALLBACK_ID: (config.handle_new_position_post, False),
     connect.CONNECT_EXISTING_REGION_CALLBACK_ID: (connect.handle_existing_region_selection, False),
     connect.CREATE_NEW_REGION_CALLBACK_ID: (connect.handle_new_region_creation, False),
+    actions.CALENDAR_CONFIG_GENERAL_CALLBACK_ID: (calendar_config.handle_calendar_config_general, False),
 }
 
 ACTION_MAPPER = {
@@ -135,6 +136,10 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_UPDATE_CANVAS: (canvas.update_canvas, False),
     actions.SECRET_MENU_MAKE_ADMIN: (db_admin.handle_make_admin, False),
     actions.SECRET_MENU_MAKE_ORG: (db_admin.handle_make_org, False),
+    actions.CALENDAR_CONFIG_GENERAL: (calendar_config.build_calendar_general_config_form, False),
+    actions.SECRET_MENU_AO_LINEUPS: (db_admin.handle_ao_lineups, False),
+    actions.OPEN_CALENDAR_MSG_BUTTON: (home.build_home_form, False),
+    actions.SECRET_MENU_PREBLAST_REMINDERS: (db_admin.handle_preblast_reminders, False),
 }
 
 VIEW_CLOSED_MAPPER = {

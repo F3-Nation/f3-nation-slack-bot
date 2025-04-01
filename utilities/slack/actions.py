@@ -1,5 +1,5 @@
 LOADING = "loading"
-
+OPEN_CALENDAR_MSG_BUTTON = "open-calendar-msg-button"
 BACKBLAST_CALLBACK_ID = "backblast-id"
 BACKBLAST_TITLE = "title"
 BACKBLAST_AO = "The_AO"
@@ -96,6 +96,9 @@ CONFIG_NEW_POSITION_DESCRIPTION = "new_position_description"
 NEW_POSITION_CALLBACK_ID = "new-position-id"
 PAXMINER_MIGRATION_REGION = "paxminer_migration_region"
 CONFIG_CONNECT = "config_connect"
+CALENDAR_CONFIG_Q_LINEUP = "calendar_config_q_lineup"
+CALENDAR_CONFIG_GENERAL_CALLBACK_ID = "calendar-config-general-id"
+
 
 WELCOME_MESSAGE_CONFIG_CALLBACK_ID = "welcome-message-config-id"
 WELCOME_DM_TEMPLATE = "welcome-dm-template"
@@ -282,6 +285,8 @@ SECRET_MENU_CALENDAR_IMAGES = "secret-menu-calendar-images"
 SECRET_MENU_PAXMINER_MIGRATION = "secret-menu-paxminer-migration"
 SECRET_MENU_PAXMINER_MIGRATION_ALL = "secret-menu-paxminer-migration-all"
 SECRET_MENU_MAKE_ORG = "secret-menu-make-org"
+SECRET_MENU_AO_LINEUPS = "secret-menu-ao-lineups"
+SECRET_MENU_PREBLAST_REMINDERS = "secret-menu-preblast-reminders"
 
 CALENDAR_ADD_SERIES_PREBLAST = "calendar-add-series-preblast"
 

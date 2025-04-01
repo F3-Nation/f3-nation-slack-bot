@@ -244,7 +244,8 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 
         REGION_RECORDS[team_id] = region_record
 
-        populate_users(client, team_id)
+        org_id = org_record.id if org_record else None
+        populate_users(client, team_id, org_id)
 
     return region_record
 
@@ -265,12 +266,14 @@ def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackS
     return SlackSettings(**settings_starters)
 
 
-def populate_users(client: WebClient, team_id: str):
+def populate_users(client: WebClient, team_id: str, org_id: int = None) -> None:
     users = client.users_list().get("members")
     user_list = [
         User(
             f3_name=u["profile"]["display_name"] or u["profile"]["real_name"],
             email=u["profile"].get("email") or u["id"],
+            avatar_url=u["profile"].get("image_192"),
+            home_region_id=org_id,
         )
         for u in users
     ]

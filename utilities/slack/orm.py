@@ -675,7 +675,7 @@ class ImageBlock(BaseBlock):
     image_url: str = None
     alt_text: str = None
 
-    def as_form_field(self):
+    def as_form_field(self, action: str = None):
         j = {
             "type": "image",
             "image_url": self.image_url,

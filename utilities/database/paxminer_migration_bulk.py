@@ -175,9 +175,7 @@ def run_paxminer_migration(from_pm_schema: str = None) -> str:
         if from_pm_schema:
             regions = conn.execute(text(f"SELECT * FROM regions WHERE schema_name = '{from_pm_schema}'")).fetchall()
         else:
-            regions = conn.execute(
-                text("SELECT * FROM regions WHERE active = 1 and region <= 'Gwinnett' AND team_id IS NOT NULL")
-            ).fetchall()
+            regions = conn.execute(text("SELECT * FROM regions WHERE active = 1 AND team_id IS NOT NULL")).fetchall()
     regions = [PaxminerRegion(**region._mapping) for region in regions]
     engine.dispose()
     for paxminer_region in regions:

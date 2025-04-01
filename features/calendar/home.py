@@ -228,13 +228,23 @@ def build_home_form(
     # TODO: add "next page" button
     form = orm.BlockView(blocks=blocks)
     form.set_initial_values(existing_filter_data)
-    form.update_modal(
-        client=client,
-        view_id=update_view_id or safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id"),
-        title_text="Calendar Home",
-        callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-        submit_button_text="None",
-    )
+    view_id = update_view_id or safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
+    if view_id:
+        form.update_modal(
+            client=client,
+            view_id=view_id,
+            title_text="Calendar Home",
+            callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+            submit_button_text="None",
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Calendar Home",
+            callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+            new_or_add="new",
+        )
 
 
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

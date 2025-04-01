@@ -185,6 +185,10 @@ CONFIG_FORM = orm.BlockView(
         orm.ActionsBlock(
             elements=[
                 orm.ButtonElement(
+                    label=":date: Calendar Settings",
+                    action=actions.CONFIG_CALENDAR,
+                ),
+                orm.ButtonElement(
                     label=":gear: Backblast & Preblast Settings",
                     action=actions.CONFIG_GENERAL,
                 ),
@@ -203,10 +207,6 @@ CONFIG_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":robot_face: Achievement Settings",
                     action=actions.CONFIG_WEASELBOT,
-                ),
-                orm.ButtonElement(
-                    label=":date: Calendar Settings",
-                    action=actions.CONFIG_CALENDAR,
                 ),
                 orm.ButtonElement(
                     label=":world_map: Region Info",
