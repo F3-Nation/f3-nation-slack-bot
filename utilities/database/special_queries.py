@@ -4,10 +4,10 @@ from typing import Any, List
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
-    Event,
+    EventInstance,
     EventTag,
     EventType,
-    EventType_x_Event,
+    EventType_x_EventInstance,
     Location,
     Org,
     Org_Type,
@@ -29,7 +29,7 @@ from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
 
 @dataclass
 class CalendarHomeQuery:
-    event: Event
+    event: EventInstance
     org: Org
     event_types: List[EventType]
     planned_qs: str = None
@@ -47,7 +47,7 @@ def home_schedule_query(
     # Create the subquery
     subquery = (
         select(
-            Attendance.event_id,
+            Attendance.event_instance_id,
             func.string_agg(
                 case((Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]), User.f3_name), else_=None), ","
             ).label("planned_qs"),
@@ -65,10 +65,10 @@ def home_schedule_query(
         .select_from(Attendance)
         .join(User, User.id == Attendance.user_id)
         .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
-        .join(Event, Event.id == Attendance.event_id)
-        .join(Org, Org.id == Event.org_id)
+        .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+        .join(Org, Org.id == EventInstance.org_id)
         .filter(*filters)
-        .group_by(Attendance.event_id)
+        .group_by(Attendance.event_instance_id)
         .alias()
     )
 
@@ -77,13 +77,13 @@ def home_schedule_query(
 
     # Create the main query
     query = (
-        select(Event, Org, EventType, subquery.c.planned_qs, subquery.c.user_attending, subquery.c.user_q)
-        .join(Org, Org.id == Event.org_id)
-        .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
-        .join(EventType, EventType.id == EventType_x_Event.event_type_id)
-        .outerjoin(subquery, subquery.c.event_id == Event.id)
+        select(EventInstance, Org, EventType, subquery.c.planned_qs, subquery.c.user_attending, subquery.c.user_q)
+        .join(Org, Org.id == EventInstance.org_id)
+        .join(EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id)
+        .join(EventType, EventType.id == EventType_x_EventInstance.event_type_id)
+        .outerjoin(subquery, subquery.c.event_instance_id == EventInstance.id)
         .filter(*filters)
-        .order_by(Event.start_date, Event.id, Org.name, Event.start_time)
+        .order_by(EventInstance.start_date, EventInstance.id, Org.name, EventInstance.start_time)
         .limit(limit)
     )
 
@@ -118,7 +118,7 @@ def home_schedule_query(
 
 @dataclass
 class EventExtended:
-    event: Event
+    event: EventInstance
     org: Org
     event_types: List[EventType]
     location: Location
@@ -133,21 +133,21 @@ class AttendanceExtended:
     slack_user: SlackUser
 
 
-def event_attendance_query(attendance_filter: List[Any] = None, event_filter: List[Any] = None) -> List[Event]:
+def event_attendance_query(attendance_filter: List[Any] = None, event_filter: List[Any] = None) -> List[EventInstance]:
     with get_session() as session:
         attendance_subquery = (
-            select(Attendance.event_id.distinct().label("event_id"))
+            select(Attendance.event_instance_id.distinct().label("event_instance_id"))
             .options(joinedload(Attendance.attendance_types))
             .filter(*(attendance_filter or []))
             .alias()
         )
         query = (
-            select(Event)
-            .join(attendance_subquery, attendance_subquery.c.event_id == Event.id)
+            select(EventInstance)
+            .join(attendance_subquery, attendance_subquery.c.event_instance_id == EventInstance.id)
             .filter(*(event_filter or []))
-            .order_by(Event.start_date, Event.start_time)
+            .order_by(EventInstance.start_date, EventInstance.start_time)
         )
-        query = _joinedloads(Event, query, "all")
+        query = _joinedloads(EventInstance, query, "all")
         event_records = session.scalars(query).unique().all()
         return event_records
 

@@ -2,7 +2,7 @@ import datetime
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Attendance, Attendance_x_AttendanceType, Event, EventType, Org
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, EventType, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
@@ -169,9 +169,8 @@ def build_home_form(
         filter_org_ids = [region_record.org_id]
 
     filter = [
-        or_(Event.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)),
-        ~Event.is_series,
-        Event.start_date > start_date,
+        or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)),
+        EventInstance.start_date > start_date,
     ]
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER):
@@ -249,21 +248,21 @@ def build_home_form(
 
 
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    event_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
+    event_instance_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
     user_id = get_user(safe_get(body, "user", "id"), region_record, client, logger).user_id
     view_id = safe_get(body, "view", "id")
     update_post = False
 
     if action in ["View Preblast", "Edit Preblast"]:
-        build_event_preblast_form(body, client, logger, context, region_record, event_id=event_id)
+        build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     elif action == "Take Q":
         print("Taking Q")
-        print(event_id)
+        print(event_instance_id)
         print(user_id)
         DbManager.create_record(
             Attendance(
-                event_id=event_id,
+                event_instance_id=event_instance_id,
                 user_id=user_id,
                 attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
                 is_planned=True,
@@ -276,7 +275,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     elif action == "HC":
         DbManager.create_record(
             Attendance(
-                event_id=event_id,
+                event_instance_id=event_instance_id,
                 user_id=user_id,
                 attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
                 is_planned=True,
@@ -288,7 +287,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         DbManager.delete_records(
             cls=Attendance,
             filters=[
-                Attendance.event_id == event_id,
+                Attendance.event_instance_id == event_instance_id,
                 Attendance.user_id == user_id,
                 Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),
                 Attendance.is_planned,
@@ -298,7 +297,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
     if update_post:
-        preblast_info = build_preblast_info(body, client, logger, context, region_record, event_id)
+        preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
         if preblast_info.event_record.preblast_ts:
             blocks = [
                 *preblast_info.preblast_blocks,
@@ -306,7 +305,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             ]
             blocks = [b.as_form_field() for b in blocks]
             metadata = {
-                "event_id": event_id,
+                "event_instance_id": event_instance_id,
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": [
                     r.user.id
