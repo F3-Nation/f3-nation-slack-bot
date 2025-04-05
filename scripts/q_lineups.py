@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from typing import Dict, List
 
-from f3_data_models.models import Event, Org
+from f3_data_models.models import EventInstance, Org
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
@@ -29,10 +29,9 @@ def send_lineups():
     event_list = PreblastList()
     event_list.pull_data(
         filters=[
-            Event.start_date >= this_week_start,
-            Event.start_date <= this_week_end,
-            Event.is_active,  # not canceled
-            ~Event.is_series,  # not a series
+            EventInstance.start_date >= this_week_start,
+            EventInstance.start_date <= this_week_end,
+            EventInstance.is_active,  # not canceled
             # may want to filter out pre-events?
         ]
     )

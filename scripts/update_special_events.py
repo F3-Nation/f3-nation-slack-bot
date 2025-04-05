@@ -9,7 +9,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 from typing import List
 
 from f3_data_models.models import (
-    Event,
+    EventInstance,
     Org,
     Org_Type,
 )
@@ -21,7 +21,7 @@ from utilities.slack import orm
 # TODO: future option for this to live on a Canvas?!?
 
 
-def create_special_events_blocks(events: List[Event], slack_settings: SlackSettings) -> List[dict]:
+def create_special_events_blocks(events: List[EventInstance], slack_settings: SlackSettings) -> List[dict]:
     blocks: List[orm.BaseBlock] = []
     for i, event in enumerate(events):
         text = (
@@ -56,17 +56,16 @@ def update_special_events():
         slack_settings = SlackSettings(**region.slack_space.settings)
         if slack_settings.special_events_enabled:
             number_of_days = slack_settings.special_events_post_days or 30
-            events: List[Event] = DbManager.find_records(
-                cls=Event,
+            events: List[EventInstance] = DbManager.find_records(
+                cls=EventInstance,
                 filters=[
-                    (Event.org_id == region.id or Event.org.has(Org.parent_id == region.id)),
-                    Event.start_date >= date.today(),
-                    Event.start_date <= date.today() + timedelta(days=number_of_days),
-                    Event.is_active,
-                    ~Event.is_series,
-                    Event.highlight,
+                    (EventInstance.org_id == region.id or EventInstance.org.has(Org.parent_id == region.id)),
+                    EventInstance.start_date >= date.today(),
+                    EventInstance.start_date <= date.today() + timedelta(days=number_of_days),
+                    EventInstance.is_active,
+                    EventInstance.highlight,
                 ],
-                joinedloads=[Event.org],
+                joinedloads=[EventInstance.org],
             )
             if events and slack_settings.special_events_channel:
                 blocks = create_special_events_blocks(events, slack_settings)

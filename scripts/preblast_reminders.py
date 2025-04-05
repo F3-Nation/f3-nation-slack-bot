@@ -10,9 +10,9 @@ from typing import List
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
-    Event,
+    EventInstance,
     EventType,
-    EventType_x_Event,
+    EventType_x_EventInstance,
     Org,
     Org_x_SlackSpace,
     SlackSpace,
@@ -32,7 +32,7 @@ MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q o
 
 @dataclass
 class PreblastItem:
-    event: Event
+    event: EventInstance
     event_type: EventType
     org: Org
     parent_org: Org
@@ -52,11 +52,13 @@ class PreblastList:
 
         firstq_subquery = (
             select(
-                Attendance.event_id,
+                Attendance.event_instance_id,
                 User.f3_name.label("q_name"),
                 SlackUser.slack_id,
                 User.avatar_url.label("q_avatar_url"),
-                func.row_number().over(partition_by=Attendance.event_id, order_by=Attendance.created).label("rn"),
+                func.row_number()
+                .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
+                .label("rn"),
             )
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
@@ -68,7 +70,7 @@ class PreblastList:
 
         query = (
             session.query(
-                Event,
+                EventInstance,
                 EventType,
                 Org,
                 ParentOrg,
@@ -77,20 +79,20 @@ class PreblastList:
                 firstq_subquery.c.q_avatar_url,
                 SlackSpace.settings,
             )
-            .select_from(Event)
-            .join(Org, Org.id == Event.org_id)
-            .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
-            .join(EventType, EventType.id == EventType_x_Event.event_type_id)
+            .select_from(EventInstance)
+            .join(Org, Org.id == EventInstance.org_id)
+            .join(EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id)
+            .join(EventType, EventType.id == EventType_x_EventInstance.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
             .join(
                 firstq_subquery,
-                and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
+                and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
                 isouter=True,
             )
             .join(Org_x_SlackSpace, ParentOrg.id == Org_x_SlackSpace.org_id)
             .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
             .filter(*filters)
-            .order_by(ParentOrg.name, Org.name, Event.start_time)
+            .order_by(ParentOrg.name, Org.name, EventInstance.start_time)
         )
         records = query.all()
         self.items = [
@@ -114,10 +116,9 @@ def send_preblast_reminders():
     preblast_list = PreblastList()
     preblast_list.pull_data(
         filters=[
-            Event.start_date == date.today() + timedelta(days=1),  # eventually configurable
-            Event.preblast_ts.is_(None),  # not already sent
-            Event.is_active,  # not canceled
-            ~Event.is_series,  # not a series
+            EventInstance.start_date == date.today() + timedelta(days=1),  # eventually configurable
+            EventInstance.preblast_ts.is_(None),  # not already sent
+            EventInstance.is_active,  # not canceled
         ]
     )
     preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
