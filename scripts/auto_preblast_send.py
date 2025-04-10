@@ -26,10 +26,8 @@ from slack_sdk.web import WebClient
 from sqlalchemy import and_, func, select
 from sqlalchemy.orm import aliased
 
+from features.calendar import event_preblast
 from utilities.database.orm import SlackSettings
-from utilities.slack import actions, orm
-
-MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa
 
 
 @dataclass
@@ -114,11 +112,11 @@ class PreblastList:
         session.close()
 
 
-def send_preblast_reminders():
+def send_automated_preblasts():
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
-    # check if the current time is between 5:00 PM and 6:00 PM, eventually configurable
-    if current_time.hour == 17:
+    # check if the current time is between 7:00 PM and 8:00 PM, eventually configurable
+    if current_time.hour == 19:
         preblast_list = PreblastList()
         preblast_list.pull_data(
             filters=[
@@ -131,33 +129,13 @@ def send_preblast_reminders():
         print(f"Found {len(preblast_list.items)} preblasts to send.")
 
         for preblast in preblast_list.items:
-            # TODO: add some handling for missing stuff
-            msg = MSG_TEMPLATE.format(
-                q_name=preblast.q_name,
-                event_name=preblast.event_type.name,
-                event_date=preblast.event.start_date.strftime("%m/%d"),
-                event_ao=preblast.org.name,
+            slack_client = WebClient(preblast.slack_settings.bot_token)
+            event_preblast.send_preblast(
+                event_instance_id=preblast.event.id,
+                region_record=preblast.slack_settings,
+                client=slack_client,
             )
-
-            slack_bot_token = preblast.slack_settings.bot_token
-            if slack_bot_token and preblast.slack_user_id:
-                slack_client = WebClient(slack_bot_token)
-                blocks: List[orm.BaseBlock] = [
-                    orm.SectionBlock(label=msg),
-                    orm.ActionsBlock(
-                        elements=[
-                            orm.ButtonElement(
-                                label="Fill Out Preblast",
-                                value=str(preblast.event.id),
-                                style="primary",
-                                action=actions.MSG_EVENT_PREBLAST_BUTTON,
-                            ),
-                        ],
-                    ),
-                ]
-                blocks = [b.as_form_field() for b in blocks]
-                slack_client.chat_postMessage(channel=preblast.slack_user_id, text=msg, blocks=blocks)
 
 
 if __name__ == "__main__":
-    send_preblast_reminders()
+    send_automated_preblasts()

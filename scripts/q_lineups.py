@@ -1,10 +1,18 @@
-from datetime import date, timedelta
+import os
+import sys
+
+import pytz
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
+from datetime import date, datetime, timedelta
 from typing import Dict, List
 
 from f3_data_models.models import EventInstance, Org
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
+from scripts.preblast_reminders import PreblastItem, PreblastList
 from utilities.database.orm import SlackSettings
 from utilities.slack import actions
 from utilities.slack.orm import (
@@ -16,40 +24,43 @@ from utilities.slack.orm import (
     SectionBlock,
 )
 
-from .preblast_reminders import PreblastItem, PreblastList
-
 
 def send_lineups():
-    # Figure out current and next weeks based on current start of day
-    # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow
-    tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
-    this_week_start = date.today() + timedelta(days=-tomorrow_day_of_week)
-    this_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
+    # get the current time in US/Central timezone
+    current_time = datetime.now(pytz.timezone("US/Central"))
+    # check if the current time is between 5:00 PM and 6:00 PM on Sundays, eventually configurable
+    if current_time.hour == 17 and current_time.weekday() == 6:
+        # Figure out current and next weeks based on current start of day
+        # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
+        tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
+        this_week_start = date.today() + timedelta(days=-tomorrow_day_of_week)
+        this_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
 
-    event_list = PreblastList()
-    event_list.pull_data(
-        filters=[
-            EventInstance.start_date >= this_week_start,
-            EventInstance.start_date <= this_week_end,
-            EventInstance.is_active,  # not canceled
-            # may want to filter out pre-events?
-        ]
-    )
-    event_org_list: Dict[int, List[PreblastItem]] = {}
-    for event in event_list.items:
-        event_org_list.setdefault(event.org.id, []).append(event)
+        event_list = PreblastList()
+        event_list.pull_data(
+            filters=[
+                EventInstance.start_date >= this_week_start,
+                EventInstance.start_date <= this_week_end,
+                EventInstance.is_active,  # not canceled
+                # may want to filter out pre-events?
+            ]
+        )
+        event_org_list: Dict[int, List[PreblastItem]] = {}
+        for event in event_list.items:
+            event_org_list.setdefault(event.org.id, []).append(event)
 
-    for org in event_org_list:
-        org_events = event_org_list[org]
-        org_record = org_events[0].org
-        slack_settings = org_events[0].slack_settings
-        if slack_settings.send_q_lineups:
-            blocks = build_lineup_blocks(org_events, org_record)
-            # Send the Q Lineup message to the Slack channel
-            send_q_lineup_message(org_record, blocks, slack_settings)
+        for org in event_org_list:
+            org_events = event_org_list[org]
+            org_record = org_events[0].org
+            slack_settings = org_events[0].slack_settings
+            if slack_settings.send_q_lineups:
+                blocks = build_lineup_blocks(org_events, org_record)
+                # Send the Q Lineup message to the Slack channel
+                send_q_lineup_message(org_record, blocks, slack_settings)
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
+    org_events.sort(key=lambda x: x.event.start_date + timedelta(hours=int(x.event.start_time[:2])))
     blocks: List[BaseBlock] = [
         SectionBlock(label=f"Hello HIMs of {org.name}! Here is your Q lineup for the week\n\n*Weekly Q Lineup:*"),
         DividerBlock(),

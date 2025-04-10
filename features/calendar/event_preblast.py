@@ -22,7 +22,14 @@ from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
 from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import event_attendance_query
-from utilities.helper_functions import get_user, get_user_names, safe_convert, safe_get
+from utilities.helper_functions import (
+    get_user,
+    get_user_names,
+    parse_rich_block,
+    replace_user_channel_ids,
+    safe_convert,
+    safe_get,
+)
 from utilities.slack import actions, orm
 
 
@@ -72,7 +79,7 @@ def build_event_preblast_select_form(
             Attendance.attendance_types.any(AttendanceType.id.in_([2, 3])),
         ],
         event_filter=[
-            EventInstance.start_date <= datetime.date.today(),
+            EventInstance.start_date >= datetime.date.today(),
             EventInstance.preblast_ts.is_(None),
             EventInstance.is_active,
         ],
@@ -246,11 +253,16 @@ def handle_event_preblast_edit(
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
     callback_id = safe_get(body, "view", "callback_id")
-    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     update_fields = {
         EventInstance.name: form_data[actions.EVENT_PREBLAST_TITLE],
         EventInstance.location_id: form_data[actions.EVENT_PREBLAST_LOCATION],
         EventInstance.preblast_rich: form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT],
+        EventInstance.preblast: replace_user_channel_ids(
+            parse_rich_block(form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT]),
+            region_record,
+            client,
+            logger,
+        ),
     }
     DbManager.update_record(EventInstance, event_instance_id, update_fields)
     if form_data[actions.EVENT_PREBLAST_TAG]:
@@ -273,7 +285,7 @@ def handle_event_preblast_edit(
             cls=Attendance,
             filters=[
                 Attendance.event_instance_id == event_instance_id,
-                Attendance.attendance_x_attendance_types.has(Attendance_x_AttendanceType.attendance_type_id == 3),
+                Attendance.attendance_x_attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 3),
                 Attendance.is_planned,
                 Attendance.user_id.in_(user_ids),
             ],
@@ -295,47 +307,14 @@ def handle_event_preblast_edit(
         or callback_id == actions.EVENT_PREBLAST_POST_CALLBACK_ID
         or safe_get(metadata, "preblast_ts")
     ):
-        preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
-        blocks = [
-            *preblast_info.preblast_blocks,
-            orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
-        ]
-        blocks = [b.as_form_field() for b in blocks]
-        metadata = {
-            "event_instance_id": event_instance_id,
-            "attendees": [r.user.id for r in preblast_info.attendance_records],
-            "qs": [
-                r.user.id
-                for r in preblast_info.attendance_records
-                if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-            ],
-        }
-        q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
-        q_name = (q_name or [""])[0]
-        q_url = q_url[0]
-        preblast_channel = get_preblast_channel(region_record, preblast_info)
-
-        if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts"):
-            client.chat_update(
-                channel=preblast_channel,
-                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
-                blocks=blocks,
-                text="Event Preblast",
-                metadata={"event_type": "preblast", "event_payload": metadata},
-                username=f"{q_name} (via F3 Nation)",
-                icon_url=q_url,
-            )
-        else:
-            res = client.chat_postMessage(
-                channel=preblast_channel,
-                blocks=blocks,
-                text="Event Preblast",
-                metadata={"event_type": "preblast", "event_payload": metadata},
-                unfurl_links=False,
-                username=f"{q_name} (via F3 Nation)",
-                icon_url=q_url,
-            )
-            DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+        send_preblast(
+            body,
+            client,
+            logger,
+            context,
+            region_record,
+            event_instance_id,
+        )
 
     # elif form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Schedule 24 hours before event":
     #     pass  # schedule preblast
@@ -343,17 +322,76 @@ def handle_event_preblast_edit(
         pass
 
 
+def send_preblast(
+    body: dict = None,
+    client: WebClient = None,
+    logger: Logger = None,
+    context: dict = None,
+    region_record: SlackSettings = None,
+    event_instance_id: int = None,
+):
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+    preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
+    blocks = [
+        *preblast_info.preblast_blocks,
+        orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
+    ]
+    blocks = [b.as_form_field() for b in blocks]
+    metadata = {
+        "event_instance_id": event_instance_id,
+        "attendees": [r.user.id for r in preblast_info.attendance_records],
+        "qs": [
+            r.user.id
+            for r in preblast_info.attendance_records
+            if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+        ],
+    }
+    if not body:
+        # this will happen if called outside a user interaction
+        username = None
+        icon_url = None
+    else:
+        q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
+        q_name = (q_name or [""])[0]
+        q_url = q_url[0]
+        username = f"{q_name} (via F3 Nation)"
+        icon_url = q_url
+    preblast_channel = get_preblast_channel(region_record, preblast_info)
+
+    if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts"):
+        client.chat_update(
+            channel=preblast_channel,
+            ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
+            blocks=blocks,
+            text="Event Preblast",
+            metadata={"event_type": "preblast", "event_payload": metadata},
+            username=username,
+            icon_url=icon_url,
+        )
+    else:
+        res = client.chat_postMessage(
+            channel=preblast_channel,
+            blocks=blocks,
+            text="Event Preblast",
+            metadata={"event_type": "preblast", "event_payload": metadata},
+            unfurl_links=False,
+            username=username,
+            icon_url=icon_url,
+        )
+        DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+
+
 def build_preblast_info(
-    body: dict,
-    client: WebClient,
-    logger: Logger,
-    context: dict,
-    region_record: SlackSettings,
-    event_instance_id: int,
+    body: dict = None,
+    client: WebClient = None,
+    logger: Logger = None,
+    context: dict = None,
+    region_record: SlackSettings = None,
+    event_instance_id: int = None,
 ) -> PreblastInfo:
     event_record: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
     attendance_records: List[Attendance] = DbManager.find_records(
-        Attendance, [Attendance.event_instance_id == event_instance_id], joinedloads="all"
+        Attendance, [Attendance.event_instance_id == event_instance_id, Attendance.is_planned], joinedloads="all"
     )
 
     action_blocks = []
@@ -361,12 +399,19 @@ def build_preblast_info(
     hc_list = hc_list if hc_list else "None"
     hc_count = len({r.user.id for r in attendance_records})
 
-    user_id = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger).user_id
-    user_is_q = any(
-        r.user.id == user_id
-        for r in attendance_records
-        if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-    )
+    if not body:
+        # this will happen if called outside a user interaction
+        user_id = None
+        user_is_q = False
+    else:
+        user_id = get_user(
+            safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
+        ).user_id
+        user_is_q = any(
+            r.user.id == user_id
+            for r in attendance_records
+            if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+        )
 
     q_list = " ".join(
         [
@@ -499,6 +544,7 @@ def handle_event_preblast_action(
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
         if metadata.get("preblast_ts"):
+            print(metadata["preblast_ts"])
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,

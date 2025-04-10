@@ -1,6 +1,8 @@
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+import pytz
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -114,37 +116,41 @@ class BackblastList:
 
 
 def send_backblast_reminders():
-    backblast_list = BackblastList()
-    backblast_list.pull_data()
-    print(f"Found {len(backblast_list.items)} backblasts to remind about")
+    # get the current time in US/Central timezone
+    current_time = datetime.now(pytz.timezone("US/Central"))
+    # check if the current time is between 5:00 PM and 6:00 PM, eventually configurable
+    if current_time.hour == 17:
+        backblast_list = BackblastList()
+        backblast_list.pull_data()
+        print(f"Found {len(backblast_list.items)} backblasts to remind about")
 
-    for backblast in backblast_list.items:
-        # TODO: add some handling for missing stuff
-        msg = MSG_TEMPLATE.format(
-            q_name=backblast.q_name,
-            event_name=backblast.event_type.name,
-            event_date=backblast.event.start_date.strftime("%m/%d"),
-            event_ao=backblast.org.name,
-        )
+        for backblast in backblast_list.items:
+            # TODO: add some handling for missing stuff
+            msg = MSG_TEMPLATE.format(
+                q_name=backblast.q_name,
+                event_name=backblast.event_type.name,
+                event_date=backblast.event.start_date.strftime("%m/%d"),
+                event_ao=backblast.org.name,
+            )
 
-        slack_bot_token = backblast.slack_settings.bot_token
-        if slack_bot_token and backblast.slack_user_id:
-            slack_client = WebClient(slack_bot_token)
-            blocks: List[orm.BaseBlock] = [
-                orm.SectionBlock(label=msg),
-                orm.ActionsBlock(
-                    elements=[
-                        orm.ButtonElement(
-                            label="Fill Out Backblast",
-                            value=str(backblast.event.id),
-                            style="primary",
-                            action=actions.MSG_EVENT_BACKBLAST_BUTTON,
-                        ),
-                    ],
-                ),
-            ]
-            blocks = [b.as_form_field() for b in blocks]
-            slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
+            slack_bot_token = backblast.slack_settings.bot_token
+            if slack_bot_token and backblast.slack_user_id:
+                slack_client = WebClient(slack_bot_token)
+                blocks: List[orm.BaseBlock] = [
+                    orm.SectionBlock(label=msg),
+                    orm.ActionsBlock(
+                        elements=[
+                            orm.ButtonElement(
+                                label="Fill Out Backblast",
+                                value=str(backblast.event.id),
+                                style="primary",
+                                action=actions.MSG_EVENT_BACKBLAST_BUTTON,
+                            ),
+                        ],
+                    ),
+                ]
+                blocks = [b.as_form_field() for b in blocks]
+                slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
 
 
 if __name__ == "__main__":

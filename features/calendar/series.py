@@ -5,6 +5,7 @@ from logging import Logger
 from typing import List
 
 from f3_data_models.models import (
+    Attendance,
     Day_Of_Week,
     Event,
     Event_Cadence,
@@ -20,9 +21,10 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from features.calendar import event_preblast
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get
+from utilities.helper_functions import get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
 
@@ -222,7 +224,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 org_id=org_id,
                 location_id=location_id,
                 event_instances_x_event_types=[EventType_x_EventInstance(event_type_id=event_type_id)],
-                event_instance_x_event_tags=[EventTag_x_EventInstance(event_tag_id=event_tag_id)]
+                event_instances_x_event_tags=[EventTag_x_EventInstance(event_tag_id=event_tag_id)]
                 if event_tag_id
                 else [],
                 start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
@@ -292,6 +294,19 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         build_series_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
+
+    if metadata.get("is_preblast") == "True":
+        # If this is for a new unscheduled event, we need to set attendance and post the preblast
+        event_instance: EventInstance = records[0]
+        slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+        DbManager.create_record(
+            Attendance(
+                event_instance_id=event_instance.id,
+                user_id=get_user(slack_user_id, region_record, client, logger).user_id,
+                is_planned=True,
+            )
+        )
+        event_preblast.send_preblast(body, client, logger, context, region_record, event_instance)
 
 
 def create_events(records: list[Event]):
