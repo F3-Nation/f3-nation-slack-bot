@@ -11,8 +11,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
-    Event,
-    EventType_x_Event,
+    EventInstance,
+    EventType_x_EventInstance,
     Org,
     Org_Type,
     SlackUser,
@@ -95,15 +95,16 @@ def convert_users(paxminer_users: list[PaxminerUser], slack_team_id: str) -> Lis
     return slack_users
 
 
-def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, region_org_id: int) -> List[Event]:
-    events: List[Event] = []
+def convert_events(
+    paxminer_backblasts: list[Backblast], slack_org_dict: Dict, region_org_id: int
+) -> List[EventInstance]:
+    events: List[EventInstance] = []
     for backblast in paxminer_backblasts:
         if type(backblast.bd_date) is str:
             backblast.bd_date = date(2020, 1, 1)
     events = [
-        Event(
+        EventInstance(
             org_id=slack_org_dict.get(backblast.ao_id) or region_org_id,  # will return none if not found
-            is_series=False,
             is_active=True,
             highlight=False,
             start_date=backblast.bd_date if backblast.bd_date > date(2020, 1, 1) else date(2020, 1, 1),
@@ -114,7 +115,7 @@ def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, r
             backblast=backblast.backblast_parsed,
             meta=json.loads(backblast.json or "{}"),
             backblast_ts=None if backblast.timestamp or "" == "" else float(backblast.timestamp),
-            event_x_event_types=[EventType_x_Event(event_type_id=1)],  # can we assume a type based on ao name?
+            event_x_event_types=[EventType_x_EventInstance(event_type_id=1)],  # can we assume a type based on ao name?
         )
         for backblast in paxminer_backblasts
     ]
@@ -122,13 +123,13 @@ def convert_events(paxminer_backblasts: list[Backblast], slack_org_dict: Dict, r
     return events
 
 
-def get_event_id(event_lookup_dict: Dict, ao_id: str, date: str, q_user_id: str) -> int:
+def get_event_instance_id(event_lookup_dict: Dict, ao_id: str, date: str, q_user_id: str) -> int:
     if q_user_id[:5] == "https":
         q_user_id = q_user_id.split("/")[-1]
-    event_id = event_lookup_dict.get(f"{ao_id}-{date}-{q_user_id}")
-    # if not event_id:
+    event_instance_id = event_lookup_dict.get(f"{ao_id}-{date}-{q_user_id}")
+    # if not event_instance_id:
     #     raise ValueError(f"Event not found for {ao_id}-{date}-{q_user_id}")
-    return event_id
+    return event_instance_id
 
 
 def convert_attendance(
@@ -136,14 +137,16 @@ def convert_attendance(
 ) -> List[Attendance]:
     attendance_list: List[Attendance] = []
     for attendance in paxminer_attendance:
-        event_id = get_event_id(event_lookup_dict, attendance.ao_id, attendance.date, attendance.q_user_id)
-        if event_id:
+        event_instance_id = get_event_instance_id(
+            event_lookup_dict, attendance.ao_id, attendance.date, attendance.q_user_id
+        )
+        if event_instance_id:
             attendance_type_id = 2 if attendance.q_user_id == attendance.user_id else 1  # need to update for coqs
             user_id = slack_user_dict.get(attendance.user_id)
             if user_id:  # this happens when the user_id is "https://", need to fix
                 attendance_list.append(
                     Attendance(
-                        event_id=event_id,
+                        event_instance_id=event_instance_id,
                         user_id=user_id,
                         attendance_x_attendance_types=[
                             Attendance_x_AttendanceType(attendance_type_id=attendance_type_id)
@@ -151,14 +154,14 @@ def convert_attendance(
                         is_planned=False,
                     )
                 )
-    # remove duplicates on event_id, user_id, and is_planned
+    # remove duplicates on event_instance_id, user_id, and is_planned
     # TODO: this is a hack, need to fix the root cause
-    attendance_dict = {f"{a.event_id}-{a.user_id}-{a.is_planned}": a for a in attendance_list}
+    attendance_dict = {f"{a.event_instance_id}-{a.user_id}-{a.is_planned}": a for a in attendance_list}
     attendance_list = list(attendance_dict.values())
     return attendance_list
 
 
-def build_event_lookup_dict(paxminer_backblasts: List[Backblast], events: List[Event]) -> Dict:
+def build_event_lookup_dict(paxminer_backblasts: List[Backblast], events: List[EventInstance]) -> Dict:
     event_lookup_dict = {}
     for i, backblast in enumerate(paxminer_backblasts):
         event_key = f"{backblast.ao_id}-{backblast.bd_date}-{backblast.q_user_id}"
@@ -223,7 +226,7 @@ def run_paxminer_migration(from_pm_schema: str = None) -> str:
 
         # past events
         events = convert_events(paxminer_backblasts, slack_org_dict=slack_org_dict, region_org_id=region_org.id)
-        events: List[Event] = DbManager.create_records(events)
+        events: List[EventInstance] = DbManager.create_records(events)
         event_lookup_dict = build_event_lookup_dict(paxminer_backblasts, events)
 
         # past attendance

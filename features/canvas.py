@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Event, Org
+from f3_data_models.models import EventInstance, Org
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
@@ -11,7 +11,7 @@ from utilities.database.special_queries import get_position_users
 from utilities.helper_functions import safe_get
 
 
-def create_special_events_blocks(events: List[Event], slack_settings: SlackSettings) -> str:
+def create_special_events_blocks(events: List[EventInstance], slack_settings: SlackSettings) -> str:
     text = ""
     for i, event in enumerate(events):
         text += f"{i + 1}. **{event.name}** - {event.start_date.strftime('%A, %B %d')} - {event.start_time} @ {event.org.name}\n"  # noqa
@@ -36,17 +36,19 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
         msg += f"![This Week](https://slackblast-images.s3.amazonaws.com/{region_record.calendar_image_current})\n\n"
 
     # list special events
-    special_events: List[Event] = DbManager.find_records(
-        cls=Event,
+    special_events: List[EventInstance] = DbManager.find_records(
+        cls=EventInstance,
         filters=[
-            (Event.org_id == region_record.org_id or Event.org.has(Org.parent_id == region_record.org_id)),
-            Event.start_date >= date.today(),
-            Event.start_date <= date.today() + timedelta(days=region_record.special_events_post_days),
-            Event.is_active,
-            ~Event.is_series,
-            Event.highlight,
+            (
+                EventInstance.org_id == region_record.org_id
+                or EventInstance.org.has(Org.parent_id == region_record.org_id)
+            ),
+            EventInstance.start_date >= date.today(),
+            EventInstance.start_date <= date.today() + timedelta(days=region_record.special_events_post_days),
+            EventInstance.is_active,
+            EventInstance.highlight,
         ],
-        joinedloads=[Event.org],
+        joinedloads=[EventInstance.org],
     )
     if len(special_events) > 0:
         msg += "# :tada: Special Events:\n\n"

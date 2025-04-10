@@ -13,11 +13,11 @@ from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
     AttendanceType,
-    Event,
+    EventInstance,
     EventTag,
-    EventTag_x_Event,
+    EventTag_x_EventInstance,
     EventType,
-    EventType_x_Event,
+    EventType_x_EventInstance,
     Org,
     Org_Type,
     Org_x_SlackSpace,
@@ -65,9 +65,11 @@ def generate_calendar_images():
 
         firstq_subquery = (
             select(
-                Attendance.event_id,
+                Attendance.event_instance_id,
                 User.f3_name.label("q_name"),
-                func.row_number().over(partition_by=Attendance.event_id, order_by=Attendance.created).label("rn"),
+                func.row_number()
+                .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
+                .label("rn"),
             )
             .select_from(Attendance)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
@@ -78,7 +80,7 @@ def generate_calendar_images():
 
         attendance_subquery = (
             select(
-                Attendance.event_id,
+                Attendance.event_instance_id,
                 func.max(
                     case(
                         (Attendance.attendance_types.any(AttendanceType.id == 2), Attendance.updated),
@@ -87,7 +89,7 @@ def generate_calendar_images():
             )
             .select_from(Attendance)
             .options(joinedload(Attendance.attendance_types))
-            .group_by(Attendance.event_id)
+            .group_by(Attendance.event_instance_id)
             .alias()
         )
 
@@ -95,9 +97,9 @@ def generate_calendar_images():
 
         query = (
             session.query(
-                Event.start_date,
-                Event.start_time,
-                Event.updated.label("event_updated"),
+                EventInstance.start_date,
+                EventInstance.start_time,
+                EventInstance.updated.label("event_updated"),
                 EventTag.name.label("event_tag"),
                 EventTag.color.label("event_tag_color"),
                 EventType.name.label("event_type"),
@@ -110,23 +112,22 @@ def generate_calendar_images():
                 RegionOrg.name.label("region_name"),
                 RegionOrg.id.label("region_id"),
             )
-            .select_from(Event)
-            .outerjoin(EventTag_x_Event, Event.id == EventTag_x_Event.event_id)
-            .outerjoin(EventTag, EventTag_x_Event.event_tag_id == EventTag.id)
-            .join(EventType_x_Event, Event.id == EventType_x_Event.event_id)
-            .join(EventType, EventType_x_Event.event_type_id == EventType.id)
-            .join(Org, Event.org_id == Org.id)
+            .select_from(EventInstance)
+            .outerjoin(EventTag_x_EventInstance, EventInstance.id == EventTag_x_EventInstance.event_instance_id)
+            .outerjoin(EventTag, EventTag_x_EventInstance.event_tag_id == EventTag.id)
+            .join(EventType_x_EventInstance, EventInstance.id == EventType_x_EventInstance.event_instance_id)
+            .join(EventType, EventType_x_EventInstance.event_type_id == EventType.id)
+            .join(Org, EventInstance.org_id == Org.id)
             .join(RegionOrg, RegionOrg.id == Org.parent_id)
             .outerjoin(
                 firstq_subquery,
-                and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
+                and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
             )
-            .outerjoin(attendance_subquery, Event.id == attendance_subquery.c.event_id)
+            .outerjoin(attendance_subquery, EventInstance.id == attendance_subquery.c.event_instance_id)
             .filter(
-                (Event.start_date >= current_week_start),
-                (Event.start_date < next_week_end),
-                (Event.is_active),
-                (~Event.is_series),
+                (EventInstance.start_date >= current_week_start),
+                (EventInstance.start_date < next_week_end),
+                (EventInstance.is_active),
             )
         )
 

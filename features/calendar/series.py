@@ -5,21 +5,26 @@ from logging import Logger
 from typing import List
 
 from f3_data_models.models import (
+    Attendance,
     Day_Of_Week,
     Event,
     Event_Cadence,
+    EventInstance,
     EventTag_x_Event,
+    EventTag_x_EventInstance,
     EventType,
     EventType_x_Event,
+    EventType_x_EventInstance,
     Org,
     Org_Type,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from features.calendar import event_preblast
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get
+from utilities.helper_functions import get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
 
@@ -210,21 +215,23 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
         day_of_weeks = [edit_series_record.day_of_week.name]
 
-    # day_of_weeks will be None if this is a one-time event
+    # day_of_weeks will be None if this is a one-time event (EventInstance)
     if not day_of_weeks or day_of_weeks == ["None"]:
         series_records = [
-            Event(
+            EventInstance(
                 name=series_name,
+                description=safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
                 org_id=org_id,
                 location_id=location_id,
-                event_x_event_types=[EventType_x_Event(event_type_id=event_type_id)],
-                event_x_event_tags=[EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
+                event_instances_x_event_types=[EventType_x_EventInstance(event_type_id=event_type_id)],
+                event_instances_x_event_tags=[EventTag_x_EventInstance(event_tag_id=event_tag_id)]
+                if event_tag_id
+                else [],
                 start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
                 start_time=datetime.strptime(
                     safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
                 ).strftime("%H%M"),
                 end_time=end_time,
-                is_series=False,
                 is_active=True,
                 highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
             )
@@ -249,7 +256,6 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 recurrence_interval=recurrence_interval or edit_series_record.recurrence_interval,
                 index_within_interval=index_within_interval or edit_series_record.index_within_interval,
                 day_of_week=dow or edit_series_record.day_of_week,
-                is_series=True,
                 is_active=True,
                 highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
             )
@@ -257,20 +263,22 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     if safe_get(metadata, "series_id"):
         # series_id is passed in the metadata if this is an edit
-        # update_dict = series_records[0].__dict__
-
         DbManager.update_record(Event, metadata["series_id"], fields=series_records[0].to_update_dict())
         records = [DbManager.get(Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags])]
 
         # Delete all future events associated with the series
         # TODO: I could do a check to see if dates / times have changed, if not we could update the events instead of deleting them # noqa
         DbManager.delete_records(
-            Event,
+            EventInstance,
             [
-                Event.series_id == metadata["series_id"],
-                Event.start_date >= datetime.now(),
+                EventInstance.series_id == metadata["series_id"],
+                EventInstance.start_date >= datetime.now(),
             ],
-            joinedloads=[Event.event_x_event_types],  # need to delete attendnace as well
+            joinedloads=[
+                EventInstance.event_instances_x_event_types,
+                EventInstance.event_instances_x_event_tags,
+                EventInstance.attendance,
+            ],  # need to delete attendnace as well
         )
     else:
         records = DbManager.create_records(series_records)
@@ -286,6 +294,19 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         build_series_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
+
+    if metadata.get("is_preblast") == "True":
+        # If this is for a new unscheduled event, we need to set attendance and post the preblast
+        event_instance: EventInstance = records[0]
+        slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+        DbManager.create_record(
+            Attendance(
+                event_instance_id=event_instance.id,
+                user_id=get_user(slack_user_id, region_record, client, logger).user_id,
+                is_planned=True,
+            )
+        )
+        event_preblast.send_preblast(body, client, logger, context, region_record, event_instance)
 
 
 def create_events(records: list[Event]):
@@ -314,18 +335,19 @@ def create_events(records: list[Event]):
                     series.recurrence_pattern.name == Event_Cadence.weekly.name
                 ):
                     if current_interval == 1:
-                        event = Event(
+                        event = EventInstance(
                             name=series.name,
                             description=series.description,
                             org_id=series.org_id,
                             location_id=series.location_id,
-                            event_x_event_types=[EventType_x_Event(event_type_id=series_type_id)],
-                            event_x_event_tags=[EventTag_x_Event(event_tag_id=series_tag_id)] if series_tag_id else [],
+                            event_instances_x_event_types=[EventType_x_EventInstance(event_type_id=series_type_id)],
+                            event_instances_x_event_tags=[EventTag_x_EventInstance(event_tag_id=series_tag_id)]
+                            if series_tag_id
+                            else [],
                             start_date=current_date,
                             end_date=current_date,
                             start_time=series.start_time,
                             end_time=series.end_time,
-                            is_series=False,
                             is_active=True,
                             series_id=series.id,
                             highlight=series.highlight,
@@ -350,27 +372,33 @@ def build_series_list_form(
         is_series = True
         title_text = "Delete or Edit a Series"
         confirm_text = "Are you sure you want to edit / delete this series? This cannot be undone. Also, editing or deleting a series will also edit or delete all future events associated with the series."  # noqa
+        records = DbManager.find_join_records2(
+            Event,
+            Org,
+            [
+                (Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id),
+                Event.is_active,
+            ],
+        )
     else:
         is_series = False
         title_text = "Delete or Edit an Event"
         confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
+        records = DbManager.find_join_records2(
+            EventInstance,
+            Org,
+            [
+                (EventInstance.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id),
+                EventInstance.is_active,
+            ],
+        )
 
-    series_records = DbManager.find_join_records2(
-        Event,
-        Org,
-        [
-            Event.is_series == is_series,
-            (Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id),
-            Event.is_active,
-            # Event.start_date >= datetime.now(),
-        ],
-    )
-    series_records: list[Event] = [x[0] for x in series_records][:40]
+    records: list[Event | EventInstance] = [x[0] for x in records][:40]
 
     # TODO: separate into weekly / non-weekly series?
     # TODO: add an AO filter
     blocks = []
-    for s in series_records:
+    for s in records:
         if is_series:
             label = f"{s.name} ({s.day_of_week.name.capitalize()} @ {s.start_time})"[  # noqa
                 :50
@@ -420,18 +448,29 @@ def handle_series_edit_delete(
 ):
     series_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    is_series = safe_get(body, "view", "private_metadata", "is_series") == "True"
 
-    if action == "Edit":
-        series: Event = DbManager.get(Event, series_id, joinedloads="all")
-        build_series_add_form(body, client, logger, context, region_record, edit_event=series)
-    elif action == "Delete":
-        DbManager.update_record(Event, series_id, fields={"is_active": False})
-        DbManager.update_records(
-            Event, [Event.series_id == series_id, Event.start_date >= datetime.now()], fields={"is_active": False}
-        )
-        build_series_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
-        )
+    if is_series:
+        if action == "Edit":
+            series: Event = DbManager.get(Event, series_id, joinedloads="all")
+            build_series_add_form(body, client, logger, context, region_record, edit_event=series)
+        elif action == "Delete":
+            DbManager.update_record(Event, series_id, fields={"is_active": False})
+            DbManager.update_records(
+                Event, [Event.series_id == series_id, Event.start_date >= datetime.now()], fields={"is_active": False}
+            )
+            build_series_list_form(
+                body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+            )
+    else:
+        if action == "Edit":
+            series: EventInstance = DbManager.get(EventInstance, series_id, joinedloads="all")
+            build_series_add_form(body, client, logger, context, region_record, edit_event=series)
+        elif action == "Delete":
+            DbManager.update_record(EventInstance, series_id, fields={"is_active": False})
+            build_series_list_form(
+                body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+            )
 
 
 SERIES_FORM = orm.BlockView(

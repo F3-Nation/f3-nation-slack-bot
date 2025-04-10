@@ -4,7 +4,7 @@ import json
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Event, EventType, Location, Org, Org_Type
+from f3_data_models.models import Event, EventInstance, EventType, Location, Org, Org_Type
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -172,8 +172,11 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
         build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao)
     elif action == "Delete":
         DbManager.update_record(Org, ao_id, fields={"is_active": False})
+        DbManager.update_records(Event, [Event.org_id == ao_id], fields={"is_active": False})
         DbManager.update_records(
-            Event, [Event.org_id == ao_id, Event.start_date >= datetime.now()], fields={"is_active": False}
+            EventInstance,
+            [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.now()],
+            fields={"is_active": False},
         )
 
 

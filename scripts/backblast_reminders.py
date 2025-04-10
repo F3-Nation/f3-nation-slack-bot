@@ -1,6 +1,8 @@
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+import pytz
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -10,9 +12,9 @@ from typing import List
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
-    Event,
+    EventInstance,
     EventType,
-    EventType_x_Event,
+    EventType_x_EventInstance,
     Org,
     Org_x_SlackSpace,
     SlackSpace,
@@ -32,7 +34,7 @@ MSG_TEMPLATE = "Hey there, {q_name}! I hope that the {event_name} on {event_date
 
 @dataclass
 class BackblastItem:
-    event: Event
+    event: EventInstance
     event_type: EventType
     org: Org
     parent_org: Org
@@ -51,10 +53,12 @@ class BackblastList:
 
         firstq_subquery = (
             select(
-                Attendance.event_id,
+                Attendance.event_instance_id,
                 User.f3_name.label("q_name"),
                 SlackUser.slack_id,
-                func.row_number().over(partition_by=Attendance.event_id, order_by=Attendance.created).label("rn"),
+                func.row_number()
+                .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
+                .label("rn"),
             )
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
@@ -66,7 +70,7 @@ class BackblastList:
 
         query = (
             session.query(
-                Event,
+                EventInstance,
                 EventType,
                 Org,
                 ParentOrg,
@@ -74,25 +78,24 @@ class BackblastList:
                 firstq_subquery.c.slack_id,
                 SlackSpace.settings,
             )
-            .select_from(Event)
-            .join(Org, Org.id == Event.org_id)
-            .join(EventType_x_Event, EventType_x_Event.event_id == Event.id)
-            .join(EventType, EventType.id == EventType_x_Event.event_type_id)
+            .select_from(EventInstance)
+            .join(Org, Org.id == EventInstance.org_id)
+            .join(EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id)
+            .join(EventType, EventType.id == EventType_x_EventInstance.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
             .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
             .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
             .join(
                 firstq_subquery,
-                and_(Event.id == firstq_subquery.c.event_id, firstq_subquery.c.rn == 1),
+                and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
             )
             .filter(
-                Event.start_date < date.today(),  # + timedelta(days=1),  # eventually configurable
-                Event.start_date >= (date.today() - timedelta(days=5)),  # eventually configurable
-                Event.backblast_ts.is_(None),  # not already sent
-                Event.is_active,  # not canceled
-                ~Event.is_series,  # not a series
+                EventInstance.start_date < date.today(),  # + timedelta(days=1),  # eventually configurable
+                EventInstance.start_date >= (date.today() - timedelta(days=5)),  # eventually configurable
+                EventInstance.backblast_ts.is_(None),  # not already sent
+                EventInstance.is_active,  # not canceled
             )
-            .order_by(ParentOrg.name, Org.name, Event.start_time)
+            .order_by(ParentOrg.name, Org.name, EventInstance.start_time)
         )
         records = query.all()
         session.expunge_all()
@@ -113,37 +116,41 @@ class BackblastList:
 
 
 def send_backblast_reminders():
-    backblast_list = BackblastList()
-    backblast_list.pull_data()
-    print(f"Found {len(backblast_list.items)} backblasts to remind about")
+    # get the current time in US/Central timezone
+    current_time = datetime.now(pytz.timezone("US/Central"))
+    # check if the current time is between 5:00 PM and 6:00 PM, eventually configurable
+    if current_time.hour == 17:
+        backblast_list = BackblastList()
+        backblast_list.pull_data()
+        print(f"Found {len(backblast_list.items)} backblasts to remind about")
 
-    for backblast in backblast_list.items:
-        # TODO: add some handling for missing stuff
-        msg = MSG_TEMPLATE.format(
-            q_name=backblast.q_name,
-            event_name=backblast.event_type.name,
-            event_date=backblast.event.start_date.strftime("%m/%d"),
-            event_ao=backblast.org.name,
-        )
+        for backblast in backblast_list.items:
+            # TODO: add some handling for missing stuff
+            msg = MSG_TEMPLATE.format(
+                q_name=backblast.q_name,
+                event_name=backblast.event_type.name,
+                event_date=backblast.event.start_date.strftime("%m/%d"),
+                event_ao=backblast.org.name,
+            )
 
-        slack_bot_token = backblast.slack_settings.bot_token
-        if slack_bot_token and backblast.slack_user_id:
-            slack_client = WebClient(slack_bot_token)
-            blocks: List[orm.BaseBlock] = [
-                orm.SectionBlock(label=msg),
-                orm.ActionsBlock(
-                    elements=[
-                        orm.ButtonElement(
-                            label="Fill Out Backblast",
-                            value=str(backblast.event.id),
-                            style="primary",
-                            action=actions.MSG_EVENT_BACKBLAST_BUTTON,
-                        ),
-                    ],
-                ),
-            ]
-            blocks = [b.as_form_field() for b in blocks]
-            slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
+            slack_bot_token = backblast.slack_settings.bot_token
+            if slack_bot_token and backblast.slack_user_id:
+                slack_client = WebClient(slack_bot_token)
+                blocks: List[orm.BaseBlock] = [
+                    orm.SectionBlock(label=msg),
+                    orm.ActionsBlock(
+                        elements=[
+                            orm.ButtonElement(
+                                label="Fill Out Backblast",
+                                value=str(backblast.event.id),
+                                style="primary",
+                                action=actions.MSG_EVENT_BACKBLAST_BUTTON,
+                            ),
+                        ],
+                    ),
+                ]
+                blocks = [b.as_form_field() for b in blocks]
+                slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
 
 
 if __name__ == "__main__":

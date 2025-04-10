@@ -3,7 +3,8 @@ import json
 
 from flask import Request, Response
 
-from scripts import backblast_reminders, calendar_images, preblast_reminders, q_lineups, update_special_events
+from features import canvas
+from scripts import auto_preblast_send, backblast_reminders, calendar_images, preblast_reminders, q_lineups
 
 
 def handle(request: Request) -> Response:
@@ -13,17 +14,14 @@ def handle(request: Request) -> Response:
 
     try:
         if event_message == "hourly":
-            print("Running hourly scripts")
             calendar_images.generate_calendar_images()
-            return Response("Hourly scripts complete", status=200)
-        elif event_message == "daily":
             backblast_reminders.send_backblast_reminders()
             preblast_reminders.send_preblast_reminders()
-            update_special_events.update_special_events()
-            return Response("Daily scripts complete", status=200)
-        elif event_message == "weekly":
+            auto_preblast_send.send_automated_preblasts()
+            # update_special_events.update_special_events()
+            canvas.update_canvas()
             q_lineups.send_lineups()
-            return Response("Weekly scripts complete", status=200)
+            return Response("Hourly scripts complete", status=200)
         else:
             return Response(f"Event message not used: {event_message}", status=200)
     except Exception as e:
