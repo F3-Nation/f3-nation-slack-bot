@@ -1,8 +1,9 @@
 import copy
 import json
 from logging import Logger
+from typing import List
 
-from f3_data_models.models import Location
+from f3_data_models.models import Location, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -131,7 +132,16 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
 def build_location_list_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    location_records = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
+    # find locations whose org_id points to the region
+    location_records: List[Location] = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
+
+    # also find locations whose org_id points to AOs of that region
+    location_records2 = DbManager.find_join_records2(
+        Location,
+        Org,
+        [Location.org_id == Org.id, Org.parent_id == region_record.org_id],
+    )
+    location_records.extend(record[0] for record in location_records2)
 
     blocks = [
         orm.SectionBlock(

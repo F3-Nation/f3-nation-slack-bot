@@ -635,7 +635,7 @@ NO_WEASELBOT_CONFIG_FORM = orm.BlockView(
 CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(
-            label="You must be a Slack admin to access your F3 Nation region settings. Your local Slack admin can follow <https://slack.com/help/articles/218124397-Change-a-members-role|these instructions> to grant you admin access.",  # noqa: E501
+            label="You must be assigned as an admin for your region in order to access region settings.",  # noqa: E501
         )
     ]
 )

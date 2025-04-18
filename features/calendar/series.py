@@ -15,6 +15,7 @@ from f3_data_models.models import (
     EventType,
     EventType_x_Event,
     EventType_x_EventInstance,
+    Location,
     Org,
     Org_Type,
 )
@@ -76,6 +77,12 @@ def build_series_add_form(
     )
     region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
     locations = [location for location in region_org_record.locations if location.is_active]
+    location_records2 = DbManager.find_join_records2(
+        Location,
+        Org,
+        [Location.org_id == Org.id, Org.parent_id == region_record.org_id],
+    )
+    locations.extend(record[0] for record in location_records2)
 
     form.set_options(
         {
@@ -448,7 +455,8 @@ def handle_series_edit_delete(
 ):
     series_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    is_series = safe_get(body, "view", "private_metadata", "is_series") == "True"
+    private_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    is_series = safe_get(private_metadata, "is_series") == "True"
 
     if is_series:
         if action == "Edit":
