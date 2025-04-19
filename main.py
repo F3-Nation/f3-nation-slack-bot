@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+import time
 import traceback
 from typing import Callable, Tuple
 
@@ -80,6 +81,8 @@ def main_response(body, logger: logging.Logger, client, ack, context):
         if add_loading:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
         try:
+            # time the call
+            start_time = time.time()
             run_function(
                 body=body,
                 client=client,
@@ -87,6 +90,8 @@ def main_response(body, logger: logging.Logger, client, ack, context):
                 context=context,
                 region_record=region_record,
             )
+            end_time = time.time()
+            logger.info(f"Function {run_function.__name__} took {end_time - start_time:.2f} seconds to run.")
         except Exception as exc:
             tb_str = "".join(traceback.format_exception(None, exc, exc.__traceback__))
             send_error_response(body=body, client=client, error=str(exc)[:3000])
