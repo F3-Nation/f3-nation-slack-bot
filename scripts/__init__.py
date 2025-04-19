@@ -19,7 +19,7 @@ def handle(request: Request) -> Response:
             preblast_reminders.send_preblast_reminders()
             auto_preblast_send.send_automated_preblasts()
             # update_special_events.update_special_events()
-            canvas.update_canvas()
+            canvas.update_all_canvases()
             q_lineups.send_lineups()
             return Response("Hourly scripts complete", status=200)
         else:

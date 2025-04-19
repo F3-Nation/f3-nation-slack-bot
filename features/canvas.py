@@ -2,7 +2,7 @@ from datetime import date, timedelta
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import EventInstance, Org
+from f3_data_models.models import EventInstance, Org, Org_Type
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
@@ -91,3 +91,15 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
                 channel_id=region_record.canvas_channel,
                 document_content={"type": "markdown", "markdown": msg},
             )
+
+
+def update_all_canvases():
+    regions: List[Org] = DbManager.find_records(
+        cls=Org, filters=[Org.org_type == Org_Type.region], joinedloads=[Org.slack_space]
+    )
+
+    for region in regions:
+        slack_settings = SlackSettings(**region.slack_space.settings)
+        if slack_settings.canvas_channel and slack_settings.special_events_enabled:
+            client = WebClient(token=slack_settings.bot_token)
+            update_canvas({}, client, Logger(), {}, slack_settings)

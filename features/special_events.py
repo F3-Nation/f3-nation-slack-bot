@@ -23,8 +23,8 @@ def build_special_settings_form(
     form.set_initial_values(
         {
             actions.SPECIAL_EVENTS_ENABLED: "enable" if region_record.special_events_enabled else None,
-            actions.SPECIAL_EVENTS_CHANNEL: region_record.special_events_channel,
-            actions.SPECIAL_EVENTS_POST_DAYS: str(region_record.special_events_post_days),
+            # actions.SPECIAL_EVENTS_CHANNEL: region_record.special_events_channel,
+            actions.SPECIAL_EVENTS_POST_DAYS: str(region_record.special_events_post_days or 30),
             actions.SPECIAL_EVENTS_INFO_CANVAS_CHANNEL: region_record.canvas_channel,
         }
     )
@@ -48,7 +48,7 @@ def handle_special_settings_edit(
     form_data = SPECIAL_EVENTS_FORM.get_selected_values(body)
 
     region_record.special_events_enabled = safe_get(form_data, actions.SPECIAL_EVENTS_ENABLED, 0) == "enable"
-    region_record.special_events_channel = safe_get(form_data, actions.SPECIAL_EVENTS_CHANNEL)
+    # region_record.special_events_channel = safe_get(form_data, actions.SPECIAL_EVENTS_CHANNEL)
     region_record.special_events_post_days = safe_convert(safe_get(form_data, actions.SPECIAL_EVENTS_POST_DAYS), int)
     region_record.canvas_channel = safe_get(form_data, actions.SPECIAL_EVENTS_INFO_CANVAS_CHANNEL)
 
@@ -65,23 +65,23 @@ def handle_special_settings_edit(
 SPECIAL_EVENTS_FORM = orm.BlockView(
     blocks=[
         orm.InputBlock(
-            label="Enable Special Events Page",
+            label="Enable Region Info Canvas",
             action=actions.SPECIAL_EVENTS_ENABLED,
             element=orm.CheckboxInputElement(options=orm.as_selector_options(["Enable"], ["enable"])),
             optional=False,
         ),
+        # orm.InputBlock(
+        #     label="Special Events Channel",
+        #     action=actions.SPECIAL_EVENTS_CHANNEL,
+        #     element=orm.ConversationsSelectElement(),
+        #     optional=True,
+        # ),
         orm.InputBlock(
-            label="Special Events Channel",
-            action=actions.SPECIAL_EVENTS_CHANNEL,
-            element=orm.ConversationsSelectElement(),
-            optional=True,
-        ),
-        orm.InputBlock(
-            label="How far ahead should events be posted?",
+            label="How far ahead should events be list?",
             action=actions.SPECIAL_EVENTS_POST_DAYS,
             element=orm.PlainTextInputElement(placeholder="Enter the number of days"),
             optional=True,
-            hint="This is the number of days before the event that the preblast will be posted to the list. Defaults to 30 days.",  # noqa
+            hint="This is the number of days before the event that special events will be list on the canvas. Defaults to 30 days.",  # noqa
         ),
         orm.InputBlock(
             label="Region Info Canvas Channel",

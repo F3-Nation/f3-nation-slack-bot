@@ -213,7 +213,7 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.REGION_INFO_BUTTON,
                 ),
                 orm.ButtonElement(
-                    label=":tada: Special Event Settings",
+                    label=":tada: Region Canvas Settings",
                     action=actions.CONFIG_SPECIAL_EVENTS,
                 ),
                 orm.ButtonElement(
