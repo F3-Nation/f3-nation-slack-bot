@@ -1,4 +1,5 @@
 import datetime
+import time
 from logging import Logger
 from typing import List
 
@@ -44,11 +45,15 @@ def build_home_form(
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     user_id = get_user(slack_user_id, region_record, client, logger).user_id
 
+    start_time = time.time()
     ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id])
     event_type_records: List[EventType] = DbManager.find_records(
         EventType,
         filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id.is_(None)],
     )
+    split_time = time.time()
+    print(f"AO and Event Type time: {split_time - start_time}")
+    start_time = time.time()
 
     if LOCAL_DEVELOPMENT:
         this_week_url = S3_IMAGE_URL.format(
@@ -66,8 +71,6 @@ def build_home_form(
             bucket="f3nation-calendar-images",
             image_name=region_record.calendar_image_next or "default.png",
         )
-
-    print(this_week_url)
 
     blocks = [
         orm.DividerBlock(),
@@ -180,7 +183,13 @@ def build_home_form(
     open_q_only = actions.FILTER_OPEN_Q in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or [])
     # Run the query
     # TODO: implement pagination / dynamic limit
+    split_time = time.time()
+    print(f"Block building time: {split_time - start_time}")
+    start_time = time.time()
     events: list[CalendarHomeQuery] = home_schedule_query(user_id, filter, limit=100, open_q_only=open_q_only)
+    split_time = time.time()
+    print(f"Home schedule query: {split_time - start_time}")
+    start_time = time.time()
 
     if actions.FILTER_MY_EVENTS in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or []):
         events = [x for x in events if x.user_attending]
@@ -229,6 +238,9 @@ def build_home_form(
     form = orm.BlockView(blocks=blocks)
     form.set_initial_values(existing_filter_data)
     view_id = update_view_id or safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
+    split_time = time.time()
+    print(f"Block build 2 time: {split_time - start_time}")
+    start_time = time.time()
     if view_id:
         form.update_modal(
             client=client,
@@ -245,6 +257,9 @@ def build_home_form(
             callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
             new_or_add="new",
         )
+    split_time = time.time()
+    print(f"Sending: {split_time - start_time}")
+    start_time = time.time()
 
 
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
