@@ -153,11 +153,11 @@ class ButtonElement(BaseAction):
     confirm: object = None
     url: str = None
 
-    def as_form_field(self):
+    def as_form_field(self, action: str = None):
         j = {
             "type": "button",
             "text": self.make_label_field(),
-            "action_id": self.action,
+            "action_id": action or self.action,
             "value": self.value or self.label,
         }
         if self.style:

@@ -1,16 +1,21 @@
+import json
 import os
 import sys
+from logging import Logger
 
 import pytz
+
+from utilities.helper_functions import get_user, safe_convert, safe_get
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import date, datetime, timedelta
 from typing import Dict, List
 
-from f3_data_models.models import EventInstance, Org
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, Org
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
+from slack_sdk.models.metadata import Metadata
 
 from scripts.preblast_reminders import PreblastItem, PreblastList
 from utilities.database.orm import SlackSettings
@@ -56,7 +61,7 @@ def send_lineups():
             if slack_settings.send_q_lineups:
                 blocks = build_lineup_blocks(org_events, org_record)
                 # Send the Q Lineup message to the Slack channel
-                send_q_lineup_message(org_record, blocks, slack_settings)
+                send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
@@ -71,17 +76,23 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
             q_label = f"<@{event.slack_user_id}|{event.q_name}>" if event.slack_user_id else f"@{event.q_name}"
             label = f"*{event.event.start_date}*\n{event.event_type.name} {event.event.start_time}\n{q_label}"
             image_url = event.q_avatar_url or "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
+            accessory = ImageBlock(
+                image_url=image_url,
+                alt_text="Q Lineup",
+            )
         else:
-            # TODO: add a button to sign up for the Q?
             label = f"*{event.event.start_date}*\n{event.event_type.name} {event.event.start_time}\n*OPEN!*"
-            image_url = "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
+            # image_url = "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
+            accessory = ButtonElement(
+                label=":calendar: Sign Me Up!",
+                action=f"{actions.LINEUP_SIGNUP_BUTTON}_{event.event.id}",
+                value=str(event.event.id),
+                style="primary",
+            )
         blocks.append(
             SectionBlock(
                 label=label,
-                element=ImageBlock(
-                    image_url=image_url,
-                    alt_text="Q Lineup",
-                ),
+                element=accessory,
             )
         )
     blocks.append(
@@ -97,17 +108,93 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
     return [b.as_form_field() for b in blocks]
 
 
-def send_q_lineup_message(org: Org, blocks: List[dict], slack_settings: SlackSettings):
+def send_q_lineup_message(
+    org: Org,
+    blocks: List[dict],
+    slack_settings: SlackSettings,
+    week_start: date = None,
+    week_end: date = None,
+    update: bool = False,
+):
     slack_bot_token = slack_settings.bot_token
+    metadata = Metadata(event_type="q_lineup", event_payload={})
+    if week_start and week_end:
+        metadata.event_payload["week_start"] = week_start.strftime("%y-%m-%d")
+        metadata.event_payload["week_end"] = week_end.strftime("%y-%m-%d")
     if slack_bot_token:
         slack_client = WebClient(slack_bot_token)
-        resp = slack_client.chat_postMessage(
-            channel=org.meta.get("slack_channel_id"),
-            text="Q Lineup",
-            blocks=blocks,
+        if update and safe_get(org.meta, "q_lineup_ts"):
+            # Update the existing message
+            slack_client.chat_update(
+                channel=org.meta.get("slack_channel_id"),
+                ts=org.meta["q_lineup_ts"],
+                text="Q Lineup",
+                blocks=blocks,
+                metadata=metadata,
+            )
+        else:
+            resp = slack_client.chat_postMessage(
+                channel=org.meta.get("slack_channel_id"),
+                text="Q Lineup",
+                blocks=blocks,
+                metadata=metadata,
+            )
+            org.meta["q_lineup_ts"] = resp["ts"]
+            DbManager.update_record(Org, org.id, {Org.meta: org.meta})
+
+
+def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+    event_instance_id = int(body["actions"][0]["value"])
+    slack_user_id = body["user"]["id"]
+    slack_channel_id = body["channel"]["id"]
+    user_id = get_user(slack_user_id, region_record, client, logger).user_id
+
+    metadata = safe_convert(safe_get(body, "message", "metadata", "event_payload"), json.loads)
+    week_start = safe_get(metadata, "week_start")
+    week_end = safe_get(metadata, "week_end")
+    if week_start and week_end:
+        this_week_start = datetime.strptime(week_start, "%y-%m-%d").date()
+        this_week_end = datetime.strptime(week_end, "%y-%m-%d").date()
+        print(f"Week start: {this_week_start}, week end: {this_week_end}")
+    else:
+        # Default to the current week
+        tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
+        this_week_start = date.today() + timedelta(days=-tomorrow_day_of_week)
+        this_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
+
+    preblast_info = PreblastList()
+    preblast_info.pull_data(filters=[EventInstance.id == event_instance_id])
+    event_info: PreblastItem = safe_get(preblast_info.items, 0)
+    # Check if a user is already signed up for the event
+    if event_info.q_name:
+        client.chat_postEphemeral(
+            user=slack_user_id,
+            channel=slack_channel_id,
+            text=f"Sorry, {event_info.q_name} already signed up for this event.",
         )
-        org.meta["q_lineup_ts"] = resp["ts"]
-        DbManager.update_record(Org, org.id, {Org.meta: org.meta})
+    else:
+        DbManager.create_record(
+            Attendance(
+                event_instance_id=event_instance_id,
+                user_id=user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
+                is_planned=True,
+            )
+        )
+    # Update the Q Lineup
+    org_info = PreblastList()
+    org_info.pull_data(
+        filters=[
+            EventInstance.org_id == event_info.org.id,
+            EventInstance.start_date >= this_week_start,
+            EventInstance.start_date <= this_week_end,
+            EventInstance.is_active,
+        ],
+    )
+    blocks = build_lineup_blocks(org_info.items, event_info.org)
+    send_q_lineup_message(
+        event_info.org, blocks, region_record, update=True, week_start=this_week_start, week_end=this_week_end
+    )
 
 
 if __name__ == "__main__":

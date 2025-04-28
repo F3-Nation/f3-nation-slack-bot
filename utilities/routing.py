@@ -16,6 +16,7 @@ from features import (
 )
 from features.calendar import ao, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
+from scripts.q_lineups import handle_lineup_signup
 from utilities import announcements, builders
 from utilities.slack import actions
 
@@ -140,6 +141,7 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_AO_LINEUPS: (db_admin.handle_ao_lineups, False),
     actions.OPEN_CALENDAR_MSG_BUTTON: (home.build_home_form, False),
     actions.SECRET_MENU_PREBLAST_REMINDERS: (db_admin.handle_preblast_reminders, False),
+    actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
 }
 
 VIEW_CLOSED_MAPPER = {

@@ -252,6 +252,7 @@ CALENDAR_ADD_LOCATION_STATE = "calendar-add-location-state"
 CALENDAR_ADD_LOCATION_ZIP = "calendar-add-location-zip"
 CALENDAR_ADD_LOCATION_COUNTRY = "calendar-add-location-country"
 SPECIAL_EVENTS_INFO_CANVAS_CHANNEL = "special_events_info_canvas_channel"
+LINEUP_SIGNUP_BUTTON = "lineup-signup-button"
 
 MSG_EVENT_PREBLAST_TITLE = "event_preblast_title_dm"
 MSG_EVENT_PREBLAST_MOLESKINE = "event_preblast_moleskine_dm"
@@ -298,4 +299,5 @@ ACTION_PREFIXES = [
     CALENDAR_HOME_EVENT,
     EVENT_TAG_EDIT_DELETE,
     BACKBLAST_FILL_SELECT,
+    LINEUP_SIGNUP_BUTTON,
 ]
