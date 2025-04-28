@@ -115,7 +115,9 @@ def convert_events(
             backblast=backblast.backblast_parsed,
             meta=json.loads(backblast.json or "{}"),
             backblast_ts=None if backblast.timestamp or "" == "" else float(backblast.timestamp),
-            event_x_event_types=[EventType_x_EventInstance(event_type_id=1)],  # can we assume a type based on ao name?
+            event_instances_x_event_types=[
+                EventType_x_EventInstance(event_type_id=1)
+            ],  # can we assume a type based on ao name?
         )
         for backblast in paxminer_backblasts
     ]
@@ -170,7 +172,7 @@ def build_event_lookup_dict(paxminer_backblasts: List[Backblast], events: List[E
     return event_lookup_dict
 
 
-def run_paxminer_migration(from_pm_schema: str = None) -> str:
+def run_paxminer_migration(from_pm_schema: str = None, to_region_org_id: int = None) -> str:
     total_events = 0
     total_attendance = 0
     engine = get_pm_engine(schema="paxminer")
@@ -210,8 +212,11 @@ def run_paxminer_migration(from_pm_schema: str = None) -> str:
         engine.dispose()
 
         # region record
-        region_org = convert_region(paxminer_region)
-        region_org: Org = DbManager.create_record(region_org)
+        if to_region_org_id:
+            region_org = DbManager.get(Org, to_region_org_id)
+        else:
+            region_org = convert_region(paxminer_region)
+            region_org: Org = DbManager.create_record(region_org)
 
         # ao records
         # creates an org for every channel
@@ -250,5 +255,6 @@ def run_paxminer_migration(from_pm_schema: str = None) -> str:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--from_pm_schema", help="The schema name in the paxminer database to migrate from")
+    parser.add_argument("--to_region_org_id", help="The region org id to migrate to")
     args = parser.parse_args()
-    run_paxminer_migration(args.from_pm_schema)
+    run_paxminer_migration(args.from_pm_schema, args.to_region_org_id)

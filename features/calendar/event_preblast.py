@@ -305,7 +305,7 @@ def handle_event_preblast_edit(
     if (
         form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
         or callback_id == actions.EVENT_PREBLAST_POST_CALLBACK_ID
-        or safe_get(metadata, "preblast_ts")
+        or (safe_get(metadata, "preblast_ts") or "None") != "None"
     ):
         send_preblast(
             body,
