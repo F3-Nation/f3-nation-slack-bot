@@ -230,7 +230,7 @@ def handle_ao_lineups(
     context: dict,
     region_record: SlackSettings,
 ):
-    send_lineups()
+    send_lineups(force=True)
 
 
 def handle_preblast_reminders(

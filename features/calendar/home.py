@@ -201,7 +201,7 @@ def build_home_form(
         if block_count > 90:
             break
         if event.user_q:
-            option_names = ["View Preblast", "Edit Preblast"]
+            option_names = ["Edit Preblast"]
         else:
             option_names = ["View Preblast"]
         if event.event.start_date != active_date:
@@ -329,7 +329,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
                 ],  # noqa
             }
             client.chat_update(
-                channel=preblast_info.event_record.meta.get("slack_channel_id"),
+                channel=preblast_info.event_record.org.meta.get("slack_channel_id"),
                 ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
                 blocks=blocks,
                 text="Event Preblast",

@@ -198,6 +198,7 @@ def build_event_preblast_form(
             form.blocks = form.blocks[:-1]
         else:
             form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
+        form.blocks.append(orm.ActionsBlock(elements=preblast_info.action_blocks))
     else:
         blocks = [
             *preblast_info.preblast_blocks,
@@ -432,7 +433,7 @@ def build_preblast_info(
     elif user_is_q:
         action_blocks.append(
             orm.ButtonElement(
-                label="Remove Q",
+                label="Take myself off Q",
                 action=actions.EVENT_PREBLAST_REMOVE_Q,
                 value=str(event_record.id),
             )
@@ -440,13 +441,14 @@ def build_preblast_info(
 
     user_hc = any(r.user.id == user_id for r in attendance_records)
     if user_hc:
-        action_blocks.append(
-            orm.ButtonElement(
-                label="Un-HC",
-                action=actions.EVENT_PREBLAST_UN_HC,
-                value=str(event_record.id),
+        if not user_is_q:
+            action_blocks.append(
+                orm.ButtonElement(
+                    label="Un-HC",
+                    action=actions.EVENT_PREBLAST_UN_HC,
+                    value=str(event_record.id),
+                )
             )
-        )
     else:
         action_blocks.append(
             orm.ButtonElement(
@@ -522,6 +524,15 @@ def handle_event_preblast_action(
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
         elif action_id == actions.EVENT_PREBLAST_TAKE_Q:
+            DbManager.delete_records(
+                cls=Attendance,
+                filters=[
+                    Attendance.event_instance_id == event_instance_id,
+                    Attendance.user_id == user_id,
+                    Attendance.is_planned,
+                ],
+                joinedloads=[Attendance.attendance_x_attendance_types],
+            )
             DbManager.create_record(
                 Attendance(
                     event_instance_id=event_instance_id,
@@ -543,7 +554,7 @@ def handle_event_preblast_action(
                 ],
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
-        if metadata.get("preblast_ts"):
+        if metadata.get("preblast_ts") and metadata["preblast_ts"] != "None":
             print(metadata["preblast_ts"])
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
@@ -570,7 +581,7 @@ def handle_event_preblast_action(
         )
     else:
         if action_id == actions.EVENT_PREBLAST_HC_UN_HC:
-            already_hcd = user_id in metadata["attendees"]
+            already_hcd = user_id in (safe_get(metadata, "attendees") or [])
             if already_hcd:
                 DbManager.delete_records(
                     cls=Attendance,
@@ -592,16 +603,24 @@ def handle_event_preblast_action(
                     )
                 )
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
+            q_id_list = [
+                r.user.id
+                for r in preblast_info.attendance_records
+                if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+            ]
             metadata = {
                 "event_instance_id": event_instance_id,
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
-                "qs": [
-                    r.user.id
-                    for r in preblast_info.attendance_records
-                    if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-                ],
+                "qs": q_id_list,
             }
-            blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS)]
+            button_blocks = PREBLAST_MESSAGE_ACTION_ELEMENTS
+            if not q_id_list:
+                button_blocks.append(
+                    orm.ButtonElement(
+                        ":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
+                    )
+                )
+            blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
@@ -628,6 +647,26 @@ def handle_event_preblast_action(
                 )
         elif action_id == actions.MSG_EVENT_PREBLAST_BUTTON:
             event_instance_id = safe_convert(body["actions"][0]["value"], int)
+            build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
+        elif action_id == actions.EVENT_PREBLAST_TAKE_Q:
+            event_instance_id = safe_convert(body["actions"][0]["value"], int)
+            DbManager.delete_records(
+                cls=Attendance,
+                filters=[
+                    Attendance.event_instance_id == event_instance_id,
+                    Attendance.user_id == user_id,
+                    Attendance.is_planned,
+                ],
+                joinedloads=[Attendance.attendance_x_attendance_types],
+            )
+            DbManager.create_record(
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=user_id,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
+                    is_planned=True,
+                )
+            )
             build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
 
 

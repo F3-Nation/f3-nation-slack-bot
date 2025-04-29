@@ -30,11 +30,11 @@ from utilities.slack.orm import (
 )
 
 
-def send_lineups():
+def send_lineups(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 5:00 PM and 6:00 PM on Sundays, eventually configurable
-    if current_time.hour == 17 and current_time.weekday() == 6:
+    if (current_time.hour == 17 and current_time.weekday() == 6) or force:
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
         tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
