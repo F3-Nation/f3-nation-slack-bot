@@ -1,14 +1,16 @@
 import copy
 import os
+from datetime import date
 from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
-from f3_data_models.models import Org, Org_Type, Org_x_SlackSpace, Role_x_User_x_Org, SlackSpace
+from f3_data_models.models import Event, Org, Org_Type, Org_x_SlackSpace, Role_x_User_x_Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
-from sqlalchemy import engine
+from sqlalchemy import engine, or_
 
+from features.calendar.series import create_events
 from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from utilities.database.orm import SlackSettings
@@ -245,6 +247,25 @@ def handle_preblast_reminders(
     send_preblast_reminders()
 
 
+def handle_generate_instances(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    event_records = DbManager.find_records(
+        Event,
+        filters=[
+            Event.is_active,
+            or_(Event.org_id == region_record.org_id, Event.org.has(Org.parent_id == region_record.org_id)),
+            or_(Event.end_date >= date.today(), Event.end_date.is_(None)),
+        ],
+        joinedloads="all",
+    )
+    create_events(event_records, clear_first=True)
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -280,6 +301,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Make myself an admin",
                     action=actions.SECRET_MENU_MAKE_ADMIN,
+                ),
+                orm.ButtonElement(
+                    label="Generate Event Instances",
+                    action=actions.SECRET_MENU_GENERATE_EVENT_INSTANCES,
                 ),
             ],
         ),

@@ -142,6 +142,7 @@ ACTION_MAPPER = {
     actions.OPEN_CALENDAR_MSG_BUTTON: (home.build_home_form, False),
     actions.SECRET_MENU_PREBLAST_REMINDERS: (db_admin.handle_preblast_reminders, False),
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
+    actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
 }
 
 VIEW_CLOSED_MAPPER = {

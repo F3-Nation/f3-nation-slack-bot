@@ -316,7 +316,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         event_preblast.send_preblast(body, client, logger, context, region_record, event_instance)
 
 
-def create_events(records: list[Event]):
+def create_events(records: list[Event], clear_first: bool = False):
     event_records = []
     for series in records:
         current_date = series.start_date
@@ -364,6 +364,19 @@ def create_events(records: list[Event]):
             current_date += timedelta(days=1)
             if current_date.day == 1:
                 current_index = 0
+    if clear_first:
+        org_ids = {record.org_id for record in records}
+        DbManager.delete_records(
+            EventInstance,
+            filters=[
+                EventInstance.org_id.in_(org_ids),
+            ],
+            joinedloads=[
+                EventInstance.event_instances_x_event_types,
+                EventInstance.event_instances_x_event_tags,
+                EventInstance.attendance,
+            ],  # need to delete attendance as well
+        )
     DbManager.create_records(event_records)
 
 
