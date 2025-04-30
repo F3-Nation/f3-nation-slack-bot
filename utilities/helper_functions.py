@@ -30,6 +30,22 @@ REGION_RECORDS: Dict[str, SlackSettings] = {}
 SLACK_USERS: Dict[str, SlackUser] = {}
 
 
+def trigger_map_revalidation():
+    try:
+        response = requests.post(
+            url=os.environ.get("MAP_REVALIDATION_URL"),
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": os.environ.get("MAP_REVALIDATION_KEY"),
+            },
+        )
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"Error triggering map revalidation: {e}")
+        return False
+    return True
+
+
 def get_oauth_flow():
     if LOCAL_DEVELOPMENT:
         return None

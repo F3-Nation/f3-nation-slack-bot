@@ -15,7 +15,7 @@ from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
-from utilities.helper_functions import get_user, safe_get
+from utilities.helper_functions import get_user, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -266,6 +266,16 @@ def handle_generate_instances(
     create_events(event_records, clear_first=True)
 
 
+def handle_trigger_map_revalidation(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    trigger_map_revalidation()
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -305,6 +315,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Generate Event Instances",
                     action=actions.SECRET_MENU_GENERATE_EVENT_INSTANCES,
+                ),
+                orm.ButtonElement(
+                    label="Trigger Map Revalidation",
+                    action=actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION,
                 ),
             ],
         ),

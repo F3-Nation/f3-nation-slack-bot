@@ -9,7 +9,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get, upload_files_to_storage
+from utilities.helper_functions import safe_convert, safe_get, trigger_map_revalidation, upload_files_to_storage
 from utilities.slack import actions, orm
 
 
@@ -127,6 +127,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
     else:
         DbManager.create_record(ao)
+    trigger_map_revalidation()
 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -178,6 +179,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
             [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.now()],
             fields={"is_active": False},
         )
+        trigger_map_revalidation()
 
 
 AO_FORM = orm.BlockView(

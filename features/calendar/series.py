@@ -25,7 +25,7 @@ from slack_sdk.web import WebClient
 from features.calendar import event_preblast
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_user, safe_convert, safe_get
+from utilities.helper_functions import get_user, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -289,6 +289,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         )
     else:
         records = DbManager.create_records(series_records)
+    trigger_map_revalidation()
 
     # Now that the series has been created, we need to create the individual events
     if day_of_weeks:
@@ -480,6 +481,7 @@ def handle_series_edit_delete(
             DbManager.update_records(
                 Event, [Event.series_id == series_id, Event.start_date >= datetime.now()], fields={"is_active": False}
             )
+            trigger_map_revalidation()
             build_series_list_form(
                 body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
             )

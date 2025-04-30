@@ -143,6 +143,7 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_PREBLAST_REMINDERS: (db_admin.handle_preblast_reminders, False),
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
     actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
+    actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION: (db_admin.handle_trigger_map_revalidation, False),
 }
 
 VIEW_CLOSED_MAPPER = {

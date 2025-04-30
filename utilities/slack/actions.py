@@ -30,6 +30,7 @@ SECRET_MENU_MAKE_ADMIN = "make-admin"
 BACKBLAST_CALLBACK_ID_LEGACY = "backblast-id-legacy"
 BACKBLAST_EDIT_CALLBACK_ID_LEGACY = "backblast-edit-id-legacy"
 BACKBLAST_EDIT_BUTTON_LEGACY = "edit-backblast-legacy"
+SECRET_MENU_TRIGGER_MAP_REVALIDATION = "trigger-map-revalidation"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"
