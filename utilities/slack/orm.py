@@ -294,6 +294,32 @@ class MultiStaticSelectElement(BaseElement):
 
 
 @dataclass
+class MultiExternalSelectElement(BaseElement):
+    initial_value: List[Dict] = None
+    confirm: ConfirmObject = None
+    action: str = None
+    min_query_length: int = None
+    max_selected_items: int = None
+
+    def as_form_field(self, action: str = None):
+        j = {"type": "multi_external_select", "action_id": action or self.action}
+        if self.placeholder:
+            j.update(self.make_placeholder_field())
+        if self.min_query_length:
+            j.update({"min_query_length": self.min_query_length})
+        if self.max_selected_items:
+            j.update({"max_selected_items": self.max_selected_items})
+        if self.initial_value:
+            j.update({"initial_options": self.initial_value})
+        if self.confirm:
+            j.update({"confirm": self.confirm.as_form_field()})
+        return j
+
+    def get_selected_value(self, input_data, action):
+        return [o["value"] for o in safe_get(input_data, action, action, "selected_options") or []]
+
+
+@dataclass
 class RadioButtonsElement(BaseElement):
     initial_value: str = None
     options: List[SelectorOption] = None
