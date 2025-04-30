@@ -13,7 +13,6 @@ from slack_bolt import App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
 import scripts
-from apis import user_api
 from features import strava
 from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
@@ -51,8 +50,6 @@ def handler(request: Request):
     print(request)
     if request.path == "/":
         return Response("Service is running", status=200)
-    if request.path == "/options_load":
-        return user_api.handle(request)
     elif request.path == "/gcp_event":
         logging.info("GCP Event")
         return scripts.handle(request)
