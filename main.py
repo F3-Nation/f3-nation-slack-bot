@@ -48,6 +48,7 @@ app = App(
 @functions_framework.http
 def handler(request: Request):
     print(request.path)
+    print(request)
     if request.path == "/":
         return Response("Service is running", status=200)
     if request.path == "/options_load":
