@@ -319,7 +319,7 @@ DB_ADMIN_FORM = orm.BlockView(
         ),
         orm.InputBlock(
             label="External Test",
-            action="external_test",
+            action=actions.USER_OPTION_LOAD,
             optional=True,
             element=orm.MultiExternalSelectElement(),
         ),

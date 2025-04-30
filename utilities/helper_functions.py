@@ -317,6 +317,8 @@ def get_request_type(body: dict) -> Tuple[str]:
         return ("command", safe_get(body, "command"))
     elif request_type == "view_closed":
         return ("view_closed", safe_get(body, "view", "callback_id"))
+    elif request_type == "block_suggestion":
+        return ("block_suggestion", safe_get(body, "action_id"))
     else:
         return ("unknown", "unknown")
 

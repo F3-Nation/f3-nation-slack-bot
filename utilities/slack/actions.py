@@ -254,6 +254,7 @@ CALENDAR_ADD_LOCATION_COUNTRY = "calendar-add-location-country"
 SPECIAL_EVENTS_INFO_CANVAS_CHANNEL = "special_events_info_canvas_channel"
 LINEUP_SIGNUP_BUTTON = "lineup-signup-button"
 SECRET_MENU_GENERATE_EVENT_INSTANCES = "generate-event-instances"
+USER_OPTION_LOAD = "user_option_load"
 
 MSG_EVENT_PREBLAST_TITLE = "event_preblast_title_dm"
 MSG_EVENT_PREBLAST_MOLESKINE = "event_preblast_moleskine_dm"

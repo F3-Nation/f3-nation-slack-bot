@@ -66,7 +66,7 @@ def handler(request: Request):
 
 
 def main_response(body, logger: logging.Logger, client, ack, context):
-    ack()
+    # ack()
     if LOCAL_DEVELOPMENT:
         logger.info(json.dumps(body, indent=4))
     else:
@@ -87,13 +87,17 @@ def main_response(body, logger: logging.Logger, client, ack, context):
         try:
             # time the call
             start_time = time.time()
-            run_function(
+            resp = run_function(
                 body=body,
                 client=client,
                 logger=logger,
                 context=context,
                 region_record=region_record,
             )
+            if resp and request_type == "block_suggestion":
+                ack(options=resp)
+            else:
+                ack()
             end_time = time.time()
             logger.info(f"Function {run_function.__name__} took {end_time - start_time:.2f} seconds to run.")
         except Exception as exc:
@@ -127,6 +131,7 @@ app.view(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.command(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.view_closed(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.event(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
+app.options(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 
 if __name__ == "__main__":
     port = 3000 if LOCAL_DEVELOPMENT else 8080

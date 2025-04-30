@@ -17,7 +17,7 @@ from features import (
 from features.calendar import ao, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
 from scripts.q_lineups import handle_lineup_signup
-from utilities import announcements, builders
+from utilities import announcements, builders, options
 from utilities.slack import actions
 
 # Required arguments for handler functions:
@@ -154,10 +154,15 @@ EVENT_MAPPER = {
     "team_join": (welcome.handle_team_join, False),
 }
 
+OPTIONS_MAPPER = {
+    actions.USER_OPTION_LOAD: (options.handle_request, False),
+}
+
 MAIN_MAPPER = {
     "command": COMMAND_MAPPER,
     "block_actions": ACTION_MAPPER,
     "view_submission": VIEW_MAPPER,
     "view_closed": VIEW_CLOSED_MAPPER,
     "event_callback": EVENT_MAPPER,
+    "block_suggestion": OPTIONS_MAPPER,
 }
