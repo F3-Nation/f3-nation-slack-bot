@@ -14,6 +14,7 @@ from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 
 import scripts
 from features import strava
+from features.calendar import series
 from utilities.builders import add_loading_form, send_error_response
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
@@ -58,6 +59,8 @@ def handler(request: Request):
     elif request.path[:6] == "/slack":
         slack_handler = SlackRequestHandler(app=app)
         return slack_handler.handle(request)
+    elif request.path == "/map-update":
+        return series.update_from_map(request)
     else:
         return Response(f"Invalid path: {request.path}", status=404)
 

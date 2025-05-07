@@ -1,8 +1,9 @@
 import copy
 import json
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
-from typing import List
+from typing import Any, Dict, List
 
 from f3_data_models.models import (
     Attendance,
@@ -20,6 +21,7 @@ from f3_data_models.models import (
     Org_Type,
 )
 from f3_data_models.utils import DbManager
+from flask import Request, Response
 from slack_sdk.web import WebClient
 
 from features.calendar import event_preblast
@@ -48,8 +50,15 @@ def build_series_add_form(
     new_preblast: bool = False,
 ):
     parent_metadata = {"series_id": edit_event.id} if edit_event else {}
-    if safe_get(body, "actions", 0, "action_id") in (actions.CALENDAR_MANAGE_SERIES, actions.CALENDAR_ADD_SERIES_AO):
-        title_text = "Add a Series"
+    callback_id = safe_get(body, "view", "callback_id")
+    if (
+        safe_get(body, "actions", 0, "action_id") in (actions.CALENDAR_MANAGE_SERIES, actions.CALENDAR_ADD_SERIES_AO)
+        or callback_id == actions.EDIT_DELETE_SERIES_CALLBACK_ID
+    ):
+        if edit_event:
+            title_text = "Edit a Series"
+        else:
+            title_text = "Add a Series"
         form = copy.deepcopy(SERIES_FORM)
         parent_metadata.update({"is_series": "True"})
     else:
@@ -110,6 +119,7 @@ def build_series_add_form(
     )
 
     if edit_event:
+        print("Edit event", edit_event)
         initial_values = {
             actions.CALENDAR_ADD_SERIES_NAME: edit_event.name,
             actions.CALENDAR_ADD_SERIES_DESCRIPTION: edit_event.description,
@@ -124,8 +134,10 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
-            actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern,
-            actions.CALENDAR_ADD_SERIES_INTERVAL: edit_event.recurrence_interval,
+            actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern.name,
+            actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
+            if edit_event.recurrence_interval
+            else "1",
             actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
         }
         if edit_event.event_tags:
@@ -220,7 +232,8 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     if safe_get(metadata, "series_id"):
         edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
-        day_of_weeks = [edit_series_record.day_of_week.name]
+        if not day_of_weeks or day_of_weeks == ["None"]:
+            day_of_weeks = [edit_series_record.day_of_week.name]
 
     # day_of_weeks will be None if this is a one-time event (EventInstance)
     if not day_of_weeks or day_of_weeks == ["None"]:
@@ -317,7 +330,31 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         event_preblast.send_preblast(body, client, logger, context, region_record, event_instance)
 
 
-def create_events(records: list[Event], clear_first: bool = False):
+@dataclass
+class MapUpdate:
+    version: str
+    timestamp: str
+    action: str
+    data: Dict[str, Any]
+
+
+def update_from_map(request: Request) -> Response:
+    print("Updating from map...")
+    print(request.json)
+    if request.json:
+        try:
+            map_update_data = MapUpdate(**request.json)
+            print(map_update_data)
+        except Exception as e:
+            print(f"Error parsing map update data: {e}")
+            return Response("Invalid data", status=400)
+    return Response("OK", status=200)
+
+
+def create_events(
+    records: list[Event],
+    clear_first: bool = False,
+):
     event_records = []
     for series in records:
         current_date = series.start_date
@@ -372,11 +409,6 @@ def create_events(records: list[Event], clear_first: bool = False):
             filters=[
                 EventInstance.org_id.in_(org_ids),
             ],
-            joinedloads=[
-                EventInstance.event_instances_x_event_types,
-                EventInstance.event_instances_x_event_tags,
-                EventInstance.attendance,
-            ],  # need to delete attendance as well
         )
     DbManager.create_records(event_records)
 
