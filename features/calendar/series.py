@@ -392,7 +392,8 @@ def create_events(
 ):
     event_records = []
     for series in records:
-        current_date = series.start_date
+        start_date = max(series.start_date, datetime.today() - timedelta(days=30))
+        current_date = start_date
         end_date = series.end_date or series.start_date.replace(year=series.start_date.year + 2)
         max_interval = series.recurrence_interval or 1
         index_within_interval = series.index_within_interval or 1
