@@ -394,7 +394,7 @@ def create_events(
     for series in records:
         start_date = max(series.start_date, (datetime.today() - timedelta(days=30)).date())
         current_date = start_date
-        end_date = series.end_date or series.start_date.replace(year=series.start_date.year + 2)
+        end_date = series.end_date or start_date.replace(year=start_date.year + 2)
         max_interval = series.recurrence_interval or 1
         index_within_interval = series.index_within_interval or 1
         current_interval = 1
@@ -404,7 +404,7 @@ def create_events(
         # for monthly series, figure out which occurence of the day of the week the start date is within the month
         if series.recurrence_pattern.name == Event_Cadence.monthly.name:
             current_date = current_date.replace(day=1)
-            while current_date <= series.start_date:
+            while current_date <= start_date:
                 if current_date.strftime("%A").lower() == series.day_of_week.name:
                     current_index += 1
                 current_date += timedelta(days=1)
