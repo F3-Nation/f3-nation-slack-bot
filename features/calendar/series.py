@@ -3,7 +3,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from logging import Logger
-from typing import Any, Dict, List
+from typing import List
 
 from f3_data_models.models import (
     Attendance,
@@ -331,20 +331,55 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
 
 @dataclass
+class MapUpdateData:
+    eventId: int | None
+    locationId: int | None
+    orgId: int | None
+
+
+@dataclass
 class MapUpdate:
     version: str
     timestamp: str
     action: str
-    data: Dict[str, Any]
+    data: MapUpdateData
 
 
 def update_from_map(request: Request) -> Response:
+    """
+    This endpoint is used to update the map with new data.
+    It is called by the map service when updates are made to the map data.
+
+    Sample payload from Spuds:
+    {
+        "version": "1.0",
+        "timestamp": "2025-05-07T19:45:12Z",
+        "action": "map.updated", // OR map.created / map.deleted
+        "data": {
+            "eventId":   1123,   // may be null / omitted
+            "locationId": 987,   // may be null / omitted
+            "orgId":     null.   // may be null / omitted
+        } // likely in the future I will send the actual data here too (like new address)
+    }
+    """
+
     print("Updating from map...")
-    print(request.json)
     if request.json:
         try:
-            map_update_data = MapUpdate(**request.json)
-            print(map_update_data)
+            map_update_data = MapUpdateData(**safe_get(request.json, "data") or {})
+            map_update = MapUpdate(
+                version=safe_get(request.json, "version"),
+                timestamp=safe_get(request.json, "timestamp"),
+                action=safe_get(request.json, "action"),
+                data=map_update_data,
+            )
+            print(map_update)
+            if map_update.action in ["map.updated", "map.created"] and map_update.data.eventId:
+                series: Event = DbManager.get(Event, map_update.data.eventId, joinedloads="all")
+                # TODO: only recreate instances if certain things have changed (ie not just the description)
+                create_events([series], clear_first=True)
+            elif map_update.action == "map.deleted" and map_update.data.eventId:
+                pass
         except Exception as e:
             print(f"Error parsing map update data: {e}")
             return Response("Invalid data", status=400)
@@ -360,6 +395,7 @@ def create_events(
         current_date = series.start_date
         end_date = series.end_date or series.start_date.replace(year=series.start_date.year + 2)
         max_interval = series.recurrence_interval or 1
+        index_within_interval = series.index_within_interval or 1
         current_interval = 1
         current_index = 0
         series_type_id = series.event_types[0].id  # TODO: handle multiple event types
@@ -376,7 +412,7 @@ def create_events(
         while current_date <= end_date:
             if current_date.strftime("%A").lower() == series.day_of_week.name:
                 current_index += 1
-                if (current_index == series.index_within_interval) or (
+                if (current_index == index_within_interval) or (
                     series.recurrence_pattern.name == Event_Cadence.weekly.name
                 ):
                     if current_interval == 1:
@@ -408,6 +444,7 @@ def create_events(
             EventInstance,
             filters=[
                 EventInstance.org_id.in_(org_ids),
+                EventInstance.start_date >= datetime.now(),
             ],
         )
     DbManager.create_records(event_records)
