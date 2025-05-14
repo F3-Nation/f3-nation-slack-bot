@@ -212,6 +212,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         backblast_metadata["channel_id"] = safe_get(body, "container", "channel_id")
         backblast_metadata["message_ts"] = safe_get(body, "container", "message_ts")
         backblast_metadata["files"] = safe_get(backblast_metadata, actions.BACKBLAST_FILE) or []
+        backblast_metadata["file_ids"] = safe_get(backblast_metadata, "file_ids") or []
     else:
         callback_id = actions.BACKBLAST_CALLBACK_ID
 
@@ -259,9 +260,10 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
     event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event.event_types[0].id
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
+    file_ids = safe_get(backblast_data, "file_ids") or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list = upload_files_to_storage(files=files, logger=logger, client=client)
+    file_list, file_send_list, file_ids = upload_files_to_storage(files=files, logger=logger, client=client)
     event_instance_id = safe_get(metadata, "event_instance_id")
     if (
         region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
@@ -275,6 +277,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         message_channel = safe_get(metadata, "channel_id")
         message_ts = safe_get(metadata, "message_ts")
         file_list = safe_get(metadata, "files") if not file_list else file_list
+        file_ids = safe_get(metadata, "file_ids") if not file_ids else file_ids
     else:
         message_channel = None
         message_ts = None
@@ -334,11 +337,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     if file_list:
         custom_fields["files"] = file_list
+        custom_fields["file_ids"] = file_ids
 
     msg_block = slack_orm.SectionBlock(label=post_msg)
 
     backblast_data.pop(actions.BACKBLAST_MOLESKIN, None)
     backblast_data[actions.BACKBLAST_FILE] = file_list
+    backblast_data["file_ids"] = file_ids
     backblast_data[actions.BACKBLAST_OP] = user_id
     backblast_data["event_instance_id"] = event_instance_id
 
@@ -367,11 +372,11 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         )
 
     blocks = [msg_block.as_form_field(), moleskin]
-    for file in file_list or []:
+    for id in file_ids or []:
         blocks.append(
             slack_orm.ImageBlock(
                 alt_text=title,
-                image_url=file,
+                slack_file_id=id,
             ).as_form_field()
         )
     blocks.append(edit_block.as_form_field())

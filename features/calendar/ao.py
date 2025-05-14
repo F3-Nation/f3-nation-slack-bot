@@ -97,7 +97,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
 
     file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
     if file:
-        file_list, file_send_list = upload_files_to_storage(files=[file], logger=logger, client=client)
+        file_list, file_send_list, file_ids = upload_files_to_storage(files=[file], logger=logger, client=client)
         logo_url = file_list[0]
         # try:
         #     r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})

@@ -527,6 +527,7 @@ def upload_files_to_storage(
 ) -> Tuple[List[str], List[Dict[str, Any]]]:
     file_list = []
     file_send_list = []
+    file_ids = [file["id"] for file in files]
     for file in files or []:
         try:
             r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
@@ -570,14 +571,15 @@ def upload_files_to_storage(
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
 
-    return file_list, file_send_list
+    return file_list, file_send_list, file_ids
 
 
 def upload_files_to_s3(
     files: List[Dict[str, str]], user_id: str, client: WebClient, logger: Logger
-) -> Tuple[List[str], List[Dict[str, Any]]]:
+) -> Tuple[List[str], List[Dict[str, Any]], List[str]]:
     file_list = []
     file_send_list = []
+    file_ids = [file["id"] for file in files]
     for file in files or []:
         try:
             r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
@@ -632,4 +634,4 @@ def upload_files_to_s3(
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
 
-    return file_list, file_send_list
+    return file_list, file_send_list, file_ids
