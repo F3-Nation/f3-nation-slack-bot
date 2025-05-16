@@ -320,6 +320,29 @@ class MultiExternalSelectElement(BaseElement):
 
 
 @dataclass
+class ExternalSelectElement(BaseElement):
+    initial_value: Dict = None
+    confirm: ConfirmObject = None
+    action: str = None
+    min_query_length: int = None
+
+    def as_form_field(self, action: str = None):
+        j = {"type": "external_select", "action_id": action or self.action}
+        if self.placeholder:
+            j.update(self.make_placeholder_field())
+        if self.min_query_length:
+            j.update({"min_query_length": self.min_query_length})
+        if self.initial_value:
+            j.update({"initial_option": self.initial_value})
+        if self.confirm:
+            j.update({"confirm": self.confirm.as_form_field()})
+        return j
+
+    def get_selected_value(self, input_data, action):
+        return safe_get(input_data, action, action, "selected_option", "value")
+
+
+@dataclass
 class RadioButtonsElement(BaseElement):
     initial_value: str = None
     options: List[SelectorOption] = None
@@ -767,6 +790,8 @@ class BlockView:
                 block.element.initial_value = values[block.action]
             elif block.action in values and isinstance(block, SectionBlock):
                 block.label = values[block.action]
+            elif block.action in values and isinstance(block, ImageBlock):
+                block.image_url = values[block.action]
 
     def set_options(self, options: Dict[str, List[SelectorOption]]):
         for block in self.blocks:
