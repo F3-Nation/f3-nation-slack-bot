@@ -24,6 +24,69 @@ from sqlalchemy import text
 from utilities.database.orm.paxminer import Attendance as PaxminerAttendance
 from utilities.database.orm.paxminer import Backblast, PaxminerAO, PaxminerRegion, PaxminerUser, get_pm_engine
 
+AO_MAP = {
+    "C02Q94GPSHE": {"org_id": 34200, "event_type_id": 1},
+    "C02Q94HAM40": {"org_id": 45530, "event_type_id": 1},
+    "C02PCMMSM9C": {"org_id": 47013, "event_type_id": 1},
+    "C02Q94GUFLG": {"org_id": 48592, "event_type_id": 1},
+    "C02PMLKCYLU": {"org_id": 34214, "event_type_id": 1},
+    "C02NH9HJ1RD": {"org_id": 34225, "event_type_id": 1},
+    "C02PY1Y9TLZ": {"org_id": 25221, "event_type_id": 1},
+    "C02Q79ZMSMP": {"org_id": 48592, "event_type_id": 1},
+    "C02PKDPEU3D": {"org_id": 32138, "event_type_id": 1},
+    "C02PKDQJDHR": {"org_id": 40331, "event_type_id": 1},
+    "C02PMLM65BN": {"org_id": 34226, "event_type_id": 1},
+    "C02PGLVJLLT": {"org_id": 40945, "event_type_id": 1},
+    "C02T0MZDPED": {"org_id": 36346, "event_type_id": 1},
+    "C02SRR8HZQD": {"org_id": 25221, "event_type_id": 1},
+    "C04DM8RNRCP": {"org_id": 44073, "event_type_id": 1},
+    "C02P22R0HCP": {"org_id": 34225, "event_type_id": 1},
+    "C05LCSGEN02": {"org_id": 43510, "event_type_id": 1},
+    "C02P1AAA1T9": {"org_id": 34200, "event_type_id": 1},
+    "C02P4FUM8E9": {"org_id": 45530, "event_type_id": 1},
+    "C056TJAJ0KE": {"org_id": 45664, "event_type_id": 1},
+    "C05T7UPSDMW": {"org_id": 34226, "event_type_id": 1},
+    "C02PKCPLGR0": {"org_id": 34200, "event_type_id": 1},
+    "C05HB2UJN5B": {"org_id": 25221, "event_type_id": 1},
+    "C050YKMRF8D": {"org_id": 42193, "event_type_id": 1},
+    "C079XGFJS9J": {"org_id": 47013, "event_type_id": 1},
+    "C07MUDM864R": {"org_id": 47979, "event_type_id": 1},
+    "C06Q28HD58T": {"org_id": 48592, "event_type_id": 1},
+    "C04GYJTKMK5": {"org_id": 46848, "event_type_id": 1},
+    "C9FQMABPV": {"org_id": 25221, "event_type_id": 4},
+    "C07GK1KJCJ1": {"org_id": 48395, "event_type_id": 1},
+    "C086QV4B8BY": {"org_id": 25221, "event_type_id": 1},
+    "C04N44M8C2Z": {"org_id": 25221, "event_type_id": 1},
+    "C9FTHRZMY": {"org_id": 25221, "event_type_id": 1},
+    "C03S3C100HK": {"org_id": 25221, "event_type_id": 1},
+    "C06LUBZCGDP": {"org_id": 25221, "event_type_id": 4},
+    "C07KXQ0PGTC": {"org_id": 48592, "event_type_id": 1},
+    "C07KV060FE1": {"org_id": 32138, "event_type_id": 1},
+    "C07KV04LRPX": {"org_id": 44073, "event_type_id": 1},
+    "C07KXS2CLN6": {"org_id": 36346, "event_type_id": 1},
+    "C07LAGDSGE5": {"org_id": 48395, "event_type_id": 1},
+    "C07KXRUUAEN": {"org_id": 48592, "event_type_id": 1},
+    "C07KV027WE9": {"org_id": 42193, "event_type_id": 1},
+    "C08DKE114UU": {"org_id": 49393, "event_type_id": 1},
+    "C07L0AUG1AQ": {"org_id": 48180, "event_type_id": 1},
+    "C07KV015V1T": {"org_id": 48180, "event_type_id": 1},
+    "C04KZDLT84C": {"org_id": 40945, "event_type_id": 1},
+    "C04KX00DYD8": {"org_id": 43842, "event_type_id": 1},
+    "C04LLLD1400": {"org_id": 46848, "event_type_id": 1},
+    "C04SDFYHLR4": {"org_id": 46850, "event_type_id": 1},
+    "C04KWRYHLSF": {"org_id": 41195, "event_type_id": 1},
+    "C058ZE4EJ1G": {"org_id": 43842, "event_type_id": 1},
+    "C050DF95FU4": {"org_id": 43842, "event_type_id": 1},
+    "C071QU7NP0F": {"org_id": 46851, "event_type_id": 1},
+    "C076A7B1JR1": {"org_id": 43842, "event_type_id": 1},
+    "C04R6QJ7F37": {"org_id": 43842, "event_type_id": 1},
+    "C04KURJNU3C": {"org_id": 43842, "event_type_id": 1},
+    "C050B1ZMMQS": {"org_id": 43842, "event_type_id": 1},
+    "C08N24J2QG1": {"org_id": 43842, "event_type_id": 1},
+}
+AO_CHANNEL_MAP = {k: v["org_id"] for k, v in AO_MAP.items()}
+AO_TYPE_MAP = {k: v["event_type_id"] for k, v in AO_MAP.items()}
+
 
 def extract_name(backblast: str = "No title") -> str:
     # extract the name of the event from the backblast
@@ -48,16 +111,17 @@ def convert_region(paxminer_region: PaxminerRegion) -> Org:
 
 def convert_aos(paxminer_aos: list[PaxminerAO], org_id: int) -> List[Org]:
     aos: List[Org] = []
-    aos = [
-        Org(
-            org_type=Org_Type.ao,
-            parent_id=org_id,
-            name=ao.ao,
-            is_active=True,
-            meta={"slack_channel_id": ao.channel_id},
-        )
-        for ao in paxminer_aos
-    ]
+    for ao in paxminer_aos:
+        if ao.channel_id not in AO_CHANNEL_MAP:
+            aos.append(
+                Org(
+                    org_type=Org_Type.ao,
+                    parent_id=org_id,
+                    name=ao.ao,
+                    is_active=True,
+                    meta={"slack_channel_id": ao.channel_id},
+                )
+            )
     return aos
 
 
@@ -116,8 +180,8 @@ def convert_events(
             meta=json.loads(backblast.json or "{}"),
             backblast_ts=None if backblast.timestamp or "" == "" else float(backblast.timestamp),
             event_instances_x_event_types=[
-                EventType_x_EventInstance(event_type_id=1)
-            ],  # can we assume a type based on ao name?
+                EventType_x_EventInstance(event_type_id=AO_TYPE_MAP.get(backblast.ao_id) or 1)
+            ],
         )
         for backblast in paxminer_backblasts
     ]
@@ -187,7 +251,9 @@ def run_paxminer_migration(from_pm_schema: str = None, to_region_org_id: int = N
         # pull region paxminer data
         engine = get_pm_engine(schema=paxminer_region.schema_name)
         with engine.connect() as conn:
-            paxminer_aos = conn.execute(text("SELECT * FROM aos")).fetchall()
+            paxminer_aos = conn.execute(
+                text("SELECT a.* FROM aos a INNER JOIN beatdowns b on a.channel_id = b.ao_id")
+            ).fetchall()
             paxminer_backblasts = conn.execute(text("SELECT * FROM beatdowns")).fetchall()
             paxminer_attendance = conn.execute(text("SELECT * FROM bd_attendance")).fetchall()
             paxminer_users = conn.execute(text("SELECT * FROM users")).fetchall()
@@ -223,6 +289,7 @@ def run_paxminer_migration(from_pm_schema: str = None, to_region_org_id: int = N
         aos = convert_aos(paxminer_aos, region_org.id)
         aos: List[Org] = DbManager.create_records(aos)
         slack_org_dict = {ao.meta["slack_channel_id"]: ao.id for ao in aos}
+        slack_org_dict.update(**AO_CHANNEL_MAP)
 
         # slack users
         slack_users = convert_users(paxminer_users, slack_team_id=paxminer_region.team_id or "NO_TEAM_ID")
@@ -257,4 +324,5 @@ if __name__ == "__main__":
     parser.add_argument("--from_pm_schema", help="The schema name in the paxminer database to migrate from")
     parser.add_argument("--to_region_org_id", help="The region org id to migrate to")
     args = parser.parse_args()
-    run_paxminer_migration(args.from_pm_schema, args.to_region_org_id)
+    print(args)
+    run_paxminer_migration(args.from_pm_schema, int(args.to_region_org_id) if args.to_region_org_id else None)
