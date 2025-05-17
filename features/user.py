@@ -66,9 +66,7 @@ def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dic
 
     file = safe_get(form_data, USER_FORM_IMAGE_UPLOAD, 0)
     if file:
-        file_list, file_send_list, file_ids = upload_files_to_storage(
-            [file], region_record.team_id, region_record.org_id
-        )
+        file_list, file_send_list, file_ids = upload_files_to_storage([file], client=client, logger=logger)
         update_fields[User.avatar_url] = file_list[0]
 
     DbManager.update_record(User, slack_user.user_id, update_fields)
