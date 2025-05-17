@@ -26,13 +26,18 @@ USER_FORM_ID = "user_form_id"
 def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form = copy.deepcopy(FORM)
 
-    slack_user: SlackUser = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"))
-    user = DbManager.get(User, slack_user.id)
+    slack_user: SlackUser = get_user(
+        safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
+    )
+    user = DbManager.get(User, slack_user.id, joinedloads=[User.home_region_org])
 
     initial_values = {
         USER_FORM_USERNAME: user.f3_name,
-        USER_FORM_HOME_REGION: region_record.org_id,
     }
+    if user.home_region_id:
+        form.blocks[
+            1
+        ].hint = f"Your current home region is {user.home_region_org.name}. You can change this at any time."
     if user.avatar_url:
         initial_values[USER_FORM_IMAGE] = user.avatar_url
     else:
@@ -50,7 +55,9 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
 
 def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form_data = FORM.get_selected_values(body)
-    slack_user: SlackUser = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"))
+    slack_user: SlackUser = get_user(
+        safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
+    )
 
     update_fields = {
         User.f3_name: safe_get(form_data, USER_FORM_USERNAME),
@@ -79,13 +86,13 @@ FORM = BlockView(
         InputBlock(
             label="Home Region",
             action=USER_FORM_HOME_REGION,
-            element=ExternalSelectElement(placeholder="Select your home region"),
+            element=ExternalSelectElement(placeholder="Select a new home region"),
             optional=False,
             hint="This is the region you will be associated with. You can change this at any time.",
         ),
-        ImageBlock(action=USER_FORM_IMAGE, image_url="https://example.com/image.png"),
+        ImageBlock(action=USER_FORM_IMAGE, image_url="https://example.com/image.png", alt_text="User Image"),
         InputBlock(
-            label="Profile Picture",
+            label="New Profile Picture",
             action=USER_FORM_IMAGE_UPLOAD,
             element=FileInputElement(
                 max_files=1,
