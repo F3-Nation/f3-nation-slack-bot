@@ -41,7 +41,7 @@ def send_lineups(force: bool = False):
         tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
         this_week_start = date.today() + timedelta(days=-tomorrow_day_of_week)
         this_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
-
+        print(f"Week start: {this_week_start}, week end: {this_week_end}")
         event_list = PreblastList()
         event_list.pull_data(
             filters=[
