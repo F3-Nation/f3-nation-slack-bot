@@ -35,6 +35,7 @@ def send_lineups(force: bool = False):
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 5:00 PM and 6:00 PM on Sundays, eventually configurable
     if (current_time.hour == 17 and current_time.weekday() == 6) or force:
+        print("Sending Q Lineups")
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
         tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
@@ -50,6 +51,7 @@ def send_lineups(force: bool = False):
                 # may want to filter out pre-events?
             ]
         )
+        print(f"Found {len(event_list.items)} events to send lineups for")
         event_org_list: Dict[int, List[PreblastItem]] = {}
         for event in event_list.items:
             event_org_list.setdefault(event.org.id, []).append(event)
