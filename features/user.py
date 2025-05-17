@@ -64,7 +64,7 @@ def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dic
         User.home_region_id: safe_get(form_data, USER_FORM_HOME_REGION),
     }
 
-    file = form_data.get(form_data, USER_FORM_IMAGE_UPLOAD, 0)
+    file = safe_get(form_data, USER_FORM_IMAGE_UPLOAD, 0)
     if file:
         file_list, file_send_list, file_ids = upload_files_to_storage(
             [file], region_record.team_id, region_record.org_id
