@@ -11,6 +11,7 @@ from features import (
     region,
     special_events,
     strava,
+    user,
     weaselbot,
     welcome,
 )
@@ -69,6 +70,7 @@ VIEW_MAPPER = {
     connect.CONNECT_EXISTING_REGION_CALLBACK_ID: (connect.handle_existing_region_selection, False),
     connect.CREATE_NEW_REGION_CALLBACK_ID: (connect.handle_new_region_creation, False),
     actions.CALENDAR_CONFIG_GENERAL_CALLBACK_ID: (calendar_config.handle_calendar_config_general, False),
+    user.USER_FORM_ID: (user.handle_user_form, False),
 }
 
 ACTION_MAPPER = {
@@ -144,6 +146,7 @@ ACTION_MAPPER = {
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
     actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
     actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION: (db_admin.handle_trigger_map_revalidation, False),
+    actions.CONFIG_USER_SETTINGS: (user.build_user_form, False),
 }
 
 VIEW_CLOSED_MAPPER = {
@@ -157,6 +160,7 @@ EVENT_MAPPER = {
 
 OPTIONS_MAPPER = {
     actions.USER_OPTION_LOAD: (options.handle_request, False),
+    user.USER_FORM_HOME_REGION: (options.handle_request, False),
 }
 
 MAIN_MAPPER = {

@@ -1,9 +1,10 @@
 from logging import Logger
 
-from f3_data_models.models import User
+from f3_data_models.models import Org, User
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
+from features import user as user_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
 from utilities.slack import actions
@@ -35,6 +36,23 @@ def handle_request(
                 {
                     "text": {"type": "plain_text", "text": display_name},
                     "value": str(user.id),
+                }
+            )
+        return options
+    elif action_id == user_form.USER_FORM_HOME_REGION:
+        # Handle the home region selection
+        org_records = DbManager.find_records(
+            cls=Org,
+            filters=[Org.name.ilike(f"%{value}%")],
+        )
+        print(f"Org records: {org_records}")
+        options = []
+        for org in org_records[:10]:
+            display_name = org.name
+            options.append(
+                {
+                    "text": {"type": "plain_text", "text": display_name},
+                    "value": str(org.id),
                 }
             )
         return options

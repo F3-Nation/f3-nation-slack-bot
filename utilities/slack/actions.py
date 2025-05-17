@@ -99,7 +99,7 @@ PAXMINER_MIGRATION_REGION = "paxminer_migration_region"
 CONFIG_CONNECT = "config_connect"
 CALENDAR_CONFIG_Q_LINEUP = "calendar_config_q_lineup"
 CALENDAR_CONFIG_GENERAL_CALLBACK_ID = "calendar-config-general-id"
-
+CONFIG_USER_SETTINGS = "user_settings"
 
 WELCOME_MESSAGE_CONFIG_CALLBACK_ID = "welcome-message-config-id"
 WELCOME_DM_TEMPLATE = "welcome-dm-template"
@@ -256,6 +256,7 @@ SPECIAL_EVENTS_INFO_CANVAS_CHANNEL = "special_events_info_canvas_channel"
 LINEUP_SIGNUP_BUTTON = "lineup-signup-button"
 SECRET_MENU_GENERATE_EVENT_INSTANCES = "generate-event-instances"
 USER_OPTION_LOAD = "user_option_load"
+REGION_OPTION_LOAD = "region_option_load"
 
 MSG_EVENT_PREBLAST_TITLE = "event_preblast_title_dm"
 MSG_EVENT_PREBLAST_MOLESKINE = "event_preblast_moleskine_dm"

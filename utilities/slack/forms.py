@@ -220,6 +220,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":classical_building: SLT Settings",
                     action=actions.CONFIG_SLT,
                 ),
+                orm.ButtonElement(
+                    label=":bust_in_silhouette: User Settings",
+                    action=actions.CONFIG_USER_SETTINGS,
+                ),
                 # orm.ButtonElement(
                 #     label="Connect Region",
                 #     action=actions.CONFIG_CONNECT,
@@ -634,9 +638,17 @@ NO_WEASELBOT_CONFIG_FORM = orm.BlockView(
 
 CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
     blocks=[
+        orm.ActionsBlock(
+            elements=[
+                orm.ButtonElement(
+                    label=":bust_in_silhouette: User Settings",
+                    action=actions.CONFIG_USER_SETTINGS,
+                ),
+            ],
+        ),
         orm.SectionBlock(
-            label="You must be assigned as an admin for your region in order to access region settings.",  # noqa: E501
-        )
+            label="Looking for region or calendar settings? You must be assigned as an admin for your region in order to access these.",  # noqa: E501
+        ),
     ]
 )
 
