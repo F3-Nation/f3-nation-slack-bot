@@ -29,7 +29,7 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
     slack_user: SlackUser = get_user(
         safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
     )
-    user = DbManager.get(User, slack_user.id, joinedloads=[User.home_region_org])
+    user = DbManager.get(User, slack_user.user_id, joinedloads=[User.home_region_org])
 
     initial_values = {
         USER_FORM_USERNAME: user.f3_name,
@@ -71,7 +71,7 @@ def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dic
         )
         update_fields[User.avatar_url] = file_list[0]
 
-    DbManager.update_record(User, slack_user.id, update_fields)
+    DbManager.update_record(User, slack_user.user_id, update_fields)
 
 
 FORM = BlockView(
