@@ -5,6 +5,7 @@ from typing import List
 from f3_data_models.models import EventInstance, Org, Org_Type
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
+from sqlalchemy import or_
 
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_position_users
@@ -39,12 +40,12 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
     special_events: List[EventInstance] = DbManager.find_records(
         cls=EventInstance,
         filters=[
-            (
-                EventInstance.org_id == region_record.org_id
-                or EventInstance.org.has(Org.parent_id == region_record.org_id)
+            or_(
+                EventInstance.org_id == region_record.org_id,
+                EventInstance.org.has(Org.parent_id == region_record.org_id),
             ),
             EventInstance.start_date >= date.today(),
-            EventInstance.start_date <= date.today() + timedelta(days=region_record.special_events_post_days),
+            EventInstance.start_date <= date.today() + timedelta(days=region_record.special_events_post_days or 7),
             EventInstance.is_active,
             EventInstance.highlight,
         ],
@@ -97,9 +98,14 @@ def update_all_canvases():
     regions: List[Org] = DbManager.find_records(
         cls=Org, filters=[Org.org_type == Org_Type.region], joinedloads=[Org.slack_space]
     )
+    regions = [region for region in regions if region.slack_space and region.slack_space.settings]
 
     for region in regions:
         slack_settings = SlackSettings(**region.slack_space.settings)
         if slack_settings.canvas_channel and slack_settings.special_events_enabled:
             client = WebClient(token=slack_settings.bot_token)
             update_canvas({}, client, Logger(), {}, slack_settings)
+
+
+if __name__ == "__main__":
+    update_all_canvases()
