@@ -60,7 +60,9 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
 
     file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
     if file:
-        file_list, file_send_list, file_ids = upload_files_to_storage(files=[file], logger=logger, client=client)
+        file_list, file_send_list, file_ids = upload_files_to_storage(
+            files=[file], logger=logger, client=client, enforce_square=True, max_height=512
+        )
         logo_url = file_list[0]
     else:
         logo_url = None

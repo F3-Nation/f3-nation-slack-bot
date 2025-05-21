@@ -523,8 +523,8 @@ def time_str_to_int(time: str) -> int:
 
 
 def upload_files_to_storage(
-    files: List[Dict[str, str]], client: WebClient, logger: Logger
-) -> Tuple[List[str], List[Dict[str, Any]]]:
+    files: List[Dict[str, str]], client: WebClient, logger: Logger, enforce_square: bool = False, max_height: int = None
+) -> Tuple[List[str], List[Dict[str, Any]], List[str]]:
     file_list = []
     file_send_list = []
     file_ids = [file["id"] for file in files]
@@ -541,19 +541,49 @@ def upload_files_to_storage(
                 file_path_heic = "/tmp/" + file_name
                 with open(file_path_heic, "wb") as f:
                     f.write(r.content)
-                heic_img = Image.open(file_path_heic)
-                x, y = heic_img.size
+                img = Image.open(file_path_heic)
+                x, y = img.size
                 coeff = min(constants.MAX_HEIC_SIZE / max(x, y), 1)
-                heic_img = heic_img.resize((int(x * coeff), int(y * coeff)))
-                heic_img.save(file_path.replace(".heic", ".png"), quality=95, optimize=True, format="PNG")
+                img = img.resize((int(x * coeff), int(y * coeff)))
                 os.remove(file_path_heic)
-
                 file_path = file_path.replace(".heic", ".png")
                 file_name = file_name.replace(".heic", ".png")
                 file_mimetype = "image/png"
             else:
                 with open(file_path, "wb") as f:
                     f.write(r.content)
+                img = None
+                if file_mimetype.startswith("image/"):
+                    try:
+                        img = Image.open(file_path)
+                    except Exception as e:
+                        logger.error(f"Error opening image: {e}")
+
+            # If we have an image, apply enforce_square and max_height
+            if file["filetype"] == "heic" or (img is not None):
+                if img is None:
+                    try:
+                        img = Image.open(file_path)
+                    except Exception as e:
+                        logger.error(f"Error opening image: {e}")
+                        img = None
+                if img is not None:
+                    # Downscale to max_height if provided
+                    if max_height is not None and img.height > max_height:
+                        ratio = max_height / float(img.height)
+                        new_width = int(img.width * ratio)
+                        img = img.resize((new_width, max_height), Image.LANCZOS)
+                    # Enforce square if requested
+                    if enforce_square:
+                        max_side = max(img.width, img.height)
+                        new_img = Image.new("RGB", (max_side, max_side), (0, 0, 0))
+                        paste_x = (max_side - img.width) // 2
+                        paste_y = (max_side - img.height) // 2
+                        new_img.paste(img, (paste_x, paste_y))
+                        img = new_img
+                    # Save the possibly modified image
+                    img_format = "PNG" if file["filetype"] == "heic" else img.format
+                    img.save(file_path, format=img_format, quality=95, optimize=True)
 
             # TODO: if LOCAL_DEVELOPMENT, upload to google storage
 
