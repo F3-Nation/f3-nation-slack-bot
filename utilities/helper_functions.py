@@ -568,11 +568,6 @@ def upload_files_to_storage(
                         logger.error(f"Error opening image: {e}")
                         img = None
                 if img is not None:
-                    # Downscale to max_height if provided
-                    if max_height is not None and img.height > max_height:
-                        ratio = max_height / float(img.height)
-                        new_width = int(img.width * ratio)
-                        img = img.resize((new_width, max_height), Image.LANCZOS)
                     # Enforce square if requested
                     if enforce_square:
                         max_side = max(img.width, img.height)
@@ -581,6 +576,9 @@ def upload_files_to_storage(
                         paste_y = (max_side - img.height) // 2
                         new_img.paste(img, (paste_x, paste_y))
                         img = new_img
+                    # Downscale to max_height if provided (after squaring)
+                    if max_height is not None and img.height > max_height:
+                        img = img.resize((max_height, max_height), Image.LANCZOS)
                     # Save the possibly modified image
                     img_format = "PNG" if file["filetype"] == "heic" else img.format
                     img.save(file_path, format=img_format, quality=95, optimize=True)
