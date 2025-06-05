@@ -366,7 +366,12 @@ def update_from_map(request: Request) -> Response:
     print("Updating from map...")
     if request.json:
         try:
-            map_update_data = MapUpdateData(**safe_get(request.json, "data") or {})
+            response_data = safe_get(request.json, "data") or {}
+            map_update_data = MapUpdateData(
+                eventId=safe_convert(safe_get(response_data, "eventId"), int),
+                locationId=safe_convert(safe_get(response_data, "locationId"), int),
+                orgId=safe_convert(safe_get(response_data, "orgId"), int),
+            )
             map_update = MapUpdate(
                 version=safe_get(request.json, "version"),
                 timestamp=safe_get(request.json, "timestamp"),
@@ -378,6 +383,7 @@ def update_from_map(request: Request) -> Response:
                 series: Event = DbManager.get(Event, map_update.data.eventId, joinedloads="all")
                 # TODO: only recreate instances if certain things have changed (ie not just the description)
                 create_events([series], clear_first=True)
+            # TODO: handle location updates
             elif map_update.action == "map.deleted" and map_update.data.eventId:
                 pass
         except Exception as e:
