@@ -83,6 +83,19 @@ AO_MAP = {
     "C04KURJNU3C": {"org_id": 43842, "event_type_id": 1},
     "C050B1ZMMQS": {"org_id": 43842, "event_type_id": 1},
     "C08N24J2QG1": {"org_id": 43842, "event_type_id": 1},
+    "C04F1EDFB8R": {"org_id": 37815, "event_type_id": 1},
+    "C04GPEG78HH": {"org_id": 43403, "event_type_id": 1},
+    "C04GYBW77SR": {"org_id": 46299, "event_type_id": 1},
+    "C04RQPFM743": {"org_id": 41674, "event_type_id": 1},
+    "C05MK8JP142": {"org_id": 43769, "event_type_id": 1},
+    "C060K5ZB160": {"org_id": 44339, "event_type_id": 1},
+    "C05509F94JD": {"org_id": 42479, "event_type_id": 1},
+    "C059ZTAQYUA": {"org_id": 42887, "event_type_id": 1},
+    "C06HX4WCM40": {"org_id": 45681, "event_type_id": 1},
+    "C04HD3J9CRZ": {"org_id": 40364, "event_type_id": 1},
+    "C06AFTF7S9M": {"org_id": 40364, "event_type_id": 1},
+    "C04EKSK73L5": {"org_id": 40364, "event_type_id": 1},
+    "C04E891BACF": {"org_id": 40364, "event_type_id": 1},
 }
 AO_CHANNEL_MAP = {k: v["org_id"] for k, v in AO_MAP.items()}
 AO_TYPE_MAP = {k: v["event_type_id"] for k, v in AO_MAP.items()}

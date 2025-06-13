@@ -185,5 +185,9 @@ def handle_config_form(body: dict, client: WebClient, logger: Logger, context: d
     region_record.NO_Q_THRESHOLD_WEEKS = safe_get(config_data, actions.WEASELBOT_Q_WEEKS)
     region_record.NO_Q_THRESHOLD_POSTS = safe_get(config_data, actions.WEASELBOT_Q_POSTS)
 
-    DbManager.update_record(SlackSpace, region_record.team_id, fields={SlackSpace.settings: region_record.__dict__})
+    DbManager.update_records(
+        cls=SlackSpace,
+        filters=[SlackSpace.team_id == region_record.team_id],
+        fields={SlackSpace.settings: region_record.__dict__},
+    )
     update_local_region_records()
