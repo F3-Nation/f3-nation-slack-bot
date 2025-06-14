@@ -190,7 +190,7 @@ def build_config_slt_form(
     else:
         org_id = selected_org_id or region_record.org_id
 
-    position_users = get_position_users(org_id, region_record.org_id)
+    position_users = get_position_users(org_id, region_record.org_id, slack_team_id=region_record.team_id)
     aos: List[Org] = DbManager.find_records(
         cls=Org,
         filters=[Org.parent_id == region_record.org_id],

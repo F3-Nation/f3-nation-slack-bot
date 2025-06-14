@@ -59,7 +59,7 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
         msg += "\n"
 
     # list SLT members
-    position_users = get_position_users(region_record.org_id, region_record.org_id)
+    position_users = get_position_users(region_record.org_id, region_record.org_id, slack_team_id=region_record.team_id)
     print(position_users)
     if len(position_users) > 0:
         msg += "# :busts_in_silhouette: Shared Leadership Team\n\n"
@@ -106,7 +106,7 @@ def update_all_canvases():
         slack_settings = SlackSettings(**region.slack_space.settings)
         if slack_settings.canvas_channel and slack_settings.special_events_enabled:
             client = WebClient(token=slack_settings.bot_token)
-            update_canvas({}, client, Logger(), {}, slack_settings)
+            update_canvas({}, client, Logger("logger"), {}, slack_settings)
 
 
 if __name__ == "__main__":

@@ -187,7 +187,7 @@ class PositionExtended:
     slack_users: List[SlackUser]
 
 
-def get_position_users(org_id: int, region_org_id: int) -> List[PositionExtended]:
+def get_position_users(org_id: int, region_org_id: int, slack_team_id: str) -> List[PositionExtended]:
     org_type_level = Org_Type.region if region_org_id == org_id else Org_Type.ao
     with get_session() as session:
         query = (
@@ -200,7 +200,12 @@ def get_position_users(org_id: int, region_org_id: int) -> List[PositionExtended
             )
             .join(User, User.id == Position_x_Org_x_User.user_id, isouter=True)
             .join(SlackUser, SlackUser.user_id == User.id, isouter=True)
-            .filter(or_(Position.org_type == org_type_level, Position.org_type.is_(None)))
+            .filter(
+                and_(
+                    or_(Position.org_type == org_type_level, Position.org_type.is_(None)),
+                    SlackUser.slack_team_id == slack_team_id,
+                )
+            )
             .order_by(Position.id)
         )
         positions = {}
