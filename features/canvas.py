@@ -34,7 +34,9 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
     # show calendar image
     msg = "# :calendar: This Week\n\n"
     if region_record.calendar_image_current:
-        msg += f"![This Week](https://slackblast-images.s3.amazonaws.com/{region_record.calendar_image_current})\n\n"
+        msg += (
+            f"![This Week](https://storage.googleapis.com/backblast-images/{region_record.calendar_image_current})\n\n"
+        )
 
     # list special events
     special_events: List[EventInstance] = DbManager.find_records(
