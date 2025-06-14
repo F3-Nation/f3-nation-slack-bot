@@ -70,7 +70,8 @@ def build_achievement_form(body: dict, client: WebClient, logger: Logger, contex
 def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     achievement_data = forms.ACHIEVEMENT_FORM.get_selected_values(body)
     achievement_pax_list = safe_get(achievement_data, actions.ACHIEVEMENT_PAX)
-    achievement_pax_list = [get_user(pax, region_record, client, logger).user_id for pax in achievement_pax_list]
+    achievement_slack_user_list = [get_user(pax, region_record, client, logger) for pax in achievement_pax_list]
+    achievement_pax_list = [pax.user_id for pax in achievement_slack_user_list]
     achievement_id = safe_convert(safe_get(achievement_data, actions.ACHIEVEMENT_SELECT), int)
     achievement_date = datetime.strptime(safe_get(achievement_data, actions.ACHIEVEMENT_DATE), "%Y-%m-%d")
 
@@ -97,17 +98,17 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
         if award.achievement_id == achievement_id:
             pax_awards_this_achievement[award.user_id] += 1
 
-    for pax in achievement_pax_list:
-        msg = f"Congrats to our man <@{pax}>! He has achieved *{achievement_name}* for {achievement_verb}!"
-        msg += f" This is achievement #{pax_awards_total[pax] + 1} for him this year"
-        if pax_awards_this_achievement[pax] > 0:
-            msg += f" and #{pax_awards_this_achievement[pax] + 1} time this year for this achievement."
+    for pax in achievement_slack_user_list:
+        msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}* for {achievement_verb}!"
+        msg += f" This is achievement #{pax_awards_total[pax.user_id] + 1} for him this year"
+        if pax_awards_this_achievement[pax.user_id] > 0:
+            msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} time this year for this achievement."
         else:
             msg += "."
         client.chat_postMessage(channel=region_record.achievement_channel, text=msg)
         DbManager.create_record(
             Achievement_x_User(
-                user_id=pax,
+                user_id=pax.user_id,
                 date_awarded=achievement_date,
                 achievement_id=achievement_id,
             ),

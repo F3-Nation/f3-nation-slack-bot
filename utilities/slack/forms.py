@@ -189,6 +189,30 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.CONFIG_CALENDAR,
                 ),
                 orm.ButtonElement(
+                    label=":world_map: Region Info",
+                    action=actions.REGION_INFO_BUTTON,
+                ),
+                orm.ButtonElement(
+                    label=":bust_in_silhouette: User Settings",
+                    action=actions.CONFIG_USER_SETTINGS,
+                ),
+                orm.ButtonElement(
+                    label=":speech_balloon: Welcomebot Settings",
+                    action=actions.CONFIG_WELCOME_MESSAGE,
+                ),
+                orm.ButtonElement(
+                    label=":sports_medal: Achievement Settings",
+                    action=actions.CONFIG_WEASELBOT,
+                ),
+                orm.ButtonElement(
+                    label=":newspaper: Region Canvas Settings",
+                    action=actions.CONFIG_SPECIAL_EVENTS,
+                ),
+                orm.ButtonElement(
+                    label=":classical_building: SLT Settings",
+                    action=actions.CONFIG_SLT,
+                ),
+                orm.ButtonElement(
                     label=":gear: Backblast & Preblast Settings",
                     action=actions.CONFIG_GENERAL,
                 ),
@@ -199,30 +223,6 @@ CONFIG_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":bar_chart: Custom Field Settings",
                     action=actions.CONFIG_CUSTOM_FIELDS,
-                ),
-                orm.ButtonElement(
-                    label=":speech_balloon: Welcomebot Settings",
-                    action=actions.CONFIG_WELCOME_MESSAGE,
-                ),
-                orm.ButtonElement(
-                    label=":robot_face: Achievement Settings",
-                    action=actions.CONFIG_WEASELBOT,
-                ),
-                orm.ButtonElement(
-                    label=":world_map: Region Info",
-                    action=actions.REGION_INFO_BUTTON,
-                ),
-                orm.ButtonElement(
-                    label=":tada: Region Canvas Settings",
-                    action=actions.CONFIG_SPECIAL_EVENTS,
-                ),
-                orm.ButtonElement(
-                    label=":classical_building: SLT Settings",
-                    action=actions.CONFIG_SLT,
-                ),
-                orm.ButtonElement(
-                    label=":bust_in_silhouette: User Settings",
-                    action=actions.CONFIG_USER_SETTINGS,
                 ),
                 # orm.ButtonElement(
                 #     label="Connect Region",

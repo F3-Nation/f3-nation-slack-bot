@@ -58,7 +58,7 @@ def build_region_form(
 def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form_data = REGION_FORM.get_selected_values(body)
 
-    file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
+    file = safe_get(form_data, actions.REGION_LOGO, 0)
     if file:
         file_list, file_send_list, file_ids = upload_files_to_storage(
             files=[file], logger=logger, client=client, enforce_square=True, max_height=512
