@@ -35,10 +35,12 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
     # show calendar image
     msg = "# :calendar: This Week\n\n"
     if region_record.calendar_image_current:
+        msg += "![This Week]("
         msg += GCP_IMAGE_URL.format(
             bucket="f3nation-calendar-images",
-            image_name=region_record.calendar_image_current or "default.png",
+            image_name=region_record.calendar_image_current,
         )
+        msg += ")\n\n"
 
     # list special events
     special_events: List[EventInstance] = DbManager.find_records(
@@ -72,11 +74,15 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
             if slack_user_id:
                 msg += f"**{user.position.name}**\n\n![](@{slack_user_id})\n\n"
 
+    msg += "This canvas is automatically updated every 24 hours. Any manual edits will be overwritten."
+
     # post to canvas
     if region_record.canvas_channel:
         channel_info = client.conversations_info(channel=region_record.canvas_channel)
         print(channel_info)
-        canvas_id = safe_get(channel_info, "channel", "properties", "canvas", "file_id")
+        canvas_id = safe_get(channel_info, "channel", "properties", "canvas", "file_id") or safe_get(
+            channel_info, "channel", "properties", "tabs", 0, "data", "file_id"
+        )
 
         if canvas_id:
             client.canvases_edit(
@@ -92,6 +98,7 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
             client.conversations_canvases_create(
                 channel_id=region_record.canvas_channel,
                 document_content={"type": "markdown", "markdown": msg},
+                title="Region Canvas",
             )
 
 
