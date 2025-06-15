@@ -95,7 +95,7 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     admin_user_ids = [u.user_id for u in admin_users]
     admin_records = [
         Role_x_User_x_Org(
-            role_id=1,  # Admin role
+            role_id=3,  # Admin role, need to get dynamically
             org_id=region_record.org_id,
             user_id=user_id,
         )
