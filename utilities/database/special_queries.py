@@ -199,13 +199,8 @@ def get_position_users(org_id: int, region_org_id: int, slack_team_id: str) -> L
                 isouter=True,
             )
             .join(User, User.id == Position_x_Org_x_User.user_id, isouter=True)
-            .join(SlackUser, SlackUser.user_id == User.id, isouter=True)
-            .filter(
-                and_(
-                    or_(Position.org_type == org_type_level, Position.org_type.is_(None)),
-                    SlackUser.slack_team_id == slack_team_id,
-                )
-            )
+            .join(SlackUser, and_(SlackUser.user_id == User.id, SlackUser.slack_team_id == slack_team_id), isouter=True)
+            .filter(or_(Position.org_type == org_type_level, Position.org_type.is_(None)))
             .order_by(Position.id)
         )
         positions = {}

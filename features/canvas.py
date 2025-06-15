@@ -7,6 +7,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 from sqlalchemy import or_
 
+from utilities.constants import GCP_IMAGE_URL
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_position_users
 from utilities.helper_functions import safe_get
@@ -34,8 +35,9 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
     # show calendar image
     msg = "# :calendar: This Week\n\n"
     if region_record.calendar_image_current:
-        msg += (
-            f"![This Week](https://storage.googleapis.com/backblast-images/{region_record.calendar_image_current})\n\n"
+        msg += GCP_IMAGE_URL.format(
+            bucket="f3nation-calendar-images",
+            image_name=region_record.calendar_image_current or "default.png",
         )
 
     # list special events
@@ -60,7 +62,6 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
 
     # list SLT members
     position_users = get_position_users(region_record.org_id, region_record.org_id, slack_team_id=region_record.team_id)
-    print(position_users)
     if len(position_users) > 0:
         msg += "# :busts_in_silhouette: Shared Leadership Team\n\n"
         for user in position_users:
@@ -70,8 +71,6 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
                     slack_user_id = slack_user.slack_id if slack_user.slack_team_id == region_record.team_id else None
             if slack_user_id:
                 msg += f"**{user.position.name}**\n\n![](@{slack_user_id})\n\n"
-
-    print(msg)
 
     # post to canvas
     if region_record.canvas_channel:
