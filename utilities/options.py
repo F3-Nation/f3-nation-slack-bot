@@ -1,8 +1,9 @@
 from logging import Logger
 
-from f3_data_models.models import Org, User
+from f3_data_models.models import Org, Org_Type, User
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
+from sqlalchemy import and_
 
 from features import user as user_form
 from utilities.database.orm import SlackSettings
@@ -43,7 +44,8 @@ def handle_request(
         # Handle the home region selection
         org_records = DbManager.find_records(
             cls=Org,
-            filters=[Org.name.ilike(f"%{value}%")],
+            filters=[and_(Org.name.ilike(f"%{value}%"), Org.org_type == Org_Type.region)],
+            # TODO: add area / sector as description
         )
         print(f"Org records: {org_records}")
         options = []
