@@ -23,6 +23,7 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from flask import Request, Response
 from slack_sdk.web import WebClient
+from sqlalchemy import or_
 
 from features.calendar import event_preblast
 from utilities import constants
@@ -473,7 +474,7 @@ def build_series_list_form(
             Event,
             Org,
             [
-                (Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id),
+                or_((Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
                 Event.is_active,
             ],
         )
@@ -485,7 +486,7 @@ def build_series_list_form(
             EventInstance,
             Org,
             [
-                (EventInstance.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id),
+                or_((EventInstance.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
                 EventInstance.is_active,
             ],
         )
@@ -494,7 +495,26 @@ def build_series_list_form(
 
     # TODO: separate into weekly / non-weekly series?
     # TODO: add an AO filter
+    # ao_orgs = DbManager.find_records(
+    #     Org,
+    #     [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
+    # )
     blocks = []
+    # blocks = [
+    #     orm.InputBlock(
+    #         label="AO Filter",
+    #         action=actions.CALENDAR_MANAGE_SERIES_AO,
+    #         element=orm.StaticSelectElement(
+    #             placeholder="Select an AO",
+    #             options=orm.as_selector_options(
+    #                 names=[ao.name for ao in ao_orgs],
+    #                 values=[str(ao.id) for ao in ao_orgs],
+    #             ),
+    #         ),
+    #         optional=True,
+    #         dispatch_action=True,
+    #     ),
+    # ]
     for s in records:
         if is_series:
             label = f"{s.name} ({s.day_of_week.name.capitalize()} @ {s.start_time})"[  # noqa
