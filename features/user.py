@@ -9,6 +9,8 @@ from utilities.database.orm import SlackSettings
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
 from utilities.slack.orm import (
     BlockView,
+    ContextBlock,
+    ContextElement,
     ExternalSelectElement,
     FileInputElement,
     ImageBlock,
@@ -89,6 +91,11 @@ FORM = BlockView(
             hint="This is the region you will be associated with. You can change this at any time.",
         ),
         ImageBlock(action=USER_FORM_IMAGE, image_url="https://example.com/image.png", alt_text="User Image"),
+        ContextBlock(
+            element=ContextElement(
+                initial_value="This avatar is used in the Nation dashboard and can be different from your Slack avatar."
+            )
+        ),
         InputBlock(
             label="New Profile Picture",
             action=USER_FORM_IMAGE_UPLOAD,
