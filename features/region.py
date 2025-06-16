@@ -2,7 +2,7 @@ import copy
 import re
 from logging import Logger
 
-from f3_data_models.models import Org, Role_x_User_x_Org, SlackUser
+from f3_data_models.models import Org, Role, Role_x_User_x_Org, SlackUser
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -93,9 +93,10 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     admin_users_slack = safe_get(form_data, actions.REGION_ADMINS)
     admin_users: list[SlackUser] = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
     admin_user_ids = [u.user_id for u in admin_users]
+    admin_role_id = DbManager.find_first_record(Role, filters=[Role.name == "admin"]).id
     admin_records = [
         Role_x_User_x_Org(
-            role_id=3,  # Admin role, need to get dynamically
+            role_id=admin_role_id,  # Admin role, need to get dynamically
             org_id=region_record.org_id,
             user_id=user_id,
         )
@@ -106,7 +107,7 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
         Role_x_User_x_Org,
         filters=[
             Role_x_User_x_Org.org_id == region_record.org_id,
-            Role_x_User_x_Org.role_id == 1,
+            Role_x_User_x_Org.role_id == admin_role_id,
         ],
     )
     DbManager.create_records(admin_records)
