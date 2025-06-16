@@ -80,13 +80,14 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     fields = {
         Org.name: safe_get(form_data, actions.REGION_NAME),
         Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
-        Org.logo_url: logo_url,
         Org.website: website,
         Org.email: email,
         Org.twitter: safe_get(form_data, actions.REGION_TWITTER),
         Org.facebook: safe_get(form_data, actions.REGION_FACEBOOK),
         Org.instagram: safe_get(form_data, actions.REGION_INSTAGRAM),
     }
+    if logo_url:
+        fields[Org.logo_url] = logo_url
 
     DbManager.update_record(Org, region_record.org_id, fields)
 

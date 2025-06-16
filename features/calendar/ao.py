@@ -126,6 +126,8 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
     if safe_get(metatdata, "ao_id"):
         update_dict = ao.__dict__
         update_dict.pop("_sa_instance_state")
+        if not logo_url:
+            update_dict.pop("logo_url", None)
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
     else:
         DbManager.create_record(ao)
