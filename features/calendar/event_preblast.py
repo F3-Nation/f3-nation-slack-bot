@@ -16,6 +16,7 @@ from f3_data_models.models import (
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
+from sqlalchemy import or_
 
 from features import preblast_legacy
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
@@ -159,7 +160,7 @@ def build_event_preblast_form(
 
         location_records: list[Location] = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
         event_tags: list[EventTag] = DbManager.find_records(
-            EventTag, [EventTag.specific_org_id == region_record.org_id or EventTag.specific_org_id.is_(None)]
+            EventTag, [or_(EventTag.specific_org_id == region_record.org_id, EventTag.specific_org_id.is_(None))]
         )
         # TODO: filter locations to AO?
         # TODO: show hardcoded details (date, time, etc.)
