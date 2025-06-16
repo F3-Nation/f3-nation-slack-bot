@@ -630,12 +630,12 @@ def handle_event_preblast_action(
                 "qs": q_id_list,
             }
             button_blocks = PREBLAST_MESSAGE_ACTION_ELEMENTS
-            if not q_id_list:
-                button_blocks.append(
-                    orm.ButtonElement(
-                        ":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
-                    )
-                )
+            # if not q_id_list:
+            #     button_blocks.append(
+            #         orm.ButtonElement(
+            #             ":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
+            #         )
+            #     )
             blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
