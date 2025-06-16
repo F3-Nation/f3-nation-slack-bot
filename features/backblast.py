@@ -167,6 +167,22 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             [Attendance.event_instance_id == event_instance_id, Attendance.is_planned != already_posted],
             joinedloads="all",
         )
+        attendance_slack_dict = {
+            r: next((s.slack_id for s in (r.slack_users or []) if s.slack_team_id == region_record.team_id), None)
+            for r in attendance_records
+        }
+        q_list = [
+            attendance_slack_dict[r]
+            for r in attendance_records
+            if bool({t.id for t in r.attendance_types}.intersection([2])) and attendance_slack_dict[r]
+        ]
+        coq_list = [
+            attendance_slack_dict[r]
+            for r in attendance_records
+            if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
+        ]
+        slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
+
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
@@ -176,15 +192,12 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
 """,
             # actions.BACKBLAST_DATE: event_record.start_date.strftime("%Y-%m-%d"),
             # actions.BACKBLAST_AO: event_record.org.meta["slack_channel_id"],
-            actions.BACKBLAST_Q: safe_get(
-                [a.slack_user.slack_id for a in attendance_records if 2 in [t.id for t in a.attendance_types]], 0
-            ),
-            actions.BACKBLAST_COQ: [
-                a.slack_user.slack_id for a in attendance_records if 3 in [t.id for t in a.attendance_types]
-            ],
-            actions.BACKBLAST_PAX: [a.slack_user.slack_id for a in attendance_records],
+            actions.BACKBLAST_Q: safe_get(q_list, 0),
+            actions.BACKBLAST_COQ: coq_list,
+            actions.BACKBLAST_PAX: slack_pax_list,
             actions.BACKBLAST_MOLESKIN: region_record.backblast_moleskin_template,
             # actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
+            # TODO: non-slack pax
         }
         backblast_metadata["event_instance_id"] = event_instance_id
     else:

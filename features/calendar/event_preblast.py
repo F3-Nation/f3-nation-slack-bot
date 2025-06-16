@@ -40,6 +40,7 @@ class PreblastInfo:
     preblast_blocks: list[orm.BaseBlock]
     action_blocks: list[orm.BaseElement]
     user_is_q: bool = False
+    attendance_slack_dict: dict[Attendance, str] = None
 
 
 def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastInfo) -> str:
@@ -185,7 +186,7 @@ def build_event_preblast_form(
                 record.event_tags[0].id
             )  # TODO: handle multiple event types and current data format
         coq_list = [
-            r.slack_user.slack_id for r in preblast_info.attendance_records if 3 in [t.id for t in r.attendance_types]
+            s for a, s in preblast_info.attendance_slack_dict.items() if 3 in [t.id for t in a.attendance_types]
         ]
         if coq_list:
             initial_values[actions.EVENT_PREBLAST_COQS] = coq_list
@@ -394,9 +395,15 @@ def build_preblast_info(
     attendance_records: List[Attendance] = DbManager.find_records(
         Attendance, [Attendance.event_instance_id == event_instance_id, Attendance.is_planned], joinedloads="all"
     )
+    attendance_slack_dict = {
+        r: next((s.slack_id for s in (r.slack_users or []) if s.slack_team_id == region_record.team_id), None)
+        for r in attendance_records
+    }
 
     action_blocks = []
-    hc_list = " ".join([f"<@{r.slack_user.slack_id}>" for r in attendance_records])
+    # build list of attenance_slack_dict where the value is not None
+    hc_list = " ".join([f"<@{s}>" for a, s in attendance_slack_dict.items() if s is not None])
+    hc_list += " ".join([f"@{a.user.f3_name or 'Unknown'}" for a, s in attendance_slack_dict.items() if s is None])
     hc_list = hc_list if hc_list else "None"
     hc_count = len({r.user.id for r in attendance_records})
 
@@ -416,9 +423,16 @@ def build_preblast_info(
 
     q_list = " ".join(
         [
-            f"<@{r.slack_user.slack_id}>"
+            f"<@{attendance_slack_dict[r]}>"
             for r in attendance_records
-            if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+            if bool({t.id for t in r.attendance_types}.intersection([2, 3])) and attendance_slack_dict[r]
+        ]
+    )
+    q_list += " ".join(
+        [
+            f"@{r.user.f3_name or 'Unknown'}"
+            for r in attendance_records
+            if bool({t.id for t in r.attendance_types}.intersection([2, 3])) and not attendance_slack_dict[r]
         ]
     )
     if not q_list:
@@ -487,6 +501,7 @@ def build_preblast_info(
         preblast_blocks=preblast_blocks,
         action_blocks=action_blocks,
         user_is_q=user_is_q,
+        attendance_slack_dict=attendance_slack_dict,
     )
 
 
