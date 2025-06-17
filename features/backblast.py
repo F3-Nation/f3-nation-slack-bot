@@ -85,7 +85,7 @@ def backblast_middleware(
                 Attendance.attendance_types.any(AttendanceType.id.in_([2, 3])),
             ],
             event_filter=[
-                EventInstance.start_date < date.today(),
+                EventInstance.start_date <= date.today(),
                 EventInstance.backblast_ts.is_(None),
                 EventInstance.is_active,
                 or_(
@@ -574,7 +574,7 @@ def handle_backblast_edit_button(
         allow_edit: bool = (
             user_is_admin
             or (user_id == backblast_data[actions.BACKBLAST_Q])
-            or (user_id in backblast_data[actions.BACKBLAST_COQ] or [])
+            or (user_id in safe_get(backblast_data, actions.BACKBLAST_COQ) or [])
             or (user_id in backblast_data[actions.BACKBLAST_OP])
         )
     else:
@@ -590,7 +590,7 @@ def handle_backblast_edit_button(
         )
     else:
         client.chat_postEphemeral(
-            text="Editing this backblast is only allowed for the Q(s), the original poster, or your local Slack admins."
+            text="Editing this backblast is only allowed for the Q(s), the original poster, or your local region admins."  # noqa
             "Please contact one of them to make changes.",
             channel=channel_id,
             user=user_id,

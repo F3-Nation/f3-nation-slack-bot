@@ -736,8 +736,9 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             action=actions.EVENT_PREBLAST_SEND_OPTIONS,
             element=orm.RadioButtonsElement(
                 options=orm.as_selector_options(
-                    names=["Send now", "Do not send now"],
+                    names=["Send now", "Send a day before the event"],
                 ),
+                initial_value="Send a day before the event",
             ),
             optional=False,
         ),
