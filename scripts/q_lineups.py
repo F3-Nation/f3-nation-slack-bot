@@ -1,5 +1,6 @@
 import json
 import os
+import ssl
 import sys
 from logging import Logger
 
@@ -121,7 +122,10 @@ def send_q_lineup_message(
         metadata.event_payload["week_start"] = week_start.strftime("%y-%m-%d")
         metadata.event_payload["week_end"] = week_end.strftime("%y-%m-%d")
     if slack_bot_token:
-        slack_client = WebClient(slack_bot_token)
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        slack_client = WebClient(slack_bot_token, ssl=ssl_context)
         if update and safe_get(org.meta, "q_lineup_ts"):
             # Update the existing message
             slack_client.chat_update(

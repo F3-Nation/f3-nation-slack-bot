@@ -118,9 +118,9 @@ def backblast_middleware(
             select_block,
             slack_orm.ActionsBlock(
                 elements=[
-                    slack_orm.ButtonElement(
-                        label=":heavy_plus_sign: New Unscheduled Event", action=actions.BACKBLAST_NEW_BLANK_BUTTON
-                    ),
+                    # slack_orm.ButtonElement(
+                    #     label=":heavy_plus_sign: New Unscheduled Event", action=actions.BACKBLAST_NEW_BLANK_BUTTON
+                    # ), # TODO: need to build this form out fully
                     slack_orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
                 ]
             ),
