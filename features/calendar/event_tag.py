@@ -163,6 +163,9 @@ def handle_event_tag_edit_delete(
 
 EVENT_TAG_FORM = orm.BlockView(
     blocks=[
+        orm.SectionBlock(
+            label="Note: Event tags are an way to add context about an event. They are different from Event Types, which are used to define the 'what you will do' of an event.",  # noqa
+        ),
         orm.InputBlock(
             label="Select from commonly used event tags",
             element=orm.StaticSelectElement(placeholder="Select from commonly used event tags"),

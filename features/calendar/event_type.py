@@ -83,6 +83,9 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
 
 EVENT_TYPE_FORM = orm.BlockView(
     blocks=[
+        orm.SectionBlock(
+            label="Note: Event Types are used to describe what you'll be doing at an event. They are different from Event Tags, which are used to give context to an event but do not change what you'll be doing at the event (e.g. 'VQ', 'Convergence', etc.).",  # noqa
+        ),
         orm.InputBlock(
             label="Select from commonly used event types",
             element=orm.StaticSelectElement(placeholder="Select from commonly used event types"),
