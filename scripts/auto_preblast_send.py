@@ -1,4 +1,5 @@
 import os
+import ssl
 import sys
 
 import pytz
@@ -129,7 +130,10 @@ def send_automated_preblasts():
         print(f"Found {len(preblast_list.items)} preblasts to send.")
 
         for preblast in preblast_list.items:
-            slack_client = WebClient(preblast.slack_settings.bot_token)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            slack_client = WebClient(preblast.slack_settings.bot_token, ssl=ssl_context)
             event_preblast.send_preblast(
                 event_instance_id=preblast.event.id,
                 region_record=preblast.slack_settings,

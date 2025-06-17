@@ -1,4 +1,5 @@
 import os
+import ssl
 from logging import Logger
 from typing import List
 
@@ -227,7 +228,10 @@ def handle_existing_region_selection(body: dict, client: WebClient, logger: Logg
             ]
         ),
     ]
-    send_client = WebClient(token=os.environ.get("ADMIN_BOT_TOKEN"))
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    send_client = WebClient(token=os.environ.get("ADMIN_BOT_TOKEN"), ssl=ssl_context)
     send_client.chat_postMessage(
         channel=os.environ.get("ADMIN_CHANNEL_ID"),
         text="Connection Request",

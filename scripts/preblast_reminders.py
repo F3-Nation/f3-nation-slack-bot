@@ -1,4 +1,5 @@
 import os
+import ssl
 import sys
 
 import pytz
@@ -141,7 +142,10 @@ def send_preblast_reminders():
 
             slack_bot_token = preblast.slack_settings.bot_token
             if slack_bot_token and preblast.slack_user_id:
-                slack_client = WebClient(slack_bot_token)
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                slack_client = WebClient(slack_bot_token, ssl=ssl_context)
                 blocks: List[orm.BaseBlock] = [
                     orm.SectionBlock(label=msg),
                     orm.ActionsBlock(

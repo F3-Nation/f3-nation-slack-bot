@@ -1,4 +1,5 @@
 # A quick script to make announcements (changelogs, etc) to Slack
+import ssl
 import time
 from logging import Logger
 from typing import List
@@ -37,7 +38,10 @@ def send(client: WebClient, body: dict, logger: Logger, context: dict, region_re
                 send_channel = paxminer_dict.get(region.paxminer_schema)
                 if send_channel:
                     print(f"Sending message to {region.workspace_name}")
-                    client = WebClient(token=region.bot_token)
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                    client = WebClient(token=region.bot_token, ssl=ssl_context)
                     try:
                         client.chat_postMessage(channel=send_channel, text=msg.format(region=region.workspace_name))
                         print("Message sent!")

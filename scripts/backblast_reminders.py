@@ -1,4 +1,5 @@
 import os
+import ssl
 import sys
 from datetime import date, datetime, timedelta
 
@@ -135,7 +136,10 @@ def send_backblast_reminders():
 
             slack_bot_token = backblast.slack_settings.bot_token
             if slack_bot_token and backblast.slack_user_id:
-                slack_client = WebClient(slack_bot_token)
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                slack_client = WebClient(slack_bot_token, ssl=ssl_context)
                 blocks: List[orm.BaseBlock] = [
                     orm.SectionBlock(label=msg),
                     orm.ActionsBlock(
