@@ -16,18 +16,37 @@ def handle(request: Request) -> Response:
         if event_message == "hourly":
             print("Running hourly scripts")
             print("Running calendar images")
-            calendar_images.generate_calendar_images()
+            try:
+                calendar_images.generate_calendar_images()
+            except Exception as e:
+                print(f"Error generating calendar images: {e}")
             print("Running backblast reminders")
-            backblast_reminders.send_backblast_reminders()
+            try:
+                backblast_reminders.send_backblast_reminders()
+            except Exception as e:
+                print(f"Error sending backblast reminders: {e}")
             print("Running preblast reminders")
+            try:
+                preblast_reminders.send_preblast_reminders()
+            except Exception as e:
+                print(f"Error sending preblast reminders: {e}")
             preblast_reminders.send_preblast_reminders()
             print("Running automated preblast send")
-            auto_preblast_send.send_automated_preblasts()
+            try:
+                auto_preblast_send.send_automated_preblasts()
+            except Exception as e:
+                print(f"Error sending automated preblasts: {e}")
             # update_special_events.update_special_events()
             print("Running canvas updates")
-            canvas.update_all_canvases()
+            try:
+                canvas.update_all_canvases()
+            except Exception as e:
+                print(f"Error updating canvases: {e}")
             print("Running Q lineups")
-            q_lineups.send_lineups()
+            try:
+                q_lineups.send_lineups()
+            except Exception as e:
+                print(f"Error sending Q lineups: {e}")
             return Response("Hourly scripts complete", status=200)
         else:
             return Response(f"Event message not used: {event_message}", status=200)

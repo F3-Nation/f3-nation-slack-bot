@@ -232,6 +232,7 @@ def handle_ao_lineups(
     context: dict,
     region_record: SlackSettings,
 ):
+    print(context["bot_token"])
     send_lineups(force=True)
 
 

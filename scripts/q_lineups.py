@@ -55,6 +55,7 @@ def send_lineups(force: bool = False):
             event_org_list.setdefault(event.org.id, []).append(event)
 
         for org in event_org_list:
+            print(f"Processing Q Lineup for {event_org_list[org][0].org.name}")
             org_events = event_org_list[org]
             org_record = org_events[0].org
             slack_settings = org_events[0].slack_settings
