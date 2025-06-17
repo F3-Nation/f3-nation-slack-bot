@@ -74,7 +74,7 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
 
     for event in org_events:
         if event.q_name:
-            q_label = f"<@{event.slack_user_id}|{event.q_name}>" if event.slack_user_id else f"@{event.q_name}"
+            q_label = f"<@{event.slack_user_id}>" if event.slack_user_id else f"@{event.q_name}"
             label = f"*{event.event.start_date}*\n{event.event_type.name} {event.event.start_time}\n{q_label}"
             image_url = event.q_avatar_url or "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
             accessory = ImageBlock(

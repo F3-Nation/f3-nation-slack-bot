@@ -58,7 +58,7 @@ class PreblastList:
                 Attendance.event_instance_id,
                 User.f3_name.label("q_name"),
                 SlackUser.slack_id,
-                User.avatar_url.label("q_avatar_url"),
+                func.coalesce(User.avatar_url, SlackUser.avatar_url).label("q_avatar_url"),
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
