@@ -19,7 +19,7 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from pillow_heif import register_heif_opener
 from slack_sdk.web import WebClient
-from sqlalchemy import not_
+from sqlalchemy import not_, or_
 
 from features import backblast_legacy
 from utilities import constants, sendmail
@@ -88,6 +88,10 @@ def backblast_middleware(
                 EventInstance.start_date < date.today(),
                 EventInstance.backblast_ts.is_(None),
                 EventInstance.is_active,
+                or_(
+                    EventInstance.org_id == region_record.org_id,
+                    EventInstance.org.has(Org.parent_id == region_record.org_id),
+                ),
             ],
         )
 

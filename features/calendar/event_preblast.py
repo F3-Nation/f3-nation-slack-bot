@@ -13,6 +13,7 @@ from f3_data_models.models import (
     EventTag,
     EventTag_x_EventInstance,
     Location,
+    Org,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
@@ -84,6 +85,10 @@ def build_event_preblast_select_form(
             EventInstance.start_date >= datetime.date.today(),
             EventInstance.preblast_ts.is_(None),
             EventInstance.is_active,
+            or_(
+                EventInstance.org_id == region_record.org_id,
+                EventInstance.org.has(Org.parent_id == region_record.org_id),
+            ),
         ],
     )
 
