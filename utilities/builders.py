@@ -1,4 +1,5 @@
 import copy
+import time
 from logging import Logger
 
 from slack_sdk.web import WebClient
@@ -20,6 +21,8 @@ def add_loading_form(body: dict, client: WebClient) -> str:
         submit_button_text="None",
         callback_id="loading-id",
     )
+    # wait 0.1 seconds
+    time.sleep(0.1)
     return safe_get(loading_form_response, "view", "id")
 
 
