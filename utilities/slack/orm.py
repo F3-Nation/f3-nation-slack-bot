@@ -458,7 +458,7 @@ class RichTextInputElement(BaseElement):
 
 @dataclass
 class NumberInputElement(BaseElement):
-    initial_value: float = None
+    initial_value: float | str = None
     min_value: float = None
     max_value: float = None
     is_decimal_allowed: bool = True
@@ -473,7 +473,20 @@ class NumberInputElement(BaseElement):
             "is_decimal_allowed": self.is_decimal_allowed,
         }
         if self.initial_value:
-            j["initial_value"] = str(round(self.initial_value, 4))
+            if isinstance(self.initial_value, str) and self.is_decimal_allowed:
+                try:
+                    self.initial_value = float(self.initial_value)
+                except ValueError:
+                    self.initial_value = 0.0
+                j["initial_value"] = str(round(self.initial_value, 4))
+            elif isinstance(self.initial_value, str) and not self.is_decimal_allowed:
+                try:
+                    self.initial_value = int(self.initial_value)
+                except ValueError:
+                    self.initial_value = 0
+                j["initial_value"] = str(self.initial_value)
+            else:
+                j["initial_value"] = str(self.initial_value)
         if self.min_value:
             j["min_value"] = str(self.min_value)
         if self.max_value:

@@ -180,11 +180,11 @@ def handle_config_form(body: dict, client: WebClient, logger: Logger, context: d
     )
     region_record.achievement_channel = safe_get(config_data, actions.WEASELBOT_ACHIEVEMENT_CHANNEL)
     region_record.default_siteq = safe_get(config_data, actions.WEASELBOT_KOTTER_CHANNEL)
-    region_record.NO_POST_THRESHOLD = safe_get(config_data, actions.WEASELBOT_KOTTER_WEEKS)
-    region_record.REMINDER_WEEKS = safe_get(config_data, actions.WEASELBOT_KOTTER_REMOVE_WEEKS)
-    region_record.HOME_AO_CAPTURE = safe_get(config_data, actions.WEASELBOT_HOME_AO_WEEKS)
-    region_record.NO_Q_THRESHOLD_WEEKS = safe_get(config_data, actions.WEASELBOT_Q_WEEKS)
-    region_record.NO_Q_THRESHOLD_POSTS = safe_get(config_data, actions.WEASELBOT_Q_POSTS)
+    region_record.NO_POST_THRESHOLD = safe_convert(safe_get(config_data, actions.WEASELBOT_KOTTER_WEEKS), int)
+    region_record.REMINDER_WEEKS = safe_convert(safe_get(config_data, actions.WEASELBOT_KOTTER_REMOVE_WEEKS), int)
+    region_record.HOME_AO_CAPTURE = safe_convert(safe_get(config_data, actions.WEASELBOT_HOME_AO_WEEKS), int)
+    region_record.NO_Q_THRESHOLD_WEEKS = safe_convert(safe_get(config_data, actions.WEASELBOT_Q_WEEKS), int)
+    region_record.NO_Q_THRESHOLD_POSTS = safe_convert(safe_get(config_data, actions.WEASELBOT_Q_POSTS), int)
 
     DbManager.update_records(
         cls=SlackSpace,
