@@ -51,11 +51,12 @@ def build_series_add_form(
     new_preblast: bool = False,
 ):
     parent_metadata = {"series_id": edit_event.id} if edit_event else {}
-    callback_id = safe_get(body, "view", "callback_id")
+    private_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
     if (
         safe_get(body, "actions", 0, "action_id") in (actions.CALENDAR_MANAGE_SERIES, actions.CALENDAR_ADD_SERIES_AO)
-        or callback_id == actions.EDIT_DELETE_SERIES_CALLBACK_ID
+        or safe_get(private_metadata, "is_series") == "True"
     ):
+        is_series = True
         if edit_event:
             title_text = "Edit a Series"
         else:
@@ -63,6 +64,7 @@ def build_series_add_form(
         form = copy.deepcopy(SERIES_FORM)
         parent_metadata.update({"is_series": "True"})
     else:
+        is_series = False
         title_text = "Add an Event"
         form = copy.deepcopy(EVENT_FORM)
         parent_metadata.update({"is_series": "False"})
@@ -134,13 +136,18 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_END_DATE: safe_convert(edit_event.end_date, datetime.strftime, ["%Y-%m-%d"]),
             actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
-            actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
-            actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern.name,
-            actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
-            if edit_event.recurrence_interval
-            else "1",
-            actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
         }
+        if is_series:
+            initial_values.update(
+                {
+                    actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
+                    actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern.name,
+                    actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
+                    if edit_event.recurrence_interval
+                    else "1",
+                    actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
+                }
+            )
         if edit_event.event_tags:
             initial_values[actions.CALENDAR_ADD_SERIES_TAG] = str(
                 edit_event.event_tags[0].id
@@ -232,9 +239,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     day_of_weeks = safe_get(form_data, actions.CALENDAR_ADD_SERIES_DOW)
 
     if safe_get(metadata, "series_id"):
-        edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
-        if not day_of_weeks or day_of_weeks == ["None"]:
-            day_of_weeks = [edit_series_record.day_of_week.name]
+        if safe_get(metadata, "is_series") == "True":
+            edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
+            if not day_of_weeks or day_of_weeks == ["None"]:
+                day_of_weeks = [edit_series_record.day_of_week.name]
 
     # day_of_weeks will be None if this is a one-time event (EventInstance)
     if not day_of_weeks or day_of_weeks == ["None"]:
@@ -282,7 +290,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             )
             series_records.append(series)
 
-    if safe_get(metadata, "series_id"):
+    if safe_get(metadata, "series_id") and safe_get(metadata, "is_series") == "True":
         # series_id is passed in the metadata if this is an edit
         DbManager.update_record(Event, metadata["series_id"], fields=series_records[0].to_update_dict())
         records = [DbManager.get(Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags])]
@@ -301,6 +309,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 EventInstance.attendance,
             ],  # need to delete attendnace as well
         )
+    elif safe_get(metadata, "series_id") and safe_get(metadata, "is_series") == "False":
+        # series_id is passed in the metadata if this is an edit
+        DbManager.update_record(EventInstance, metadata["series_id"], fields=series_records[0].to_update_dict())
+        records = [DbManager.get(EventInstance, metadata["series_id"], joinedloads=[EventInstance.event_types])]
     else:
         records = DbManager.create_records(series_records)
     trigger_map_revalidation()
@@ -311,7 +323,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
         create_events(records)
 
-    if safe_get(metadata, "series_id"):
+    if safe_get(metadata, "series_id") and safe_get(metadata, "is_series") == "True":
         body["actions"] = [{"action_id": actions.CALENDAR_MANAGE_SERIES}]
         build_series_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
