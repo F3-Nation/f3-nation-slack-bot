@@ -662,7 +662,7 @@ def handle_backblast_edit_button(
         (region_record.editing_locked == 0)
         or user_admin
         or (user_id == backblast_data[actions.BACKBLAST_Q])
-        or (user_id in backblast_data[actions.BACKBLAST_COQ] or [])
+        or (user_id in (safe_get(backblast_data, actions.BACKBLAST_COQ) or []))
         or (user_id in backblast_data[actions.BACKBLAST_OP])
     )
 

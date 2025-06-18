@@ -281,7 +281,7 @@ class MultiStaticSelectElement(BaseElement):
         return j
 
     def get_selected_value(self, input_data, action):
-        return [o["value"] for o in safe_get(input_data, action, action, "selected_options") or []]
+        return [o["value"] for o in (safe_get(input_data, action, action, "selected_options") or [])]
 
     def __make_option(self, option: SelectorOption):
         j = {
@@ -316,7 +316,7 @@ class MultiExternalSelectElement(BaseElement):
         return j
 
     def get_selected_value(self, input_data, action):
-        return [o["value"] for o in safe_get(input_data, action, action, "selected_options") or []]
+        return [o["value"] for o in (safe_get(input_data, action, action, "selected_options") or [])]
 
 
 @dataclass
@@ -658,7 +658,7 @@ class CheckboxInputElement(BaseElement):
     action: str = None
 
     def get_selected_value(self, input_data, action):
-        return [o["value"] for o in safe_get(input_data, action, action, "selected_options") or []]
+        return [o["value"] for o in (safe_get(input_data, action, action, "selected_options") or [])]
 
     def as_form_field(self, action: str = None):
         if not self.options:

@@ -575,7 +575,7 @@ def handle_backblast_edit_button(
         allow_edit: bool = (
             user_is_admin
             or (user_id == backblast_data[actions.BACKBLAST_Q])
-            or (user_id in safe_get(backblast_data, actions.BACKBLAST_COQ) or [])
+            or (user_id in (safe_get(backblast_data, actions.BACKBLAST_COQ) or []))
             or (user_id in backblast_data[actions.BACKBLAST_OP])
         )
     else:
