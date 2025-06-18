@@ -485,8 +485,10 @@ class NumberInputElement(BaseElement):
                 except ValueError:
                     self.initial_value = 0
                 j["initial_value"] = str(self.initial_value)
+            elif self.is_decimal_allowed:
+                j["initial_value"] = str(round(self.initial_value, 4))
             else:
-                j["initial_value"] = str(self.initial_value)
+                j["initial_value"] = str(int(self.initial_value))
         if self.min_value:
             j["min_value"] = str(self.min_value)
         if self.max_value:
