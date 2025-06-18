@@ -521,7 +521,8 @@ CUSTOM_FIELD_ADD_EDIT_FORM = orm.BlockView(
             ),
             action=actions.CUSTOM_FIELD_ADD_OPTIONS,
             label="Dropdown options (only required if 'Dropdown' is selected above)",
-            optional=False,
+            optional=True,
+            hint="Separate options with commas",
         ),
     ]
 )

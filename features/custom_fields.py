@@ -204,7 +204,9 @@ def handle_custom_field_add(body: dict, client: WebClient, logger: Logger, conte
 
     custom_field_name = safe_get(config_data, actions.CUSTOM_FIELD_ADD_NAME)
     custom_field_type = safe_get(config_data, actions.CUSTOM_FIELD_ADD_TYPE)
-    custom_field_options = safe_get(config_data, actions.CUSTOM_FIELD_ADD_OPTIONS)
+    custom_field_options: str = safe_get(config_data, actions.CUSTOM_FIELD_ADD_OPTIONS)
+    # trim whitespace from options
+    custom_field_options = custom_field_options.strip() if custom_field_options else ""
 
     custom_fields = region_record.custom_fields or {}
     custom_fields[custom_field_name] = {
@@ -213,23 +215,30 @@ def handle_custom_field_add(body: dict, client: WebClient, logger: Logger, conte
         "options": custom_field_options.split(",") if custom_field_options else [],
         "enabled": True,
     }
-    region_record.custom_fields = custom_fields
 
-    DbManager.update_records(
-        cls=SlackSpace,
-        filters=[SlackSpace.team_id == region_record.team_id],
-        fields={SlackSpace.settings: region_record.__dict__},
-    )
-    update_local_region_records()
-
-    print(
-        json.dumps(
-            {
-                "event_type": "successful_custom_field_add_edit",
-                "team_name": region_record.workspace_name,
-            }
+    if custom_field_type == "Dropdown" and not custom_field_options:
+        client.chat_postMessage(
+            channel=safe_get(body, "user", "id"),
+            text="Please provide a name and options for the custom field.",
         )
-    )
+        return
+    else:
+        region_record.custom_fields = custom_fields
+        DbManager.update_records(
+            cls=SlackSpace,
+            filters=[SlackSpace.team_id == region_record.team_id],
+            fields={SlackSpace.settings: region_record.__dict__},
+        )
+        update_local_region_records()
+
+        print(
+            json.dumps(
+                {
+                    "event_type": "successful_custom_field_add_edit",
+                    "team_name": region_record.workspace_name,
+                }
+            )
+        )
 
     previous_view_id = safe_get(body, "view", "previous_view_id")
     build_custom_field_menu(body, client, logger, context, region_record, update_view_id=previous_view_id)
