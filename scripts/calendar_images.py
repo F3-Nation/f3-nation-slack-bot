@@ -47,12 +47,29 @@ def highlight_cells(s, color_dict):
         if tags:
             for tag in tags:
                 if tag in color_dict.keys():
-                    highlight_cells_list.append(f"background-color: {EVENT_TAG_COLORS[color_dict[tag]]}")
+                    highlight_cells_list.append(f"background-color: {EVENT_TAG_COLORS[color_dict[tag]][0]}")
                     found = True
                     break
         if not found:
             highlight_cells_list.append("background-color: #000000")
     return pd.Series(highlight_cells_list)
+
+
+def set_text_color(s, color_dict):
+    text_color_list = []
+    for cell in s:
+        cell_str = str(cell)
+        tags = cell_str.split("\n")
+        found = False
+        if tags:
+            for tag in tags:
+                if tag in color_dict.keys():
+                    text_color_list.append(f"color: {EVENT_TAG_COLORS[color_dict[tag]][1]}")
+                    found = True
+                    break
+        if not found:
+            text_color_list.append("color: #F0FFFF")
+    return text_color_list
 
 
 def generate_calendar_images():
@@ -258,7 +275,7 @@ def generate_calendar_images():
                         ("text-align", "center"),
                         ("white-space", "pre-wrap"),
                         # ('background-color', '#000000'),
-                        ("color", "#F0FFFF"),
+                        # ("color", "#F0FFFF"),
                         ("border", "1px solid #F0FFFF"),
                     ]
 
@@ -276,6 +293,7 @@ def generate_calendar_images():
                         .apply(highlight_cells, color_dict=color_dict)
                         .hide(axis="index")
                     )
+                    df_styled = df_styled.apply(set_text_color, color_dict=color_dict, axis=1)
 
                     # create calendar image
                     random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
