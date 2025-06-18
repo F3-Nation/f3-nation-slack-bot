@@ -1,9 +1,11 @@
 import os
 import ssl
 import sys
-from datetime import date, timedelta
+from datetime import timedelta
 
 from slack_sdk import WebClient
+
+from utilities.helper_functions import current_date_cst
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -61,8 +63,8 @@ def update_special_events():
                 cls=EventInstance,
                 filters=[
                     (EventInstance.org_id == region.id or EventInstance.org.has(Org.parent_id == region.id)),
-                    EventInstance.start_date >= date.today(),
-                    EventInstance.start_date <= date.today() + timedelta(days=number_of_days),
+                    EventInstance.start_date >= current_date_cst(),
+                    EventInstance.start_date <= current_date_cst() + timedelta(days=number_of_days),
                     EventInstance.is_active,
                     EventInstance.highlight,
                 ],

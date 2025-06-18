@@ -4,7 +4,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import random
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import boto3
 import dataframe_image as dfi
@@ -31,7 +31,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import aliased, joinedload
 
 from utilities.constants import EVENT_TAG_COLORS, LOCAL_DEVELOPMENT
-from utilities.helper_functions import update_local_region_records
+from utilities.helper_functions import current_date_cst, update_local_region_records
 
 
 def time_int_to_str(time: int) -> str:
@@ -57,9 +57,9 @@ def highlight_cells(s, color_dict):
 
 def generate_calendar_images():
     with get_session() as session:
-        tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
-        current_week_start = date.today() + timedelta(days=-tomorrow_day_of_week + 1)
-        current_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
+        tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
+        current_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week + 1)
+        current_week_end = current_date_cst() + timedelta(days=7 - tomorrow_day_of_week)
         next_week_start = current_week_start + timedelta(weeks=1)
         next_week_end = current_week_end + timedelta(weeks=1)
 

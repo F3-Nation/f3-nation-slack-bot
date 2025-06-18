@@ -18,7 +18,7 @@ from slack_sdk.models.metadata import Metadata
 
 from scripts.preblast_reminders import PreblastItem, PreblastList
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_user, safe_convert, safe_get
+from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get
 from utilities.slack import actions
 from utilities.slack.orm import (
     ActionsBlock,
@@ -38,9 +38,9 @@ def send_lineups(force: bool = False):
     if (current_time.hour == 7 and current_time.weekday() == 1) or force:
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
-        tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
-        this_week_start = date.today() + timedelta(days=-tomorrow_day_of_week)
-        this_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
+        tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
+        this_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week)
+        this_week_end = current_date_cst() + timedelta(days=7 - tomorrow_day_of_week)
         event_list = PreblastList()
         event_list.pull_data(
             filters=[
@@ -162,9 +162,9 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
         print(f"Week start: {this_week_start}, week end: {this_week_end}")
     else:
         # Default to the current week
-        tomorrow_day_of_week = (date.today() + timedelta(days=1)).weekday()
-        this_week_start = date.today() + timedelta(days=-tomorrow_day_of_week)
-        this_week_end = date.today() + timedelta(days=7 - tomorrow_day_of_week)
+        tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
+        this_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week)
+        this_week_end = current_date_cst() + timedelta(days=7 - tomorrow_day_of_week)
 
     preblast_info = PreblastList()
     preblast_info.pull_data(filters=[EventInstance.id == event_instance_id])

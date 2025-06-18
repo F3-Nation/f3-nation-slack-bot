@@ -1,4 +1,3 @@
-import datetime
 import json
 from copy import deepcopy
 from dataclasses import dataclass
@@ -25,6 +24,7 @@ from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import event_attendance_query
 from utilities.helper_functions import (
+    current_date_cst,
     get_user,
     get_user_names,
     parse_rich_block,
@@ -82,7 +82,7 @@ def build_event_preblast_select_form(
             Attendance.attendance_types.any(AttendanceType.id.in_([2, 3])),
         ],
         event_filter=[
-            EventInstance.start_date >= datetime.date.today(),
+            EventInstance.start_date >= current_date_cst(),
             EventInstance.preblast_ts.is_(None),
             EventInstance.is_active,
             or_(

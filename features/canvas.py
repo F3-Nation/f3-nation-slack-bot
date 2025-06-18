@@ -1,5 +1,5 @@
 import ssl
-from datetime import date, timedelta
+from datetime import timedelta
 from logging import Logger
 from typing import List
 
@@ -11,7 +11,7 @@ from sqlalchemy import or_
 from utilities.constants import GCP_IMAGE_URL
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_position_users
-from utilities.helper_functions import safe_get
+from utilities.helper_functions import current_date_cst, safe_get
 
 
 def create_special_events_blocks(events: List[EventInstance], slack_settings: SlackSettings) -> str:
@@ -51,8 +51,9 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
                 EventInstance.org_id == region_record.org_id,
                 EventInstance.org.has(Org.parent_id == region_record.org_id),
             ),
-            EventInstance.start_date >= date.today(),
-            EventInstance.start_date <= date.today() + timedelta(days=region_record.special_events_post_days or 7),
+            EventInstance.start_date >= current_date_cst(),
+            EventInstance.start_date
+            <= current_date_cst() + timedelta(days=region_record.special_events_post_days or 7),
             EventInstance.is_active,
             EventInstance.highlight,
         ],

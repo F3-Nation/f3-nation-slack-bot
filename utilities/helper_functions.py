@@ -1,9 +1,11 @@
 import os
 import re
+from datetime import date, datetime
 from logging import Logger
 from typing import Any, Dict, List, Tuple
 
 import boto3
+import pytz
 import requests
 from f3_data_models.models import (
     Org,
@@ -520,6 +522,11 @@ def time_int_to_str(time: int) -> str:
 
 def time_str_to_int(time: str) -> int:
     return int(time.replace(":", ""))
+
+
+def current_date_cst() -> date:
+    """Returns the current date in US/Central timezone."""
+    return datetime.now(pytz.timezone("US/Central")).date()
 
 
 def upload_files_to_storage(

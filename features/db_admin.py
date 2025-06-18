@@ -1,6 +1,5 @@
 import copy
 import os
-from datetime import date
 from logging import Logger
 
 from alembic import command, config, script
@@ -15,7 +14,7 @@ from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
-from utilities.helper_functions import get_user, safe_get, trigger_map_revalidation
+from utilities.helper_functions import current_date_cst, get_user, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -260,7 +259,7 @@ def handle_generate_instances(
         filters=[
             Event.is_active,
             or_(Event.org_id == region_record.org_id, Event.org.has(Org.parent_id == region_record.org_id)),
-            or_(Event.end_date >= date.today(), Event.end_date.is_(None)),
+            or_(Event.end_date >= current_date_cst(), Event.end_date.is_(None)),
         ],
         joinedloads="all",
     )

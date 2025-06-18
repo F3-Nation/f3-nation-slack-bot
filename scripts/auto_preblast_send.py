@@ -4,10 +4,12 @@ import sys
 
 import pytz
 
+from utilities.helper_functions import current_date_cst
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import List
 
 from f3_data_models.models import (
@@ -121,7 +123,7 @@ def send_automated_preblasts():
         preblast_list = PreblastList()
         preblast_list.pull_data(
             filters=[
-                EventInstance.start_date == date.today() + timedelta(days=1),  # eventually configurable
+                EventInstance.start_date == current_date_cst() + timedelta(days=1),  # eventually configurable
                 EventInstance.preblast_ts.is_(None),  # not already sent
                 EventInstance.is_active,  # not canceled
             ]

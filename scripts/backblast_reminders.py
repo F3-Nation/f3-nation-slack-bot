@@ -1,9 +1,11 @@
 import os
 import ssl
 import sys
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import pytz
+
+from utilities.helper_functions import current_date_cst
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -91,8 +93,8 @@ class BackblastList:
                 and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
             )
             .filter(
-                EventInstance.start_date < date.today(),  # + timedelta(days=1),  # eventually configurable
-                EventInstance.start_date >= (date.today() - timedelta(days=5)),  # eventually configurable
+                EventInstance.start_date < current_date_cst(),  # + timedelta(days=1),  # eventually configurable
+                EventInstance.start_date >= (current_date_cst() - timedelta(days=5)),  # eventually configurable
                 EventInstance.backblast_ts.is_(None),  # not already sent
                 EventInstance.is_active,  # not canceled
             )

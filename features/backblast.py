@@ -1,7 +1,7 @@
 import copy
 import json
 import os
-from datetime import date, datetime
+from datetime import datetime
 from logging import Logger
 from typing import List
 
@@ -26,6 +26,7 @@ from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import event_attendance_query, get_user_permission_list
 from utilities.helper_functions import (
+    current_date_cst,
     get_channel_names,
     get_pax,
     get_user,
@@ -85,7 +86,7 @@ def backblast_middleware(
                 Attendance.attendance_types.any(AttendanceType.id.in_([2, 3])),
             ],
             event_filter=[
-                EventInstance.start_date <= date.today(),
+                EventInstance.start_date <= current_date_cst(),
                 EventInstance.backblast_ts.is_(None),
                 EventInstance.is_active,
                 or_(
