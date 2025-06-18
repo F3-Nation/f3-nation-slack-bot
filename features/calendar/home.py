@@ -174,6 +174,7 @@ def build_home_form(
     filter = [
         or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)),
         EventInstance.start_date > start_date,
+        EventInstance.is_active,
     ]
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER):

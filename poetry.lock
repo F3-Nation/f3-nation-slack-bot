@@ -809,13 +809,13 @@ files = [
 
 [[package]]
 name = "f3-data-models"
-version = "0.5.14"
+version = "0.5.15"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 files = [
-    {file = "f3_data_models-0.5.14-py3-none-any.whl", hash = "sha256:a7b75a67c2646ccb48f80cda040721e8ec1f076213a09a9008463645cc5b067a"},
-    {file = "f3_data_models-0.5.14.tar.gz", hash = "sha256:2b7c80cde01cc0da0e089948ada50731ed20037b0ccd4c31515503147d4650af"},
+    {file = "f3_data_models-0.5.15-py3-none-any.whl", hash = "sha256:a3fb7e29325735fc25973493f9c11d0aeb1d7ecf413e7cdbf7daee9b3c5f48ac"},
+    {file = "f3_data_models-0.5.15.tar.gz", hash = "sha256:4773fad19a4fc38b0ca91e75940e57d1d0cce345308e26b112ceb8cc808a6e32"},
 ]
 
 [package.dependencies]

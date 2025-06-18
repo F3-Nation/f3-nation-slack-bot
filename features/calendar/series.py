@@ -28,7 +28,7 @@ from sqlalchemy import or_
 from features.calendar import event_preblast
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_user, safe_convert, safe_get, trigger_map_revalidation
+from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -478,8 +478,12 @@ def build_series_list_form(
     region_record: SlackSettings,
     update_view_id=None,
 ):
-    if safe_get(body, "actions", 0, "action_id") == actions.CALENDAR_MANAGE_SERIES:
-        is_series = True
+    private_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    is_series = (
+        safe_get(private_metadata, "is_series") == "True"
+        or safe_get(body, "actions", 0, "action_id") == actions.CALENDAR_MANAGE_SERIES
+    )
+    if is_series:
         title_text = "Delete or Edit a Series"
         confirm_text = "Are you sure you want to edit / delete this series? This cannot be undone. Also, editing or deleting a series will also edit or delete all future events associated with the series."  # noqa
         records = DbManager.find_join_records2(
@@ -491,7 +495,6 @@ def build_series_list_form(
             ],
         )
     else:
-        is_series = False
         title_text = "Delete or Edit an Event"
         confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
         records = DbManager.find_join_records2(
@@ -587,9 +590,13 @@ def handle_series_edit_delete(
         elif action == "Delete":
             DbManager.update_record(Event, series_id, fields={"is_active": False})
             DbManager.update_records(
-                Event, [Event.series_id == series_id, Event.start_date >= datetime.now()], fields={"is_active": False}
+                EventInstance,
+                [EventInstance.series_id == series_id, EventInstance.start_date >= current_date_cst()],
+                fields={"is_active": False},
             )
             trigger_map_revalidation()
+            # set private_metadata to indicate this is a series
+            body["view"]["private_metadata"] = json.dumps({"is_series": "True"})
             build_series_list_form(
                 body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
             )
