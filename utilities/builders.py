@@ -22,7 +22,7 @@ def add_loading_form(body: dict, client: WebClient) -> str:
         callback_id="loading-id",
     )
     # wait 0.1 seconds
-    time.sleep(0.1)
+    time.sleep(0.3)
     return safe_get(loading_form_response, "view", "id")
 
 

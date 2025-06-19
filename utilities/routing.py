@@ -15,7 +15,7 @@ from features import (
     weaselbot,
     welcome,
 )
-from features.calendar import ao, event_preblast, event_tag, event_type, home, location, series
+from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
 from scripts.q_lineups import handle_lineup_signup
 from utilities import announcements, builders, options
@@ -71,6 +71,7 @@ VIEW_MAPPER = {
     connect.CREATE_NEW_REGION_CALLBACK_ID: (connect.handle_new_region_creation, False),
     actions.CALENDAR_CONFIG_GENERAL_CALLBACK_ID: (calendar_config.handle_calendar_config_general, False),
     user.USER_FORM_ID: (user.handle_user_form, False),
+    event_instance.ADD_EVENT_INSTANCE_CALLBACK_ID: (event_instance.handle_event_instance_add, False),
 }
 
 ACTION_MAPPER = {
@@ -147,6 +148,9 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
     actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION: (db_admin.handle_trigger_map_revalidation, False),
     actions.CONFIG_USER_SETTINGS: (user.build_user_form, False),
+    event_instance.CALENDAR_MANAGE_EVENT_INSTANCE: (event_instance.manage_event_instances, False),
+    actions.EVENT_INSTANCE_EDIT_DELETE: (event_instance.handle_event_instance_edit_delete, False),
+    event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
 }
 
 VIEW_CLOSED_MAPPER = {

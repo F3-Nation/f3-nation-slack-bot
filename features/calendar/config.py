@@ -5,6 +5,7 @@ from f3_data_models.models import SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from features.calendar import event_instance
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
 from utilities.slack import actions, orm
@@ -114,7 +115,7 @@ CALENDAR_CONFIG_FORM = orm.BlockView(
         ),
         orm.SectionBlock(
             label=":date: Manage Single Events",
-            action=actions.CALENDAR_MANAGE_EVENTS,
+            action=event_instance.CALENDAR_MANAGE_EVENT_INSTANCE,
             element=orm.OverflowElement(
                 options=orm.as_selector_options(
                     names=["Add Single Event", "Edit or Deactivate Single Events"],

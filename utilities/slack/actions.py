@@ -294,6 +294,7 @@ SECRET_MENU_AO_LINEUPS = "secret-menu-ao-lineups"
 SECRET_MENU_PREBLAST_REMINDERS = "secret-menu-preblast-reminders"
 
 CALENDAR_ADD_SERIES_PREBLAST = "calendar-add-series-preblast"
+EVENT_INSTANCE_EDIT_DELETE = "event-instance-edit-delete"
 
 ACTION_PREFIXES = [
     STRAVA_ACTIVITY_BUTTON,
@@ -304,4 +305,5 @@ ACTION_PREFIXES = [
     EVENT_TAG_EDIT_DELETE,
     BACKBLAST_FILL_SELECT,
     LINEUP_SIGNUP_BUTTON,
+    EVENT_INSTANCE_EDIT_DELETE,
 ]
