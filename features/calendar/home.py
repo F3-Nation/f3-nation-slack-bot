@@ -8,7 +8,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
-from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS, series
+from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS, event_instance
 from features.calendar.event_preblast import (
     build_event_preblast_form,
     build_preblast_info,
@@ -26,7 +26,7 @@ def handle_event_preblast_select_button(
     action = safe_get(body, "actions", 0, "action_id")
     view_id = safe_get(body, "view", "id")
     if action == actions.EVENT_PREBLAST_NEW_BUTTON:
-        series.build_series_add_form(body, client, logger, context, region_record, new_preblast=True)
+        event_instance.build_event_instance_add_form(body, client, logger, context, region_record, new_preblast=True)
     elif action == actions.OPEN_CALENDAR_BUTTON:
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 

@@ -5,8 +5,6 @@ from datetime import datetime, timedelta
 
 import pytz
 
-from utilities.helper_functions import current_date_cst
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass, field
@@ -30,6 +28,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import aliased
 
 from utilities.database.orm import SlackSettings
+from utilities.helper_functions import current_date_cst
 from utilities.slack import actions, orm
 
 MSG_TEMPLATE = "Hey there, {q_name}! I hope that the {event_name} on {event_date} at {event_ao} went well! I have not seen a backblast posted for this event yet... Please click the button below to fill out the backblast so we can track those stats!"  # noqa
@@ -65,8 +64,13 @@ class BackblastList:
             )
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
-            .join(SlackUser, User.id == SlackUser.user_id)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+            .join(Org, Org.id == EventInstance.org_id)
+            .join(ParentOrg, Org.parent_id == ParentOrg.id)
+            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
+            .join(SlackUser, and_(User.id == SlackUser.user_id, SlackUser.slack_team_id == SlackSpace.team_id))  # noqa
             .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
@@ -90,7 +94,10 @@ class BackblastList:
             .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
             .join(
                 firstq_subquery,
-                and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
+                and_(
+                    EventInstance.id == firstq_subquery.c.event_instance_id,
+                    firstq_subquery.c.rn == 1,
+                ),  # noqa
             )
             .filter(
                 EventInstance.start_date < current_date_cst(),  # + timedelta(days=1),  # eventually configurable
@@ -102,7 +109,7 @@ class BackblastList:
         )
         records = query.all()
         session.expunge_all()
-        print(records)
+        # print(records)
         self.items = [
             BackblastItem(
                 event=r[0],
@@ -156,7 +163,11 @@ def send_backblast_reminders():
                     ),
                 ]
                 blocks = [b.as_form_field() for b in blocks]
-                slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
+                try:
+                    slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
+                except Exception as e:
+                    print(f"Error sending backblast reminder to {backblast.slack_user_id}: {e}")
+                    continue
 
 
 if __name__ == "__main__":

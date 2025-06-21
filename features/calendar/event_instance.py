@@ -116,6 +116,7 @@ def build_event_instance_add_form(
         }
     )
 
+    initial_values = {}
     if edit_event_instance:
         initial_values = {
             CALENDAR_ADD_EVENT_INSTANCE_NAME: edit_event_instance.name,
@@ -228,6 +229,7 @@ def handle_event_instance_add(
         end_time=end_time,
         is_active=True,
         highlight=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT) == ["True"],
+        preblast=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
     )
 
     if safe_get(metadata, "event_instance_id"):
@@ -260,7 +262,7 @@ def handle_event_instance_add(
                 event_instance_id=event_instance.id,
                 user_id=get_user(slack_user_id, region_record, client, logger).user_id,
                 is_planned=True,
-                attendance_x_attendance_types=[Attendance_x_AttendanceType(type_id=2)],  # 2 = Q
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # 2 = Q
             )
         )
         event_preblast.send_preblast(body, client, logger, context, region_record, event_instance.id)
