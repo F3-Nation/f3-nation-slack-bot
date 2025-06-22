@@ -242,22 +242,48 @@ def build_home_form(
     split_time = time.time()
     print(f"Block build 2 time: {split_time - start_time}")
     start_time = time.time()
-    if view_id:
-        form.update_modal(
-            client=client,
-            view_id=view_id,
-            title_text="Calendar Home",
-            callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-            submit_button_text="None",
-        )
-    else:
-        form.post_modal(
-            client=client,
-            trigger_id=safe_get(body, "trigger_id"),
-            title_text="Calendar Home",
-            callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-            new_or_add="new",
-        )
+    try:
+        if view_id:
+            form.update_modal(
+                client=client,
+                view_id=view_id,
+                title_text="Calendar Home",
+                callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+                submit_button_text="None",
+            )
+        else:
+            form.post_modal(
+                client=client,
+                trigger_id=safe_get(body, "trigger_id"),
+                title_text="Calendar Home",
+                callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+                new_or_add="new",
+            )
+    except Exception as e:
+        logger.error(f"Error building calendar home form: {e}")
+        logger.info("Trying to resend without the images...")
+        blocks = [b for b in blocks if not isinstance(b, orm.ImageBlock)]
+        form = orm.BlockView(blocks=blocks)
+        form.set_initial_values(existing_filter_data)
+        try:
+            if view_id:
+                form.update_modal(
+                    client=client,
+                    view_id=view_id,
+                    title_text="Calendar Home",
+                    callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+                    submit_button_text="None",
+                )
+            else:
+                form.post_modal(
+                    client=client,
+                    trigger_id=safe_get(body, "trigger_id"),
+                    title_text="Calendar Home",
+                    callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+                    new_or_add="new",
+                )
+        except Exception as e2:
+            logger.error(f"Error resending calendar home form without images: {e2}")
     split_time = time.time()
     print(f"Sending: {split_time - start_time}")
     start_time = time.time()
