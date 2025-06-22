@@ -46,6 +46,9 @@ register_heif_opener()
 def add_custom_field_blocks(
     form: slack_orm.BlockView, region_record: SlackSettings, initial_values: dict = None
 ) -> slack_orm.BlockView:
+    if initial_values is None:
+        initial_values = {}
+    print(initial_values)
     output_form = copy.deepcopy(form)
     for custom_field in (region_record.custom_fields or {}).values():
         if safe_get(custom_field, "enabled"):
@@ -64,6 +67,15 @@ def add_custom_field_blocks(
                             names=custom_field["options"],
                             values=custom_field["options"],
                         )
+                    }
+                )
+            if initial_values and custom_field["name"] in initial_values:
+                print("setting initial value for custom field:", custom_field["name"])
+                output_form.set_initial_values(
+                    {
+                        actions.CUSTOM_FIELD_PREFIX + custom_field["name"]: initial_values.get(
+                            custom_field["name"], ""
+                        ),
                     }
                 )
     return output_form
@@ -158,16 +170,9 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
     else:
         event_instance_id = safe_get(backblast_metadata, "event_instance_id")
-
     update_view_id = safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
 
-    if safe_get(backblast_metadata, actions.BACKBLAST_TITLE):
-        initial_backblast_data = backblast_metadata
-        moleskin_block = safe_get(body, "message", "blocks", 1)
-        moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
-        initial_backblast_data[actions.BACKBLAST_MOLESKIN] = moleskin_block
-        event_metadata = {}
-    elif event_instance_id:
+    if event_instance_id:
         event_record: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
         event_metadata = event_record.meta or {}
         already_posted = event_record.backblast_ts is not None
@@ -191,7 +196,8 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-
+        moleskin_block = safe_get(body, "message", "blocks", 1)
+        moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
@@ -204,11 +210,17 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             actions.BACKBLAST_Q: safe_get(q_list, 0),
             actions.BACKBLAST_COQ: coq_list,
             actions.BACKBLAST_PAX: slack_pax_list,
-            actions.BACKBLAST_MOLESKIN: region_record.backblast_moleskin_template,
+            actions.BACKBLAST_MOLESKIN: moleskin_block or region_record.backblast_moleskin_template,
             # actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
             # TODO: non-slack pax
         }
         backblast_metadata["event_instance_id"] = event_instance_id
+    elif safe_get(backblast_metadata, actions.BACKBLAST_TITLE):
+        initial_backblast_data = backblast_metadata
+        moleskin_block = safe_get(body, "message", "blocks", 1)
+        moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
+        initial_backblast_data[actions.BACKBLAST_MOLESKIN] = moleskin_block
+        event_metadata = {}
     else:
         initial_backblast_data = {
             actions.BACKBLAST_Q: user_id,
