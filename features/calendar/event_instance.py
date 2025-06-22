@@ -21,7 +21,7 @@ from sqlalchemy import or_
 
 from features.calendar import event_preblast
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_user, safe_convert, safe_get
+from utilities.helper_functions import get_user, parse_rich_block, replace_user_channel_ids, safe_convert, safe_get
 from utilities.slack import actions, orm
 
 # Constants for action IDs
@@ -64,21 +64,19 @@ def build_event_instance_add_form(
     new_preblast: bool = False,
 ):
     parent_metadata = {"event_instance_id": edit_event_instance.id} if edit_event_instance else {}
+    view_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
 
     title_text = "Add an Event"
     form = copy.deepcopy(INSTANCE_FORM)
-    if new_preblast:
+    if new_preblast or (safe_get(view_metadata, "is_preblast") == "True"):
         # Add a moleskin block if this is a new event
         form.blocks.insert(
             -1,
             orm.InputBlock(
                 label="Preblast",
                 action=CALENDAR_ADD_EVENT_INSTANCE_PREBLAST,
-                element=orm.PlainTextInputElement(
-                    placeholder="Give us a preview!",
-                    multiline=True,
-                ),
-                optional=True,
+                element=orm.RichTextInputElement(placeholder="Give us an event preview!"),
+                optional=False,
             ),
         )
         parent_metadata.update({"is_preblast": "True"})
@@ -178,7 +176,18 @@ def handle_event_instance_add(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
-    form_data = INSTANCE_FORM.get_selected_values(body)
+    form = copy.deepcopy(INSTANCE_FORM)
+    if safe_get(metadata, "is_preblast") == "True":
+        form.blocks.insert(
+            -1,
+            orm.InputBlock(
+                label="Preblast",
+                action=CALENDAR_ADD_EVENT_INSTANCE_PREBLAST,
+                element=orm.RichTextInputElement(placeholder="Give us an event preview!"),
+                optional=False,
+            ),
+        )
+    form_data = form.get_selected_values(body)
 
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME):
         end_time: str = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME).replace(":", "")
@@ -214,7 +223,6 @@ def handle_event_instance_add(
 
     # if safe_get(metadata, "event_instance_id"):
     #     edit_event_instance_record: Event = DbManager.get(Event, metadata["event_instance_id"])
-
     event_instance_record = EventInstance(
         name=event_instance_name,
         description=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION),
@@ -229,7 +237,13 @@ def handle_event_instance_add(
         end_time=end_time,
         is_active=True,
         highlight=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT) == ["True"],
-        preblast=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
+        preblast_rich=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
+        preblast=replace_user_channel_ids(
+            parse_rich_block(form_data[CALENDAR_ADD_EVENT_INSTANCE_PREBLAST]),
+            region_record,
+            client,
+            logger,
+        ),
     )
 
     if safe_get(metadata, "event_instance_id"):
