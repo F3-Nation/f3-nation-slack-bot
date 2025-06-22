@@ -43,7 +43,9 @@ from utilities.slack import orm as slack_orm
 register_heif_opener()
 
 
-def add_custom_field_blocks(form: slack_orm.BlockView, region_record: SlackSettings) -> slack_orm.BlockView:
+def add_custom_field_blocks(
+    form: slack_orm.BlockView, region_record: SlackSettings, initial_values: dict = None
+) -> slack_orm.BlockView:
     output_form = copy.deepcopy(form)
     for custom_field in (region_record.custom_fields or {}).values():
         if safe_get(custom_field, "enabled"):
@@ -164,8 +166,10 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         moleskin_block = safe_get(body, "message", "blocks", 1)
         moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
         initial_backblast_data[actions.BACKBLAST_MOLESKIN] = moleskin_block
+        event_metadata = {}
     elif event_instance_id:
         event_record: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+        event_metadata = event_record.meta or {}
         already_posted = event_record.backblast_ts is not None
         attendance_records: List[Attendance] = DbManager.find_records(
             Attendance,
@@ -220,7 +224,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
     backblast_form.set_initial_values(initial_backblast_data)
-    backblast_form = add_custom_field_blocks(backblast_form, region_record)
+    backblast_form = add_custom_field_blocks(backblast_form, region_record, initial_values=event_metadata)
 
     if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
         backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
