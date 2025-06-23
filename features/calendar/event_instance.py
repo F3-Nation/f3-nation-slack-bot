@@ -276,7 +276,7 @@ def handle_event_instance_add(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
 
-    if metadata.get("is_preblast") == "True":
+    if safe_get(metadata, "is_preblast") == "True":
         # If this is for a new unscheduled event, we need to set attendance and post the preblast
         event_instance: EventInstance = record
         slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
