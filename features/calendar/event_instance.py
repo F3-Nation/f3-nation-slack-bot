@@ -21,7 +21,14 @@ from sqlalchemy import or_
 
 from features.calendar import event_preblast
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_user, parse_rich_block, replace_user_channel_ids, safe_convert, safe_get
+from utilities.helper_functions import (
+    current_date_cst,
+    get_user,
+    parse_rich_block,
+    replace_user_channel_ids,
+    safe_convert,
+    safe_get,
+)
 from utilities.slack import actions, orm
 
 # Constants for action IDs
@@ -43,6 +50,7 @@ CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION = "calendar_add_event_instance_descripti
 ADD_EVENT_INSTANCE_CALLBACK_ID = "add_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE = "calendar_manage_event_instance"
 EDIT_DELETE_EVENT_INSTANCE_CALLBACK_ID = "edit_delete_event_instance_callback_id"
+CALENDAR_MANAGE_EVENT_INSTANCE_AO = "calendar_manage_event_instance_ao"
 
 
 def manage_event_instances(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -293,12 +301,21 @@ def build_event_instance_list_form(
 ):
     title_text = "Delete or Edit an Event"
     confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
+
+    filter = []
+    if safe_get(body, "actions", 0, "action_id") == CALENDAR_MANAGE_EVENT_INSTANCE_AO:
+        ao_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+        filter.append(EventInstance.org_id == ao_id)
+        update_view_id = safe_get(body, "view", "id")
+
     records = DbManager.find_join_records2(
         EventInstance,
         Org,
         [
             or_((EventInstance.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
             EventInstance.is_active,
+            EventInstance.start_date >= current_date_cst(),
+            *filter,
         ],
     )
 
@@ -306,26 +323,26 @@ def build_event_instance_list_form(
 
     # TODO: separate into weekly / non-weekly event_instance?
     # TODO: add an AO filter
-    # ao_orgs = DbManager.find_records(
-    #     Org,
-    #     [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
-    # )
-    blocks = []
-    # blocks = [
-    #     orm.InputBlock(
-    #         label="AO Filter",
-    #         action=CALENDAR_MANAGE_EVENT_INSTANCE_AO,
-    #         element=orm.StaticSelectElement(
-    #             placeholder="Select an AO",
-    #             options=orm.as_selector_options(
-    #                 names=[ao.name for ao in ao_orgs],
-    #                 values=[str(ao.id) for ao in ao_orgs],
-    #             ),
-    #         ),
-    #         optional=True,
-    #         dispatch_action=True,
-    #     ),
-    # ]
+    ao_orgs = DbManager.find_records(
+        Org,
+        [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
+    )
+    blocks = [
+        orm.InputBlock(
+            label="AO Filter",
+            action=CALENDAR_MANAGE_EVENT_INSTANCE_AO,
+            element=orm.StaticSelectElement(
+                placeholder="Select an AO",
+                options=orm.as_selector_options(
+                    names=[ao.name for ao in ao_orgs],
+                    values=[str(ao.id) for ao in ao_orgs],
+                ),
+                initial_value=safe_get(body, "actions", 0, "selected_option", "value"),
+            ),
+            optional=True,
+            dispatch_action=True,
+        ),
+    ]
     for s in records:
         label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]
 

@@ -151,6 +151,7 @@ ACTION_MAPPER = {
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE: (event_instance.manage_event_instances, False),
     actions.EVENT_INSTANCE_EDIT_DELETE: (event_instance.handle_event_instance_edit_delete, False),
     event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
+    event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_AO: (event_instance.build_event_instance_list_form, False),
 }
 
 VIEW_CLOSED_MAPPER = {
