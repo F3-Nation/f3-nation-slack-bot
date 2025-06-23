@@ -238,13 +238,14 @@ def handle_event_instance_add(
         is_active=True,
         highlight=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT) == ["True"],
         preblast_rich=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
-        preblast=replace_user_channel_ids(
+    )
+    if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST):
+        event_instance_record.preblast = replace_user_channel_ids(
             parse_rich_block(form_data[CALENDAR_ADD_EVENT_INSTANCE_PREBLAST]),
             region_record,
             client,
             logger,
-        ),
-    )
+        )
 
     if safe_get(metadata, "event_instance_id"):
         # event_instance_id is passed in the metadata if this is an edit

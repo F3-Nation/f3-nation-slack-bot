@@ -196,8 +196,11 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-        moleskin_block = safe_get(body, "message", "blocks", 1)
-        moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
+        if action_id not in [actions.BACKBLAST_FILL_SELECT, actions.MSG_EVENT_BACKBLAST_BUTTON]:
+            moleskin_block = safe_get(body, "message", "blocks", 1)
+            moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
+        else:
+            moleskin_block = None
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
