@@ -1,4 +1,5 @@
 import copy
+import json
 from logging import Logger
 from typing import List
 
@@ -7,7 +8,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_get
+from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
 
 
@@ -30,7 +31,7 @@ def build_event_type_form(
 ):
     form = copy.deepcopy(EVENT_TYPE_FORM)
 
-    event_types_all: List[EventType] = DbManager.find_records(EventType, [True])
+    event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
     event_types_org = [
         type.id
         for type in event_types_all
@@ -43,6 +44,19 @@ def build_event_type_form(
         form.blocks.pop(0)
         form.blocks[0].label = "Create a new event type"
 
+    form.set_options(
+        {
+            actions.CALENDAR_ADD_EVENT_TYPE_SELECT: orm.as_selector_options(
+                names=[event_type.name for event_type in event_types_other_org],
+                values=[str(event_type.id) for event_type in event_types_other_org],
+            ),
+            actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY: orm.as_selector_options(
+                names=[c.name.capitalize() for c in Event_Category],
+                values=[c.name for c in Event_Category],
+            ),
+        }
+    )
+
     if edit_event_type:
         form.set_initial_values(
             {
@@ -52,24 +66,12 @@ def build_event_type_form(
             }
         )
         form.blocks.pop(0)
-        form.blocks.pop(0)
+        # form.blocks.pop(0)
         form.blocks[0].label = "Edit Event Type"
         form.blocks[0].element.placeholder = "Edit Event Type"
         title_text = "Edit an Event Type"
         metadata = {"edit_event_type_id": edit_event_type.id}
     else:
-        form.set_options(
-            {
-                actions.CALENDAR_ADD_EVENT_TYPE_SELECT: orm.as_selector_options(
-                    names=[event_type.name for event_type in event_types_other_org],
-                    values=[str(event_type.id) for event_type in event_types_other_org],
-                ),
-                actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY: orm.as_selector_options(
-                    names=[c.name.capitalize() for c in Event_Category],
-                    values=[c.name for c in Event_Category],
-                ),
-            }
-        )
         title_text = "Add an Event Type"
         metadata = {}
 
@@ -92,8 +94,23 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     event_type_id = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_SELECT)
     event_category = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY)
     event_type_acronym = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM)
+    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
 
-    if event_type_id:
+    if safe_get(metadata, "edit_event_type_id"):
+        event_type_id = safe_get(metadata, "edit_event_type_id")
+        event_type: EventType = DbManager.get(EventType, event_type_id)
+        DbManager.update_record(
+            EventType,
+            event_type_id,
+            fields={
+                EventType.name: event_type_name or event_type.name,
+                EventType.event_category: event_category or event_type.event_category,
+                EventType.acronym: event_type_acronym or event_type.acronym,
+                EventType.specific_org_id: region_record.org_id,
+            },
+        )
+
+    elif event_type_id:
         event_type: EventType = DbManager.get(EventType, event_type_id)
         DbManager.create_record(
             EventType(
@@ -118,31 +135,34 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
 def build_event_type_list_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    event_types_all: List[EventType] = DbManager.find_records(EventType, [True])
-    event_types_org = [
-        type.id
-        for type in event_types_all
-        if type.specific_org_id == region_record.org_id or type.specific_org_id is None
-    ]
+    event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
+    event_types_org = [type.id for type in event_types_all if type.specific_org_id == region_record.org_id]
     event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
 
     blocks = [
-        orm.SectionBlock(
-            label=s.name,
-            action=f"{actions.EVENT_TYPE_EDIT_DELETE}_{s.id}",
-            element=orm.StaticSelectElement(
-                placeholder="Edit or Delete",
-                options=orm.as_selector_options(names=["Edit", "Delete"]),
-                confirm=orm.ConfirmObject(
-                    title="Are you sure?",
-                    text="Are you sure you want to edit / delete this Event Type? This cannot be undone.",
-                    confirm="Yes, I'm sure",
-                    deny="Whups, never mind",
-                ),
-            ),
+        orm.ContextBlock(
+            element=orm.ContextElement(initial_value="Only region-specific event types can be edited or deleted."),
         )
-        for s in event_types_in_org
     ]
+    for s in event_types_in_org:
+        blocks.append(
+            orm.SectionBlock(
+                label=s.name,
+                action=f"{actions.EVENT_TYPE_EDIT_DELETE}_{s.id}",
+                element=orm.StaticSelectElement(
+                    placeholder="Edit or Delete",
+                    options=orm.as_selector_options(names=["Edit", "Delete"]),
+                    confirm=orm.ConfirmObject(
+                        title="Are you sure?",
+                        text="Are you sure you want to edit / delete this Event Type? This cannot be undone.",
+                        confirm="Yes, I'm sure",
+                        deny="Whups, never mind",
+                    ),
+                ),
+            )
+        )
+
+    print(blocks)
 
     form = orm.BlockView(blocks=blocks)
 
@@ -166,7 +186,13 @@ def handle_event_type_edit_delete(
         event_type: EventType = DbManager.get(EventType, event_type_id)
         build_event_type_form(body, client, logger, context, region_record, edit_event_type=event_type)
     elif action == "Delete":
-        DbManager.delete_record(EventType, event_type_id)
+        DbManager.update_record(
+            EventType,
+            event_type_id,
+            fields={
+                EventType.is_active: False,
+            },
+        )
 
 
 EVENT_TYPE_FORM = orm.BlockView(
