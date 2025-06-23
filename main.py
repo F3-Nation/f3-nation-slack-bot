@@ -132,6 +132,7 @@ app.command(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.view_closed(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.event(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 app.options(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
+app.shortcut(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 
 if __name__ == "__main__":
     port = 3000 if LOCAL_DEVELOPMENT else 8080

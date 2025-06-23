@@ -337,6 +337,8 @@ def get_request_type(body: dict) -> Tuple[str]:
         return ("view_closed", safe_get(body, "view", "callback_id"))
     elif request_type == "block_suggestion":
         return ("block_suggestion", safe_get(body, "action_id"))
+    elif request_type == "shortcut":
+        return ("shortcut", safe_get(body, "callback_id"))
     else:
         return ("unknown", "unknown")
 

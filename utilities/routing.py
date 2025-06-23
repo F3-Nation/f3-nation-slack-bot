@@ -167,6 +167,10 @@ OPTIONS_MAPPER = {
     user.USER_FORM_HOME_REGION: (options.handle_request, False),
 }
 
+SHORTCUT_MAPPER = {
+    actions.BACKBLAST_SHORTCUT: (backblast.backblast_middleware, True),
+}
+
 MAIN_MAPPER = {
     "command": COMMAND_MAPPER,
     "block_actions": ACTION_MAPPER,
@@ -174,4 +178,5 @@ MAIN_MAPPER = {
     "view_closed": VIEW_CLOSED_MAPPER,
     "event_callback": EVENT_MAPPER,
     "block_suggestion": OPTIONS_MAPPER,
+    "shortcut": SHORTCUT_MAPPER,
 }
