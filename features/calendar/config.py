@@ -128,8 +128,8 @@ CALENDAR_CONFIG_FORM = orm.BlockView(
             action=actions.CALENDAR_MANAGE_EVENT_TYPES,
             element=orm.OverflowElement(
                 options=orm.as_selector_options(
-                    names=["Add Event Type"],  # , "Edit or Deactivate Event Types"],
-                    values=["add"],  # , "edit"],
+                    names=["Add Event Type", "Edit or Deactivate Event Types"],
+                    values=["add", "edit"],
                 ),
             ),
         ),

@@ -32,6 +32,8 @@ BACKBLAST_EDIT_CALLBACK_ID_LEGACY = "backblast-edit-id-legacy"
 BACKBLAST_EDIT_BUTTON_LEGACY = "edit-backblast-legacy"
 SECRET_MENU_TRIGGER_MAP_REVALIDATION = "trigger-map-revalidation"
 BACKBLAST_SHORTCUT = "backblast_shortcut"
+EDIT_DELETE_EVENT_TYPE_CALLBACK_ID = "edit-delete-event-type-id"
+EVENT_TYPE_EDIT_DELETE = "event-type-edit-delete"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"
@@ -307,4 +309,5 @@ ACTION_PREFIXES = [
     BACKBLAST_FILL_SELECT,
     LINEUP_SIGNUP_BUTTON,
     EVENT_INSTANCE_EDIT_DELETE,
+    EVENT_TYPE_EDIT_DELETE,
 ]

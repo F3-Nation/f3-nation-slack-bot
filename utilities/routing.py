@@ -102,7 +102,7 @@ ACTION_MAPPER = {
     actions.CALENDAR_MANAGE_AOS: (ao.manage_aos, False),
     actions.CALENDAR_MANAGE_SERIES: (series.manage_series, False),
     actions.CALENDAR_MANAGE_EVENTS: (series.manage_series, False),
-    actions.CALENDAR_MANAGE_EVENT_TYPES: (event_type.build_event_type_form, False),
+    actions.CALENDAR_MANAGE_EVENT_TYPES: (event_type.manage_event_types, False),
     actions.CALENDAR_ADD_AO_NEW_LOCATION: (location.build_location_add_form, False),
     actions.CALENDAR_HOME_EVENT: (home.handle_home_event, False),
     actions.CALENDAR_HOME_AO_FILTER: (home.build_home_form, False),
@@ -152,6 +152,7 @@ ACTION_MAPPER = {
     actions.EVENT_INSTANCE_EDIT_DELETE: (event_instance.handle_event_instance_edit_delete, False),
     event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_AO: (event_instance.build_event_instance_list_form, False),
+    actions.EVENT_TYPE_EDIT_DELETE: (event_type.handle_event_type_edit_delete, False),
 }
 
 VIEW_CLOSED_MAPPER = {
