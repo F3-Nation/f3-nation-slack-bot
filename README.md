@@ -22,26 +22,6 @@ To set your schedule, use the calendar menu in `/f3-nation-settings`. Once your 
 
 The F3 Nation Slack Bot is in active development, and I welcome any and all help or contributions! Feel free to leave an [Issue](https://github.com/F3-Nation/f3-nation-slack-bot/issues) with bugs or feature requests, or even better leave us a [Pull Request](https://github.com/F3-Nation/f3-nation-slack-bot/pulls).
 
-## Active todo list:
-
-### New functionality
-- [ ] Nearby Regions
-- [ ] Achievements
-- [ ] Add ability for not using the calendar
-- [ ] My stats command
-
-### Preblast and Backblast
-- [ ] Settings for default channel not yet working
-- [ ] Need to incorporate reminder settings
-
-### Attendance
-- [ ] Want to make it unique to user_id and event_id... will require some logic changes
-
-### Adding location on AO screen
-- [ ] doesn't seem to pick up default location_id
-
-- [ ] **Figure out migration :)**
-
 ## Local Development
 
 If you'd like to contribute to the F3 Nation Slack Bot, I highly recommend setting up a local development environment for testing. Below are the steps to get it running (I did this in unix via WSL on Windows, YMMV on OSX):
@@ -120,6 +100,10 @@ features:
       url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
       description: Triggers a announcement send
       should_escape: false
+    - command: /calendar
+      url: https://YOUR-URL.ngrok-free.app/slack/events
+      description: Opens the event calendar
+      should_escape: false
 oauth_config:
   redirect_urls:
     - https://YOUR-URL.ngrok-free.app/slack/install # You'll be editing this
@@ -127,19 +111,28 @@ oauth_config:
     user:
       - files:write
     bot:
+      - app_mentions:read
       - channels:history
+      - channels:join
       - channels:read
       - chat:write
       - chat:write.customize
       - chat:write.public
       - commands
       - files:read
+      - files:write
       - im:history
       - im:read
       - im:write
+      - incoming-webhook
+      - reactions:read
+      - reactions:write
       - team:read
+      - users.profile:read
       - users:read
-      - files:write
+      - users:read.email
+      - canvases:write
+      - canvases:read
 settings:
   event_subscriptions:
     request_url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
@@ -177,12 +170,10 @@ source .env && nodemon --exec "poetry run python main.py" -e py
 
 ## Codebase Structure
 
-This codebase utilizes the slack-bolt python sdk throughout, and will eventually be hosted on a Google Cloud Run function. Here is a high-level walkthrough of the most important components:
+This codebase utilizes the slack-bolt python sdk throughout, and auto-deploys to the Google Cloud Run function. Here is a high-level walkthrough of the most important components:
 
 - `main.py` - this is the sole entrypoint. When any event is received, it will attept to look up the appropriate feature function to call via `utilities/routing.py`. If the route has not been set up, it will do nothing
 - `utilities/routing.py` - this is a mapping of action id to a particular feature function. These functions must all take the same arguments, and are not expected to return anything
-- `utilities/slack/actions.py` - this is where I store the constant values of the various action ids used throughout
-- `features/` - this is where the meat of the functionality lives. Functions are generally either "building" a Slack form / modal, and / or responding "handling" an action or submission of a form. The design pattern I've been moving to is including the build function, the handle function, and the UI form layout for a particular menu / feature in a single file
-- `utilities/slack/orm.py` - this is where I've defined most of the Slack API UI elements in python class form, that is then used throughout. The ORM defines "blocks", that can then be converted to Slack's required json format via the `.as_form_field()` method
-- `utilities/database/orm/__init__.py` - this is where the SQLAlchemy ORM classes are defined
-- `utilities/database/create_clear_local_db.py` - this can be run to drop the database and recreate it using the ORM definition in the file above
+- `utilities/slack/actions.py` - this is where I store the constant values of the various action ids used throughout. Eventually I'd like to move these to the feature modules
+- `features/` - this is where the meat of the functionality lives. Functions are generally either "building" a Slack form / modal, and / or responding "handling" an action or submission of a form. The design pattern I've used is including the build function, the handle function, and the UI form layout for a particular menu / feature in a single file. In the future I'd like to make this more modular
+- `utilities/slack/orm.py` - this is where I've defined most of the Slack API UI elements in python class form, that is then used throughout. The ORM defines "blocks", that can then be converted to Slack's required json format via the `.as_form_field()` method. I'd eventually like to use the ORM directly from the Slack SDK, as it has some validation features I like

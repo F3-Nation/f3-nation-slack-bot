@@ -65,8 +65,12 @@ class PreblastList:
             )
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
-            .join(SlackUser, User.id == SlackUser.user_id)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .join(Org, Org.id == EventInstance.org_id)
+            .join(ParentOrg, Org.parent_id == ParentOrg.id)
+            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
+            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
+            .join(SlackUser, and_(User.id == SlackUser.user_id, SlackUser.slack_team_id == SlackSpace.team_id))  # noqa
             .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
