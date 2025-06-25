@@ -205,7 +205,7 @@ def generate_calendar_images():
                     df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
                     df.loc[:, "event_time"] = df["start_time"]
                     df.loc[df["q_name"].isna(), "q_name"] = "OPEN!"
-                    df.loc[:, "q_name"] = df["q_name"].str.replace(r"\(.*\)", "")
+                    df.loc[:, "q_name"] = df["q_name"].str.replace(r"\s\(([\s\S]*?\))", "", regex=True)
 
                     df.loc[:, "label"] = df["q_name"] + "\n" + df["event_acronym"] + " " + df["event_time"]
                     df.loc[(df["event_tag"].notnull()), ("label")] = (
