@@ -27,7 +27,6 @@ def handle_request(
             filters=[User.f3_name.ilike(f"%{value}%")],
             joinedloads=[User.home_region_org],
         )
-        print(f"User records: {user_records}")
         options = []
         for user in user_records[:10]:
             display_name = user.f3_name

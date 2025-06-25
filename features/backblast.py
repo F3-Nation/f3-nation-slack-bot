@@ -15,6 +15,7 @@ from f3_data_models.models import (
     EventType_x_EventInstance,
     Org,
     SlackUser,
+    User,
 )
 from f3_data_models.utils import DbManager
 from pillow_heif import register_heif_opener
@@ -289,6 +290,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     the_q = safe_get(backblast_data, actions.BACKBLAST_Q)
     the_coq = safe_get(backblast_data, actions.BACKBLAST_COQ)
     pax = safe_get(backblast_data, actions.BACKBLAST_PAX)
+    dr_pax = [int(id) for id in (safe_get(backblast_data, actions.USER_OPTION_LOAD) or [])]
     non_slack_pax = safe_get(backblast_data, actions.BACKBLAST_NONSLACK_PAX)
     fngs = safe_get(backblast_data, actions.BACKBLAST_FNGS)
     count = safe_get(backblast_data, actions.BACKBLAST_COUNT)
@@ -328,6 +330,17 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     pax_full_list = [pax_formatted]
     fngs_formatted = fngs
     fng_count = 0
+    if dr_pax:
+        dr_pax_users = DbManager.find_records(
+            User,
+            [User.id.in_(dr_pax)],
+            joinedloads=[User.home_region_org],
+        )
+        dr_pax_names = [u.f3_name for u in dr_pax_users]
+        dr_pax_names = ", ".join(dr_pax_names)
+        pax_full_list.append(dr_pax_names)
+        pax_names_list.append(dr_pax_names)
+        auto_count += len(dr_pax_names.split(","))
     if non_slack_pax:
         pax_full_list.append(non_slack_pax)
         pax_names_list.append(non_slack_pax)

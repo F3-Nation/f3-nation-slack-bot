@@ -63,6 +63,12 @@ BACKBLAST_FORM = orm.BlockView(
             optional=False,
             element=orm.MultiUsersSelectElement(placeholder="Select the PAX..."),
         ),
+        # orm.InputBlock(
+        #     label="Downrange PAX",
+        #     action=actions.USER_OPTION_LOAD,
+        #     optional=True,
+        #     element=orm.MultiExternalSelectElement(placeholder="Type to search..."),
+        # ),
         orm.InputBlock(
             label="List untaggable PAX, separated by commas (not FNGs)",
             action=actions.BACKBLAST_NONSLACK_PAX,
