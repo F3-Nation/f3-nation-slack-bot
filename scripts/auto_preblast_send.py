@@ -66,6 +66,7 @@ class PreblastList:
             .select_from(Attendance)
             .join(User, Attendance.user_id == User.id)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
             .join(Org, Org.id == EventInstance.org_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
             .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
