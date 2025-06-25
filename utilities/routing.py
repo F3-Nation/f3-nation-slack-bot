@@ -171,6 +171,9 @@ OPTIONS_MAPPER = {
 
 SHORTCUT_MAPPER = {
     actions.BACKBLAST_SHORTCUT: (backblast.backblast_middleware, True),
+    actions.PREBLAST_SHORTCUT: (event_preblast.preblast_middleware, True),
+    actions.CALENDAR_SHORTCUT: (home.build_home_form, True),
+    actions.SETTINGS_SHORTCUT: (config.build_config_form, True),
 }
 
 MAIN_MAPPER = {
