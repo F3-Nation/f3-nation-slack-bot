@@ -31,7 +31,7 @@ from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import aliased, joinedload
 
 from utilities.constants import EVENT_TAG_COLORS, LOCAL_DEVELOPMENT
-from utilities.helper_functions import current_date_cst, update_local_region_records
+from utilities.helper_functions import current_date_cst, safe_get, update_local_region_records
 
 
 def time_int_to_str(time: int) -> str:
@@ -304,31 +304,34 @@ def generate_calendar_images():
                         dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
 
                     # upload to s3 and remove local file
-                    region_org_record = [r for r in region_org_records if r[0].id == region_id][0]
-                    slack_app_settings = region_org_record[2].settings
-                    existing_file = slack_app_settings.get(f"calendar_image_{week}")
+                    region_org_record = safe_get([r for r in region_org_records if r[0].id == region_id], 0)
+                    if region_org_record:
+                        slack_app_settings = region_org_record[2].settings
+                        existing_file = slack_app_settings.get(f"calendar_image_{week}")
 
-                    if LOCAL_DEVELOPMENT:  # TODO: upload to GCP
-                        s3_client = boto3.client("s3")
-                        with open(filename, "rb") as f:
-                            s3_client.upload_fileobj(
-                                f, "slackblast-images", filename, ExtraArgs={"ContentType": "image/png"}
-                            )
+                        if LOCAL_DEVELOPMENT:  # TODO: upload to GCP
+                            s3_client = boto3.client("s3")
+                            with open(filename, "rb") as f:
+                                s3_client.upload_fileobj(
+                                    f, "slackblast-images", filename, ExtraArgs={"ContentType": "image/png"}
+                                )
 
-                        if existing_file:
-                            s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
-                        os.remove(filename)
+                            if existing_file:
+                                s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
+                            os.remove(filename)
+                        else:
+                            print(f"detecting existing file: {existing_file}")
+                            if existing_file:
+                                os.remove(f"/mnt/calendar-images/{existing_file}")
+
+                        # update org record with new filename
+                        slack_app_settings[f"calendar_image_{week}"] = filename
+                        session.query(SlackSpace).filter(SlackSpace.team_id == slack_app_settings["team_id"]).update(
+                            {"settings": slack_app_settings}
+                        )
+                        session.commit()
                     else:
-                        print(f"detecting existing file: {existing_file}")
-                        if existing_file:
-                            os.remove(f"/mnt/calendar-images/{existing_file}")
-
-                    # update org record with new filename
-                    slack_app_settings[f"calendar_image_{week}"] = filename
-                    session.query(SlackSpace).filter(SlackSpace.team_id == slack_app_settings["team_id"]).update(
-                        {"settings": slack_app_settings}
-                    )
-                    session.commit()
+                        print(f"No Slack settings found for region {region_id}. Skipping upload.")
 
     update_local_region_records()
 

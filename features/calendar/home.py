@@ -55,24 +55,31 @@ def build_home_form(
     print(f"AO and Event Type time: {split_time - start_time}")
     start_time = time.time()
 
-    if LOCAL_DEVELOPMENT:
-        this_week_url = S3_IMAGE_URL.format(
-            image_name=region_record.calendar_image_current or "default.png",
-        )
-        next_week_url = S3_IMAGE_URL.format(
-            image_name=region_record.calendar_image_next or "default.png",
-        )
-    else:
-        this_week_url = GCP_IMAGE_URL.format(
-            bucket="f3nation-calendar-images",
-            image_name=region_record.calendar_image_current or "default.png",
-        )
-        next_week_url = GCP_IMAGE_URL.format(
-            bucket="f3nation-calendar-images",
-            image_name=region_record.calendar_image_next or "default.png",
-        )
+    # if LOCAL_DEVELOPMENT:
+    #     this_week_url = S3_IMAGE_URL.format(
+    #         image_name=region_record.calendar_image_current or "default.png",
+    #     )
+    #     next_week_url = S3_IMAGE_URL.format(
+    #         image_name=region_record.calendar_image_next or "default.png",
+    #     )
+    # else:
+    #     this_week_url = GCP_IMAGE_URL.format(
+    #         bucket="f3nation-calendar-images",
+    #         image_name=region_record.calendar_image_current or "default.png",
+    #     )
+    #     next_week_url = GCP_IMAGE_URL.format(
+    #         bucket="f3nation-calendar-images",
+    #         image_name=region_record.calendar_image_next or "default.png",
+    #     )
 
     blocks = [
+        orm.ActionsBlock(
+            elements=[
+                orm.ButtonElement(
+                    ":calendar: Calendar Images", value="calendar", action=actions.OPEN_CALENDAR_IMAGE_BUTTON
+                )
+            ]
+        ),
         orm.DividerBlock(),
         orm.SectionBlock(label="*Upcoming Schedule*"),
         orm.InputBlock(
@@ -148,10 +155,10 @@ def build_home_form(
         # ),
     ]
 
-    if region_record.calendar_image_current:
-        blocks.insert(0, orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url))
-    if region_record.calendar_image_next:
-        blocks.insert(1, orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url))
+    # if region_record.calendar_image_current:
+    #     blocks.insert(0, orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url))
+    # if region_record.calendar_image_next:
+    #     blocks.insert(1, orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url))
 
     if safe_get(body, "view"):
         existing_filter_data = orm.BlockView(blocks=blocks).get_selected_values(body)
@@ -287,6 +294,45 @@ def build_home_form(
     split_time = time.time()
     print(f"Sending: {split_time - start_time}")
     start_time = time.time()
+
+
+def build_calendar_image_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    if LOCAL_DEVELOPMENT:
+        this_week_url = S3_IMAGE_URL.format(
+            image_name=region_record.calendar_image_current or "default.png",
+        )
+        next_week_url = S3_IMAGE_URL.format(
+            image_name=region_record.calendar_image_next or "default.png",
+        )
+    else:
+        this_week_url = GCP_IMAGE_URL.format(
+            bucket="f3nation-calendar-images",
+            image_name=region_record.calendar_image_current or "default.png",
+        )
+        next_week_url = GCP_IMAGE_URL.format(
+            bucket="f3nation-calendar-images",
+            image_name=region_record.calendar_image_next or "default.png",
+        )
+
+    blocks = [
+        orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url),
+        orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url),
+    ]
+    form = orm.BlockView(blocks=blocks)
+    form.post_modal(
+        client=client,
+        trigger_id=safe_get(body, "trigger_id"),
+        title_text="Calendar Images",
+        callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+        new_or_add="add",
+        submit_button_text="None",
+    )
 
 
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

@@ -37,6 +37,7 @@ CALENDAR_SHORTCUT = "calendar_shortcut"
 SETTINGS_SHORTCUT = "settings_shortcut"
 EDIT_DELETE_EVENT_TYPE_CALLBACK_ID = "edit-delete-event-type-id"
 EVENT_TYPE_EDIT_DELETE = "event-type-edit-delete"
+OPEN_CALENDAR_IMAGE_BUTTON = "open-calendar-image-button"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"
