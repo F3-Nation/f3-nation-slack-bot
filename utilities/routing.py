@@ -152,6 +152,7 @@ ACTION_MAPPER = {
     actions.EVENT_INSTANCE_EDIT_DELETE: (event_instance.handle_event_instance_edit_delete, False),
     event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_AO: (event_instance.build_event_instance_list_form, False),
+    event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_DATE: (event_instance.build_event_instance_list_form, False),
     actions.EVENT_TYPE_EDIT_DELETE: (event_type.handle_event_type_edit_delete, False),
     actions.OPEN_CALENDAR_IMAGE_BUTTON: (home.build_calendar_image_form, False),
 }

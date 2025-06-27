@@ -51,6 +51,7 @@ ADD_EVENT_INSTANCE_CALLBACK_ID = "add_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE = "calendar_manage_event_instance"
 EDIT_DELETE_EVENT_INSTANCE_CALLBACK_ID = "edit_delete_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE_AO = "calendar_manage_event_instance_ao"
+CALENDAR_MANAGE_EVENT_INSTANCE_DATE = "calendar_manage_event_instance_date"
 
 
 def manage_event_instances(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -303,51 +304,62 @@ def build_event_instance_list_form(
     title_text = "Delete or Edit an Event"
     confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
 
-    filter = []
-    if safe_get(body, "actions", 0, "action_id") == CALENDAR_MANAGE_EVENT_INSTANCE_AO:
-        ao_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
-        filter.append(EventInstance.org_id == ao_id)
+    start_date = current_date_cst()
+    filter_org = region_record.org_id
+    filter_values = {}
+    if safe_get(body, "actions", 0, "action_id") in [
+        CALENDAR_MANAGE_EVENT_INSTANCE_AO,
+        CALENDAR_MANAGE_EVENT_INSTANCE_DATE,
+    ]:
+        filter_values = orm.BlockView(blocks=copy.deepcopy(EVENT_LIST_FILTERS)).get_selected_values(body)
         update_view_id = safe_get(body, "view", "id")
+        if safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_AO):
+            filter_org = safe_convert(safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_AO), int)
+        if safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_DATE):
+            date_str = safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_DATE)
+            start_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
     records = DbManager.find_join_records2(
         EventInstance,
         Org,
         [
-            or_((EventInstance.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
+            or_(EventInstance.org_id == filter_org, Org.parent_id == filter_org),
             EventInstance.is_active,
-            EventInstance.start_date >= current_date_cst(),
-            *filter,
+            EventInstance.start_date >= start_date,
         ],
     )
-
+    print(f"Found {len(records)} event instances for org {filter_org} after {start_date}")
     records: list[EventInstance] = [x[0] for x in records][:40]
+    records.sort(key=lambda x: (x.start_date, x.start_time, x.name))
 
     # TODO: separate into weekly / non-weekly event_instance?
-    # TODO: add an AO filter
     ao_orgs = DbManager.find_records(
         Org,
         [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
     )
-    blocks = [
-        orm.InputBlock(
-            label="AO Filter",
-            action=CALENDAR_MANAGE_EVENT_INSTANCE_AO,
-            element=orm.StaticSelectElement(
-                placeholder="Select an AO",
-                options=orm.as_selector_options(
-                    names=[ao.name for ao in ao_orgs],
-                    values=[str(ao.id) for ao in ao_orgs],
-                ),
-                initial_value=safe_get(body, "actions", 0, "selected_option", "value"),
+    form = orm.BlockView(blocks=copy.deepcopy(EVENT_LIST_FILTERS))
+    form.set_options(
+        {
+            CALENDAR_MANAGE_EVENT_INSTANCE_AO: orm.as_selector_options(
+                names=[ao.name for ao in ao_orgs],
+                values=[str(ao.id) for ao in ao_orgs],
             ),
-            optional=True,
-            dispatch_action=True,
-        ),
-    ]
+        }
+    )
+    form.set_initial_values(
+        {
+            CALENDAR_MANAGE_EVENT_INSTANCE_AO: safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_AO),
+            CALENDAR_MANAGE_EVENT_INSTANCE_DATE: safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_DATE),
+        }
+    )
+
+    print(len(records), "event instances found")
+    print(len(form.blocks), "blocks in the form")
+
     for s in records:
         label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]
 
-        blocks.append(
+        form.blocks.append(
             orm.SectionBlock(
                 label=label,
                 action=f"{actions.EVENT_INSTANCE_EDIT_DELETE}_{s.id}",
@@ -363,7 +375,6 @@ def build_event_instance_list_form(
                 ),
             )
         )
-    form = orm.BlockView(blocks=blocks)
     if update_view_id:
         form.update_modal(
             client=client,
@@ -459,3 +470,24 @@ INSTANCE_FORM = orm.BlockView(
         ),
     ]
 )
+
+EVENT_LIST_FILTERS = [
+    orm.InputBlock(
+        label="AO Filter",
+        action=CALENDAR_MANAGE_EVENT_INSTANCE_AO,
+        element=orm.StaticSelectElement(
+            placeholder="Select an AO",
+        ),
+        optional=True,
+        dispatch_action=True,
+    ),
+    orm.InputBlock(
+        label="Date Filter",
+        action=CALENDAR_MANAGE_EVENT_INSTANCE_DATE,
+        element=orm.DatepickerElement(
+            placeholder="Select a date",
+        ),
+        optional=True,
+        dispatch_action=True,
+    ),
+]
