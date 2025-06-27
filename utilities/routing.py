@@ -176,6 +176,7 @@ SHORTCUT_MAPPER = {
     actions.PREBLAST_SHORTCUT: (event_preblast.preblast_middleware, True),
     actions.CALENDAR_SHORTCUT: (home.build_home_form, True),
     actions.SETTINGS_SHORTCUT: (config.build_config_form, True),
+    actions.TAG_ACHIEVEMENT_SHORTCUT: (weaselbot.build_achievement_form, True),
 }
 
 MAIN_MAPPER = {
