@@ -258,6 +258,7 @@ class MultiStaticSelectElement(BaseElement):
     options: List[SelectorOption] = None
     confirm: ConfirmObject = None
     action: str = None
+    max_selected_items: int = None
 
     def as_form_field(self, action: str = None):
         if not self.options:
@@ -278,6 +279,8 @@ class MultiStaticSelectElement(BaseElement):
 
         if self.confirm:
             j["confirm"] = self.confirm.as_form_field()
+        if self.max_selected_items:
+            j["max_selected_items"] = self.max_selected_items
         return j
 
     def get_selected_value(self, input_data, action):

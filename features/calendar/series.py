@@ -6,7 +6,6 @@ from logging import Logger
 from typing import List
 
 from f3_data_models.models import (
-    Attendance,
     Day_Of_Week,
     Event,
     Event_Cadence,
@@ -25,10 +24,9 @@ from flask import Request, Response
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
-from features.calendar import event_preblast
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get, trigger_map_revalidation
+from utilities.helper_functions import current_date_cst, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -51,38 +49,13 @@ def build_series_add_form(
     new_preblast: bool = False,
 ):
     parent_metadata = {"series_id": edit_event.id} if edit_event else {}
-    private_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
-    if (
-        safe_get(body, "actions", 0, "action_id") in (actions.CALENDAR_MANAGE_SERIES, actions.CALENDAR_ADD_SERIES_AO)
-        or safe_get(private_metadata, "is_series") == "True"
-    ):
-        is_series = True
-        if edit_event:
-            title_text = "Edit a Series"
-        else:
-            title_text = "Add a Series"
-        form = copy.deepcopy(SERIES_FORM)
-        parent_metadata.update({"is_series": "True"})
+
+    if edit_event:
+        title_text = "Edit a Series"
     else:
-        is_series = False
-        title_text = "Add an Event"
-        form = copy.deepcopy(EVENT_FORM)
-        parent_metadata.update({"is_series": "False"})
-        if new_preblast:
-            # Add a moleskin block if this is a new event
-            form.blocks.insert(
-                -1,
-                orm.InputBlock(
-                    label="Preblast",
-                    action=actions.CALENDAR_ADD_SERIES_PREBLAST,
-                    element=orm.PlainTextInputElement(
-                        placeholder="Give us a preview!",
-                        multiline=True,
-                    ),
-                    optional=True,
-                ),
-            )
-            parent_metadata.update({"is_preblast": "True"})
+        title_text = "Add a Series"
+    form = copy.deepcopy(SERIES_FORM)
+    parent_metadata.update({"is_series": "True"})
 
     aos: List[Org] = DbManager.find_records(
         Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
@@ -137,21 +110,21 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
         }
-        if is_series:
-            initial_values.update(
-                {
-                    actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
-                    actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern.name,
-                    actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
-                    if edit_event.recurrence_interval
-                    else "1",
-                    actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
-                }
-            )
+
+        initial_values.update(
+            {
+                actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
+                actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern.name,
+                actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
+                if edit_event.recurrence_interval
+                else "1",
+                actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
+            }
+        )
         if edit_event.event_tags:
-            initial_values[actions.CALENDAR_ADD_SERIES_TAG] = str(
-                edit_event.event_tags[0].id
-            )  # TODO: handle multiple event tags
+            initial_values[actions.CALENDAR_ADD_SERIES_TAG] = [
+                str(edit_event.event_tags[0].id)
+            ]  # TODO: handle multiple event tags
     else:
         initial_values = {
             actions.CALENDAR_ADD_SERIES_START_DATE: datetime.now().strftime("%Y-%m-%d"),
@@ -164,10 +137,7 @@ def build_series_add_form(
     # TODO: is there a better way to update the modal without having to rebuild everything?
     action_id = safe_get(body, "actions", 0, "action_id")
     if action_id in (actions.CALENDAR_ADD_SERIES_AO, actions.CALENDAR_ADD_EVENT_AO):
-        if action_id == actions.CALENDAR_ADD_SERIES_AO:
-            form_data = SERIES_FORM.get_selected_values(body)
-        else:
-            form_data = EVENT_FORM.get_selected_values(body)
+        form_data = SERIES_FORM.get_selected_values(body)
         ao: Org = DbManager.get(Org, safe_convert(safe_get(form_data, action_id), int))
         if ao:
             if ao.default_location_id:
@@ -195,10 +165,7 @@ def build_series_add_form(
 
 def handle_series_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
-    if metadata.get("is_series") == "False":
-        form_data = EVENT_FORM.get_selected_values(body)
-    else:
-        form_data = SERIES_FORM.get_selected_values(body)
+    form_data = SERIES_FORM.get_selected_values(body)
 
     end_date = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_DATE), datetime.strptime, ["%Y-%m-%d"])
 
@@ -224,7 +191,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     org_id = safe_convert(
         safe_get(form_data, actions.CALENDAR_ADD_SERIES_AO) or safe_get(form_data, actions.CALENDAR_ADD_EVENT_AO), int
     )
-    event_tag_id = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_TAG), int)
+    event_tag_id = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_TAG, 0), int)
     recurrence_interval = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_INTERVAL), int)
     index_within_interval = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_INDEX), int)
 
@@ -239,58 +206,36 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     day_of_weeks = safe_get(form_data, actions.CALENDAR_ADD_SERIES_DOW)
 
     if safe_get(metadata, "series_id"):
-        if safe_get(metadata, "is_series") == "True":
-            edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
-            if not day_of_weeks or day_of_weeks == ["None"]:
-                day_of_weeks = [edit_series_record.day_of_week.name]
+        edit_series_record: Event = DbManager.get(Event, metadata["series_id"])
+        if not day_of_weeks or day_of_weeks == ["None"]:
+            day_of_weeks = [edit_series_record.day_of_week.name]
 
     # day_of_weeks will be None if this is a one-time event (EventInstance)
-    if not day_of_weeks or day_of_weeks == ["None"]:
-        series_records = [
-            EventInstance(
-                name=series_name,
-                description=safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
-                org_id=org_id,
-                location_id=location_id,
-                event_instances_x_event_types=[EventType_x_EventInstance(event_type_id=event_type_id)],
-                event_instances_x_event_tags=[EventTag_x_EventInstance(event_tag_id=event_tag_id)]
-                if event_tag_id
-                else [],
-                start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
-                start_time=datetime.strptime(
-                    safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
-                ).strftime("%H%M"),
-                end_time=end_time,
-                is_active=True,
-                highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
-            )
-        ]
-    else:
-        for dow in day_of_weeks:
-            series = Event(
-                name=series_name,
-                description=safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
-                org_id=org_id,
-                location_id=location_id,
-                event_x_event_types=[EventType_x_Event(event_type_id=event_type_id)],
-                event_x_event_tags=[EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
-                start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
-                end_date=end_date,
-                start_time=datetime.strptime(
-                    safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
-                ).strftime("%H%M"),
-                end_time=end_time,
-                recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY)
-                or edit_series_record.recurrence_pattern,
-                recurrence_interval=recurrence_interval or edit_series_record.recurrence_interval,
-                index_within_interval=index_within_interval or edit_series_record.index_within_interval,
-                day_of_week=dow or edit_series_record.day_of_week,
-                is_active=True,
-                highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
-            )
-            series_records.append(series)
+    for dow in day_of_weeks:
+        series = Event(
+            name=series_name,
+            description=safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
+            org_id=org_id,
+            location_id=location_id,
+            event_x_event_types=[EventType_x_Event(event_type_id=event_type_id)],
+            event_x_event_tags=[EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
+            start_date=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_DATE), "%Y-%m-%d"),
+            end_date=end_date,
+            start_time=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M").strftime(
+                "%H%M"
+            ),
+            end_time=end_time,
+            recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY)
+            or edit_series_record.recurrence_pattern,
+            recurrence_interval=recurrence_interval or edit_series_record.recurrence_interval,
+            index_within_interval=index_within_interval or edit_series_record.index_within_interval,
+            day_of_week=dow or edit_series_record.day_of_week,
+            is_active=True,
+            highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
+        )
+        series_records.append(series)
 
-    if safe_get(metadata, "series_id") and safe_get(metadata, "is_series") == "True":
+    if safe_get(metadata, "series_id"):
         # series_id is passed in the metadata if this is an edit
         DbManager.update_record(Event, metadata["series_id"], fields=series_records[0].to_update_dict())
         records = [DbManager.get(Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags])]
@@ -309,10 +254,6 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 EventInstance.attendance,
             ],  # need to delete attendnace as well
         )
-    elif safe_get(metadata, "series_id") and safe_get(metadata, "is_series") == "False":
-        # series_id is passed in the metadata if this is an edit
-        DbManager.update_record(EventInstance, metadata["series_id"], fields=series_records[0].to_update_dict())
-        records = [DbManager.get(EventInstance, metadata["series_id"], joinedloads=[EventInstance.event_types])]
     else:
         records = DbManager.create_records(series_records)
     trigger_map_revalidation()
@@ -323,24 +264,11 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
         create_events(records)
 
-    if safe_get(metadata, "series_id") and safe_get(metadata, "is_series") == "True":
+    if safe_get(metadata, "series_id"):
         body["actions"] = [{"action_id": actions.CALENDAR_MANAGE_SERIES}]
         build_series_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
-
-    if metadata.get("is_preblast") == "True":
-        # If this is for a new unscheduled event, we need to set attendance and post the preblast
-        event_instance: EventInstance = records[0]
-        slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
-        DbManager.create_record(
-            Attendance(
-                event_instance_id=event_instance.id,
-                user_id=get_user(slack_user_id, region_record, client, logger).user_id,
-                is_planned=True,
-            )
-        )
-        event_preblast.send_preblast(body, client, logger, context, region_record, event_instance)
 
 
 @dataclass
@@ -478,33 +406,16 @@ def build_series_list_form(
     region_record: SlackSettings,
     update_view_id=None,
 ):
-    private_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
-    is_series = (
-        safe_get(private_metadata, "is_series") == "True"
-        or safe_get(body, "actions", 0, "action_id") == actions.CALENDAR_MANAGE_SERIES
+    title_text = "Delete or Edit a Series"
+    confirm_text = "Are you sure you want to edit / delete this series? This cannot be undone. Also, editing or deleting a series will also edit or delete all future events associated with the series."  # noqa
+    records = DbManager.find_join_records2(
+        Event,
+        Org,
+        [
+            or_((Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
+            Event.is_active,
+        ],
     )
-    if is_series:
-        title_text = "Delete or Edit a Series"
-        confirm_text = "Are you sure you want to edit / delete this series? This cannot be undone. Also, editing or deleting a series will also edit or delete all future events associated with the series."  # noqa
-        records = DbManager.find_join_records2(
-            Event,
-            Org,
-            [
-                or_((Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
-                Event.is_active,
-            ],
-        )
-    else:
-        title_text = "Delete or Edit an Event"
-        confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
-        records = DbManager.find_join_records2(
-            EventInstance,
-            Org,
-            [
-                or_((EventInstance.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
-                EventInstance.is_active,
-            ],
-        )
 
     records: list[Event | EventInstance] = [x[0] for x in records][:40]
 
@@ -531,12 +442,9 @@ def build_series_list_form(
     #     ),
     # ]
     for s in records:
-        if is_series:
-            label = f"{s.name} ({s.day_of_week.name.capitalize()} @ {s.start_time})"[  # noqa
-                :50
-            ]
-        else:
-            label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]
+        label = f"{s.name} ({s.day_of_week.name.capitalize()} @ {s.start_time})"[  # noqa
+            :50
+        ]
 
         blocks.append(
             orm.SectionBlock(
@@ -571,7 +479,6 @@ def build_series_list_form(
             callback_id=actions.EDIT_DELETE_SERIES_CALLBACK_ID,
             submit_button_text="None",
             new_or_add="add",
-            parent_metadata={"is_series": str(is_series)},
         )
 
 
@@ -580,35 +487,23 @@ def handle_series_edit_delete(
 ):
     series_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    private_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
-    is_series = safe_get(private_metadata, "is_series") == "True"
 
-    if is_series:
-        if action == "Edit":
-            series: Event = DbManager.get(Event, series_id, joinedloads="all")
-            build_series_add_form(body, client, logger, context, region_record, edit_event=series)
-        elif action == "Delete":
-            DbManager.update_record(Event, series_id, fields={"is_active": False})
-            DbManager.update_records(
-                EventInstance,
-                [EventInstance.series_id == series_id, EventInstance.start_date >= current_date_cst()],
-                fields={"is_active": False},
-            )
-            trigger_map_revalidation()
-            # set private_metadata to indicate this is a series
-            body["view"]["private_metadata"] = json.dumps({"is_series": "True"})
-            build_series_list_form(
-                body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
-            )
-    else:
-        if action == "Edit":
-            series: EventInstance = DbManager.get(EventInstance, series_id, joinedloads="all")
-            build_series_add_form(body, client, logger, context, region_record, edit_event=series)
-        elif action == "Delete":
-            DbManager.update_record(EventInstance, series_id, fields={"is_active": False})
-            build_series_list_form(
-                body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
-            )
+    if action == "Edit":
+        series: Event = DbManager.get(Event, series_id, joinedloads="all")
+        build_series_add_form(body, client, logger, context, region_record, edit_event=series)
+    elif action == "Delete":
+        DbManager.update_record(Event, series_id, fields={"is_active": False})
+        DbManager.update_records(
+            EventInstance,
+            [EventInstance.series_id == series_id, EventInstance.start_date >= current_date_cst()],
+            fields={"is_active": False},
+        )
+        trigger_map_revalidation()
+        # set private_metadata to indicate this is a series
+        body["view"]["private_metadata"] = json.dumps({"is_series": "True"})
+        build_series_list_form(
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+        )
 
 
 SERIES_FORM = orm.BlockView(
@@ -633,7 +528,7 @@ SERIES_FORM = orm.BlockView(
         orm.InputBlock(
             label="Default Event Tag",
             action=actions.CALENDAR_ADD_SERIES_TAG,
-            element=orm.StaticSelectElement(placeholder="Select the event tag"),
+            element=orm.MultiStaticSelectElement(placeholder="Select the event tag", max_selected_items=1),
             optional=True,
         ),
         orm.InputBlock(
@@ -721,67 +616,6 @@ SERIES_FORM = orm.BlockView(
                 multiline=True,
             ),
             optional=True,
-        ),
-        orm.InputBlock(
-            label="Highlight on Special Events Page?",
-            action=actions.CALENDAR_ADD_SERIES_HIGHLIGHT,
-            element=orm.CheckboxInputElement(
-                options=orm.as_selector_options(names=["Yes"], values=["True"]),
-            ),
-            hint="Primarily used for 2nd F events, convergences, etc.",
-        ),
-    ]
-)
-
-EVENT_FORM = orm.BlockView(
-    blocks=[
-        orm.InputBlock(
-            label="AO",
-            action=actions.CALENDAR_ADD_EVENT_AO,
-            element=orm.StaticSelectElement(placeholder="Select an AO"),
-            dispatch_action=True,
-        ),
-        orm.InputBlock(
-            label="Location",
-            action=actions.CALENDAR_ADD_SERIES_LOCATION,
-            element=orm.StaticSelectElement(placeholder="Select the location"),
-        ),
-        orm.InputBlock(
-            label="Event Type",
-            action=actions.CALENDAR_ADD_SERIES_TYPE,
-            # element=orm.MultiStaticSelectElement(placeholder="Select the event types"),
-            element=orm.StaticSelectElement(placeholder="Select the event type"),
-            optional=False,
-        ),
-        orm.InputBlock(
-            label="Event Tag",
-            action=actions.CALENDAR_ADD_SERIES_TAG,
-            element=orm.StaticSelectElement(placeholder="Select the event tag"),
-            optional=True,
-        ),
-        orm.InputBlock(
-            label="Date",
-            action=actions.CALENDAR_ADD_SERIES_START_DATE,
-            element=orm.DatepickerElement(placeholder="Enter the start date"),
-            optional=False,
-        ),
-        orm.InputBlock(
-            label="Start Time",
-            action=actions.CALENDAR_ADD_SERIES_START_TIME,
-            element=orm.TimepickerElement(placeholder="Enter the start time"),
-            optional=False,
-        ),
-        orm.InputBlock(
-            label="End Time",
-            action=actions.CALENDAR_ADD_SERIES_END_TIME,
-            element=orm.TimepickerElement(placeholder="Enter the end time"),
-            hint="If no end time is provided, the event will be defaulted to be one hour long.",
-        ),
-        orm.InputBlock(
-            label="Event Name",
-            action=actions.CALENDAR_ADD_SERIES_NAME,
-            element=orm.PlainTextInputElement(placeholder="Enter the event name"),
-            hint="If left blank, will default to the AO name + event type.",
         ),
         orm.InputBlock(
             label="Highlight on Special Events Page?",

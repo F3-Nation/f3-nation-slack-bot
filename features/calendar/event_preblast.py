@@ -188,9 +188,9 @@ def build_event_preblast_form(
             # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
         if record.event_tags:
-            initial_values[actions.EVENT_PREBLAST_TAG] = str(
-                record.event_tags[0].id
-            )  # TODO: handle multiple event types and current data format
+            initial_values[actions.EVENT_PREBLAST_TAG] = [
+                str(record.event_tags[0].id)
+            ]  # TODO: handle multiple event types and current data format
         coq_list = [
             s for a, s in preblast_info.attendance_slack_dict.items() if 3 in [t.id for t in a.attendance_types]
         ]
@@ -281,7 +281,7 @@ def handle_event_preblast_edit(
         DbManager.create_record(
             EventTag_x_EventInstance(
                 event_instance_id=event_instance_id,
-                event_tag_id=form_data[actions.EVENT_PREBLAST_TAG],
+                event_tag_id=safe_get(form_data, actions.EVENT_PREBLAST_TAG, 0),
             )
         )
 
@@ -722,7 +722,7 @@ EVENT_PREBLAST_FORM = orm.BlockView(
         orm.InputBlock(
             label="Event Tag",
             action=actions.EVENT_PREBLAST_TAG,
-            element=orm.StaticSelectElement(placeholder="Select Event Tag"),
+            element=orm.MultiStaticSelectElement(placeholder="Select Event Tag", max_selected_items=1),
             optional=True,
         ),
         orm.InputBlock(

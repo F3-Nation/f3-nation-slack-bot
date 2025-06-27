@@ -146,9 +146,9 @@ def build_event_instance_add_form(
             ),
         }
         if edit_event_instance.event_tags:
-            initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = str(
-                edit_event_instance.event_tags[0].id
-            )  # TODO: handle multiple event tags
+            initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [
+                str(edit_event_instance.event_tags[0].id)
+            ]  # TODO: handle multiple event tags
 
     # This is triggered when the AO is selected, defaults are loaded for the location
     # TODO: is there a better way to update the modal without having to rebuild everything?
@@ -220,7 +220,7 @@ def handle_event_instance_add(
         safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_AO) or safe_get(form_data, CALENDAR_ADD_EVENT_AO),
         int,
     )
-    event_tag_id = safe_convert(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_TAG), int)
+    event_tag_id = safe_convert(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_TAG, 0), int)
 
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_NAME):
         event_instance_name = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_NAME)
@@ -257,9 +257,10 @@ def handle_event_instance_add(
 
     if safe_get(metadata, "event_instance_id"):
         # event_instance_id is passed in the metadata if this is an edit
-        DbManager.update_record(
-            EventInstance, metadata["event_instance_id"], fields=event_instance_record.to_update_dict()
-        )
+        update_fields = event_instance_record.to_update_dict()
+        # drop the fields that are None, as we don't want to update them
+        update_fields = {k: v for k, v in update_fields.items() if v is not None}
+        DbManager.update_record(EventInstance, metadata["event_instance_id"], fields=update_fields)
         record = DbManager.get(
             EventInstance,
             metadata["event_instance_id"],
@@ -421,7 +422,7 @@ INSTANCE_FORM = orm.BlockView(
         orm.InputBlock(
             label="Event Tag",
             action=CALENDAR_ADD_EVENT_INSTANCE_TAG,
-            element=orm.StaticSelectElement(placeholder="Select the event tag"),
+            element=orm.MultiStaticSelectElement(placeholder="Select the event tag", max_selected_items=1),
             optional=True,
         ),
         orm.InputBlock(
