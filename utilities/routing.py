@@ -36,7 +36,7 @@ COMMAND_MAPPER = {
     "/f3-nation-settings": (config.build_config_form, True),
     "/tag-achievement": (weaselbot.build_achievement_form, True),
     "/send-announcement": (announcements.send, False),
-    "/calendar": (home.build_home_form, True),
+    "/f3-calendar": (home.build_home_form, True),
 }
 
 VIEW_MAPPER = {
