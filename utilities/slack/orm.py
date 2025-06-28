@@ -313,7 +313,14 @@ class MultiExternalSelectElement(BaseElement):
         if self.max_selected_items:
             j.update({"max_selected_items": self.max_selected_items})
         if self.initial_value:
-            j.update({"initial_options": self.initial_value})
+            j["initial_options"] = []
+            for option in self.initial_value:
+                j["initial_options"].append(
+                    {
+                        "text": {"type": "plain_text", "text": option.get("text"), "emoji": True},
+                        "value": option.get("value"),
+                    }
+                )
         if self.confirm:
             j.update({"confirm": self.confirm.as_form_field()})
         return j
@@ -336,7 +343,14 @@ class ExternalSelectElement(BaseElement):
         if self.min_query_length:
             j.update({"min_query_length": self.min_query_length})
         if self.initial_value:
-            j.update({"initial_option": self.initial_value})
+            j.update(
+                {
+                    "initial_option": {
+                        "text": {"type": "plain_text", "text": self.initial_value.get("text"), "emoji": True},
+                        "value": self.initial_value.get("value"),
+                    }
+                }
+            )
         if self.confirm:
             j.update({"confirm": self.confirm.as_form_field()})
         return j

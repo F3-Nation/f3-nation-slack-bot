@@ -186,6 +186,8 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             r: next((s.slack_id for s in (r.slack_users or []) if s.slack_team_id == region_record.team_id), None)
             for r in attendance_records
         }
+        # create a list of attendance records that are not in slack
+        attendance_non_slack_users = [r for r in attendance_records if not attendance_slack_dict[r]]
         q_list = [
             attendance_slack_dict[r]
             for r in attendance_records
@@ -241,6 +243,16 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
     backblast_form.set_initial_values(initial_backblast_data)
     backblast_form = add_custom_field_blocks(backblast_form, region_record, initial_values=event_metadata)
+
+    if attendance_non_slack_users:
+        update_list = [
+            {
+                "text": r.user.f3_name,
+                "value": str(r.user.id),
+            }
+            for r in attendance_non_slack_users
+        ]
+        backblast_form.set_initial_values({actions.USER_OPTION_LOAD: update_list})
 
     if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
         backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
@@ -336,6 +348,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
             [User.id.in_(dr_pax)],
             joinedloads=[User.home_region_org],
         )
+        dr_pax_names = []
+        for u in dr_pax_users:
+            db_users.append(SlackUser(user_id=u.id, slack_id=u.id, user_name=u.f3_name))
+            if u.home_region_org:
+                dr_pax_names.append(f"{u.f3_name} ({u.home_region_org.name})")
+            else:
+                dr_pax_names.append(u.f3_name)
         dr_pax_names = [u.f3_name for u in dr_pax_users]
         dr_pax_names = ", ".join(dr_pax_names)
         pax_full_list.append(dr_pax_names)

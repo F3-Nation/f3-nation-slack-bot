@@ -37,9 +37,10 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
         USER_FORM_USERNAME: user.f3_name,
     }
     if user.home_region_id:
-        form.blocks[
-            1
-        ].hint = f"Your current home region is {user.home_region_org.name}. You can change this at any time."
+        initial_values[USER_FORM_HOME_REGION] = {
+            "text": user.home_region_org.name,
+            "value": str(user.home_region_id),
+        }
     if user.avatar_url:
         initial_values[USER_FORM_IMAGE] = user.avatar_url
     else:
