@@ -76,7 +76,7 @@ def generate_calendar_images():
     with get_session() as session:
         tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
         current_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week + 1)
-        current_week_end = current_date_cst() + timedelta(days=7 - tomorrow_day_of_week)
+        current_week_end = current_date_cst() + timedelta(days=7 - tomorrow_day_of_week + 1)
         next_week_start = current_week_start + timedelta(weeks=1)
         next_week_end = current_week_end + timedelta(weeks=1)
 
