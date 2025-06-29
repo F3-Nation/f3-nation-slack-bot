@@ -66,6 +66,8 @@ def home_schedule_query(
         .join(User, User.id == Attendance.user_id)
         .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
         .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+        .join(EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id)
+        .join(EventType, EventType.id == EventType_x_EventInstance.event_type_id)
         .join(Org, Org.id == EventInstance.org_id)
         .filter(*filters)
         .group_by(Attendance.event_instance_id)
