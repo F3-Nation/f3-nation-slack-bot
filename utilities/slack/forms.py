@@ -1,6 +1,27 @@
 from utilities import constants
 from utilities.slack import actions, orm
 
+UNSCHEDULED_BACKBLAST_BLOCKS = [
+    orm.InputBlock(
+        label="Workout Date",
+        action=actions.BACKBLAST_DATE,
+        optional=False,
+        element=orm.DatepickerElement(placeholder="Select the date..."),
+    ),
+    orm.InputBlock(
+        label="Event Type",
+        action=actions.BACKBLAST_EVENT_TYPE,
+        optional=False,
+        element=orm.StaticSelectElement(placeholder="Select the event type..."),
+    ),
+    orm.InputBlock(
+        label="The AO",
+        action=actions.BACKBLAST_AO,
+        optional=False,
+        element=orm.StaticSelectElement(placeholder="Select the AO..."),
+    ),
+]
+
 BACKBLAST_FORM = orm.BlockView(
     blocks=[
         orm.InputBlock(
@@ -27,24 +48,6 @@ BACKBLAST_FORM = orm.BlockView(
             label="This is where the AO name, Event Types, and Workout Date will be filled in automatically.",
             action=actions.BACKBLAST_INFO,
         ),
-        # orm.InputBlock(
-        #     label="The AO",
-        #     action=actions.BACKBLAST_AO,
-        #     optional=False,
-        #     element=orm.ChannelsSelectElement(placeholder="Select the AO..."),
-        # ),
-        # orm.InputBlock(
-        #     label="Event Type",
-        #     action=actions.BACKBLAST_EVENT_TYPE,
-        #     optional=False,
-        #     element=orm.StaticSelectElement(placeholder="Select the event type..."),
-        # ),
-        # orm.InputBlock(
-        #     label="Workout Date",
-        #     action=actions.BACKBLAST_DATE,
-        #     optional=False,
-        #     element=orm.DatepickerElement(placeholder="Select the date..."),
-        # ),
         orm.InputBlock(
             label="The Q",
             action=actions.BACKBLAST_Q,
@@ -95,6 +98,11 @@ BACKBLAST_FORM = orm.BlockView(
             action=actions.BACKBLAST_MOLESKIN,
             optional=False,
             element=orm.RichTextInputElement(),
+        ),
+        orm.ContextBlock(
+            element=orm.ContextElement(
+                initial_value="*Note:* anything you put here may be visible to the public, through dashboards, websites, etc. We encourage you to post private COT items (prayer requests, etc) in a separate post or reply to the backblast.",  # noqa: E501
+            ),
         ),
         orm.DividerBlock(),
         # orm.InputBlock(

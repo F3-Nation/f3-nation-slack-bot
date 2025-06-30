@@ -14,6 +14,7 @@ from f3_data_models.models import (
     EventInstance,
     EventType_x_EventInstance,
     Org,
+    Org_Type,
     SlackUser,
     User,
 )
@@ -28,7 +29,6 @@ from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import event_attendance_query, get_user_permission_list
 from utilities.helper_functions import (
     current_date_cst,
-    get_channel_names,
     get_pax,
     get_user,
     parse_rich_block,
@@ -134,9 +134,9 @@ def backblast_middleware(
             select_block,
             slack_orm.ActionsBlock(
                 elements=[
-                    # slack_orm.ButtonElement(
-                    #     label=":heavy_plus_sign: New Unscheduled Event", action=actions.BACKBLAST_NEW_BLANK_BUTTON
-                    # ), # TODO: need to build this form out fully
+                    slack_orm.ButtonElement(
+                        label=":heavy_plus_sign: New Unscheduled Event", action=actions.BACKBLAST_NEW_BLANK_BUTTON
+                    ),  # TODO: need to build this form out fully
                     slack_orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
                 ]
             ),
@@ -164,14 +164,19 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     trigger_id = safe_get(body, "trigger_id")
     backblast_metadata = safe_get(body, "message", "metadata", "event_payload") or {}
+    view_metadata = safe_convert(safe_get(body, "view", "private_metadata") or "{}", json.loads)
     action_id = safe_get(body, "actions", 0, "action_id")
     if action_id == actions.BACKBLAST_FILL_SELECT:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
+    elif action_id == actions.BACKBLAST_NEW_BLANK_BUTTON or view_metadata.get("is_unscheduled") == "true":
+        event_instance_id = None
     else:
         event_instance_id = safe_get(backblast_metadata, "event_instance_id")
     update_view_id = safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
+
+    backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
 
     if event_instance_id:
         event_record: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
@@ -228,18 +233,39 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         initial_backblast_data[actions.BACKBLAST_MOLESKIN] = moleskin_block
         event_metadata = {}
     else:
+        # this is triggered for unscheduled backblasts
+        for block in forms.UNSCHEDULED_BACKBLAST_BLOCKS:
+            backblast_form.blocks.insert(2, block)
+        backblast_form.delete_block(actions.BACKBLAST_INFO)
+        aos: List[Org] = DbManager.find_records(
+            Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
+        )
+        region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+        backblast_form.set_options(
+            {
+                actions.BACKBLAST_AO: slack_orm.as_selector_options(
+                    names=[ao.name for ao in aos],
+                    values=[str(ao.id) for ao in aos],
+                ),
+                actions.BACKBLAST_EVENT_TYPE: slack_orm.as_selector_options(
+                    names=[event_type.name for event_type in region_org_record.event_types],
+                    values=[str(event_type.id) for event_type in region_org_record.event_types],
+                ),
+            }
+        )
         initial_backblast_data = {
             actions.BACKBLAST_Q: user_id,
             actions.BACKBLAST_DATE: datetime.now(pytz.timezone("US/Central")).strftime("%Y-%m-%d"),
             actions.BACKBLAST_MOLESKIN: region_record.backblast_moleskin_template,
         }
+        event_metadata = {}
+        attendance_non_slack_users = []
 
     org_event_types: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.event_types])
     event_type_options = slack_orm.as_selector_options(
         [r.name for r in org_event_types.event_types], [str(r.id) for r in org_event_types.event_types]
     )
 
-    backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
     backblast_form.set_initial_values(initial_backblast_data)
     backblast_form = add_custom_field_blocks(backblast_form, region_record, initial_values=event_metadata)
@@ -286,19 +312,31 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
 
 def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     create_or_edit = "create" if safe_get(body, "view", "callback_id") == actions.BACKBLAST_CALLBACK_ID else "edit"
-
+    metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
+    event_instance_id = safe_get(metadata, "event_instance_id")
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     backblast_form = add_custom_field_blocks(backblast_form, region_record)
-    backblast_data: dict = backblast_form.get_selected_values(body)
+
+    if event_instance_id:
+        event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+        date = event.start_date
+        event_type = event.event_types[0].id if event.event_types else None
+        event_org = event.org
+        backblast_data: dict = backblast_form.get_selected_values(body)
+    else:
+        event = None
+        date = None
+        event_type = None
+        for block in forms.UNSCHEDULED_BACKBLAST_BLOCKS:
+            backblast_form.blocks.append(block)
+        backblast_data: dict = backblast_form.get_selected_values(body)
+        print("Backblast data from form:", backblast_data)
+        event_org = DbManager.get(Org, safe_convert(safe_get(backblast_data, actions.BACKBLAST_AO), int))
+
     logger.debug(f"Backblast data: {backblast_data}")
 
-    metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
-    if safe_get(metadata, "event_instance_id"):
-        event: EventInstance = DbManager.get(EventInstance, safe_get(metadata, "event_instance_id"), joinedloads="all")
-
     title = safe_get(backblast_data, actions.BACKBLAST_TITLE)
-    the_date = safe_get(backblast_data, actions.BACKBLAST_DATE) or event.start_date.strftime("%Y-%m-%d")
-    the_ao = safe_get(backblast_data, actions.BACKBLAST_AO) or event.org.meta["slack_channel_id"]
+    the_date = safe_get(backblast_data, actions.BACKBLAST_DATE) or date
     the_q = safe_get(backblast_data, actions.BACKBLAST_Q)
     the_coq = safe_get(backblast_data, actions.BACKBLAST_COQ)
     pax = safe_get(backblast_data, actions.BACKBLAST_PAX)
@@ -309,20 +347,20 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     moleskin = safe_get(backblast_data, actions.BACKBLAST_MOLESKIN)
     email_send = safe_get(backblast_data, actions.BACKBLAST_EMAIL_SEND)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
-    event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event.event_types[0].id
+    event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event_type
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
     file_ids = safe_get(backblast_data, "file_ids") or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     file_list, file_send_list, file_ids = upload_files_to_storage(files=files, logger=logger, client=client)
-    event_instance_id = safe_get(metadata, "event_instance_id")
+
     if (
         region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
         and region_record.backblast_destination_channel
     ):
         destination_channel = region_record.backblast_destination_channel
     else:
-        destination_channel = the_ao
+        destination_channel = safe_get(event_org.meta, "slack_channel_id")
 
     if create_or_edit == "edit":
         message_channel = safe_get(metadata, "channel_id")
@@ -384,7 +422,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         the_coqs_formatted = ", " + ", ".join(the_coqs_full_list)
         the_coqs_names = ", " + ", ".join(the_coqs_names_list)
 
-    ao_name = get_channel_names([the_ao], logger, client)[0]
+    # ao_name = get_channel_names([the_ao], logger, client)[0]
     q_user = get_user(the_q, region_record, client, logger)
     q_name = q_user.user_name
     q_url = q_user.avatar_url
@@ -392,7 +430,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     post_msg = f"""*Backblast! {title}*
 *DATE*: {the_date}
-*AO*: <#{the_ao}>
+*AO*: {event_org.name}
 *Q*: <@{the_q}>{the_coqs_formatted}
 *PAX*: {pax_formatted}
 *FNGs*: {fngs_formatted}
@@ -470,13 +508,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
             moleskin_msg = moleskin_text_w_names
 
             if region_record.postie_format:
-                subject = f"[{ao_name}] {title}"
-                moleskin_msg += f"\n\nTags: {ao_name}, {pax_names}"
+                subject = f"[{event_org.name}] {title}"
+                moleskin_msg += f"\n\nTags: {event_org.name}, {pax_names}"
             else:
                 subject = title
 
             email_msg = f"""Date: {the_date}
-AO: {ao_name}
+AO: {event_org.name}
 Q: {q_name} {the_coqs_names}
 PAX: {pax_names}
 FNGs: {fngs_formatted}
@@ -541,7 +579,7 @@ COUNT: {count}
 
     backblast_parsed = f"""Backblast! {title}
 Date: {the_date}
-AO: {ao_name}
+AO: {event_org.name}
 Q: {q_name} {the_coqs_names}
 PAX: {pax_names}
 FNGs: {fngs_formatted}
@@ -551,22 +589,20 @@ COUNT: {count}
     rich_blocks: list = res["message"]["blocks"]
     rich_blocks.pop(-1)
 
+    db_fields = {
+        EventInstance.start_date: the_date,
+        EventInstance.org_id: event_org.id,
+        EventInstance.backblast_ts: res["ts"],
+        EventInstance.backblast: backblast_parsed,
+        EventInstance.backblast_rich: res["message"]["blocks"],
+        EventInstance.name: title,
+        EventInstance.pax_count: count,
+        EventInstance.fng_count: fng_count,
+        EventInstance.meta: custom_fields,
+        EventInstance.is_active: True,
+    }
     if event_instance_id:
         event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
-        db_fields = {
-            EventInstance.start_date: the_date,
-            EventInstance.org_id: event.org.id,
-            # Event.event_type_id: event_type, # TODO: update event_type records
-            EventInstance.backblast_ts: res["ts"],
-            EventInstance.backblast: backblast_parsed,
-            EventInstance.backblast_rich: res["message"]["blocks"],
-            EventInstance.name: title,
-            EventInstance.pax_count: count,
-            EventInstance.fng_count: fng_count,
-            EventInstance.meta: custom_fields,
-            EventInstance.is_active: True,
-            EventInstance.highlight: EventInstance.highlight,
-        }
         DbManager.update_record(EventInstance, event_instance_id, fields=db_fields)
         DbManager.update_records(
             EventType_x_EventInstance,
@@ -575,6 +611,7 @@ COUNT: {count}
         )  # TODO: handle multiple event types
     else:
         db_fields = {k.key: v for k, v in db_fields.items()}
+        print("Creating new event instance with fields:", db_fields)
         event = DbManager.create_record(EventInstance(**db_fields))
         event_instance_id = event.id
         DbManager.create_record(
