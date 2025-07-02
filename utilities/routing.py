@@ -15,7 +15,7 @@ from features import (
     weaselbot,
     welcome,
 )
-from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
+from features.calendar import ao, event_instance, event_preblast, event_type, home, location, series
 from features.calendar import config as calendar_config
 from scripts.q_lineups import handle_lineup_signup
 from utilities import announcements, builders, options
@@ -62,7 +62,6 @@ VIEW_MAPPER = {
     actions.EVENT_PREBLAST_CALLBACK_ID: (event_preblast.handle_event_preblast_edit, False),
     actions.CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID: (event_type.handle_event_type_add, False),
     actions.EVENT_PREBLAST_POST_CALLBACK_ID: (event_preblast.handle_event_preblast_edit, False),
-    actions.CALENDAR_ADD_EVENT_TAG_CALLBACK_ID: (event_tag.handle_event_tag_add, False),
     actions.REGION_CALLBACK_ID: (region.handle_region_edit, False),
     actions.SPECIAL_EVENTS_CALLBACK_ID: (special_events.handle_special_settings_edit, False),
     actions.CONFIG_SLT_CALLBACK_ID: (config.handle_config_slt_post, False),
@@ -115,8 +114,6 @@ ACTION_MAPPER = {
     actions.EVENT_PREBLAST_REMOVE_Q: (event_preblast.handle_event_preblast_action, False),
     actions.EVENT_PREBLAST_HC_UN_HC: (event_preblast.handle_event_preblast_action, False),
     actions.EVENT_PREBLAST_EDIT: (event_preblast.handle_event_preblast_action, False),
-    actions.CALENDAR_MANAGE_EVENT_TAGS: (event_tag.manage_event_tags, False),
-    actions.EVENT_TAG_EDIT_DELETE: (event_tag.handle_event_tag_edit_delete, False),
     actions.EVENT_PREBLAST_SELECT: (event_preblast.handle_event_preblast_select, False),
     actions.EVENT_PREBLAST_NEW_BUTTON: (home.handle_event_preblast_select_button, False),
     actions.OPEN_CALENDAR_BUTTON: (home.handle_event_preblast_select_button, False),

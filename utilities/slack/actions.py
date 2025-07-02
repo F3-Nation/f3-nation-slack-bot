@@ -241,13 +241,7 @@ CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID = "calendar-add-event-type-id"
 CALENDAR_MANAGE_EVENT_TYPES = "calendar-manage-event-types"
 EVENT_PREBLAST_POST_CALLBACK_ID = "event-preblast-post-id"
 CALENDAR_ADD_EVENT_TYPE_ACRONYM = "calendar-add-event-type-acronym"
-CALENDAR_MANAGE_EVENT_TAGS = "calendar-manage-event-tags"
-CALENDAR_ADD_EVENT_TAG_SELECT = "calendar-add-event-tag-select"
-CALENDAR_ADD_EVENT_TAG_NEW = "calendar-add-event-tag-new"
-CALENDAR_ADD_EVENT_TAG_COLOR = "calendar-add-event-tag-color"
 CALENDAR_ADD_SERIES_TAG = "calendar-add-series-tag"
-EVENT_TAG_EDIT_DELETE = "event-tag-edit-delete"
-CALENDAR_ADD_EVENT_TAG_CALLBACK_ID = "calendar-add-event-tag-id"
 EVENT_PREBLAST_TAG = "event-preblast-tag"
 EVENT_PREBLAST_SELECT = "event-preblast-select"
 EVENT_PREBLAST_SELECT_CALLBACK_ID = "event-preblast-select-id"
@@ -310,7 +304,6 @@ ACTION_PREFIXES = [
     LOCATION_EDIT_DELETE,
     AO_EDIT_DELETE,
     CALENDAR_HOME_EVENT,
-    EVENT_TAG_EDIT_DELETE,
     BACKBLAST_FILL_SELECT,
     LINEUP_SIGNUP_BUTTON,
     EVENT_INSTANCE_EDIT_DELETE,
