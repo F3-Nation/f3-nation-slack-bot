@@ -141,7 +141,6 @@ def handle_config_email_post(
     )
 
     update_local_region_records()
-    print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))
 
 
 def handle_config_general_post(
@@ -171,7 +170,6 @@ def handle_config_general_post(
     )
 
     update_local_region_records()
-    print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))
 
 
 def build_config_slt_form(

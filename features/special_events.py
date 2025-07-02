@@ -1,5 +1,4 @@
 import copy
-import json
 from logging import Logger
 
 from f3_data_models.models import SlackSpace
@@ -59,7 +58,6 @@ def handle_special_settings_edit(
     )
 
     update_local_region_records()
-    print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))
 
 
 SPECIAL_EVENTS_FORM = orm.BlockView(

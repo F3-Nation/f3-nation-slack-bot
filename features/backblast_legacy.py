@@ -492,7 +492,6 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
                 metadata={"event_type": "backblast", "event_payload": backblast_data},
             )
         logger.debug("\nMessage posted to Slack! \n{}".format(post_msg))
-        print(json.dumps({"event_type": "successful_slack_post", "team_name": region_record.workspace_name}))
         if (email_send and email_send == "yes") or (email_send is None and region_record.email_enabled == 1):
             moleskin_msg = moleskin_text_w_names
 
@@ -537,7 +536,6 @@ COUNT: {count}
             except Exception as sendmail_err:
                 logger.error("Error with sendmail: {}".format(sendmail_err))
                 logger.debug("\nEmail Sent! \n{}".format(email_msg))
-                print(json.dumps({"event_type": "failed_email", "team_name": region_record.workspace_name}))
 
     elif create_or_edit == "edit":
         text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]
@@ -551,7 +549,6 @@ COUNT: {count}
             metadata={"event_type": "backblast", "event_payload": backblast_data},
         )
         logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
-        print(json.dumps({"event_type": "successful_slack_edit", "team_name": region_record.workspace_name}))
 
         if message_ts:
             DbManager.delete_records(
@@ -565,7 +562,6 @@ COUNT: {count}
                 filters=[Attendance.timestamp == message_ts],
             )
         logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
-        print(json.dumps({"event_type": "successful_db_delete", "team_name": region_record.workspace_name}))
 
     res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 
@@ -637,7 +633,6 @@ COUNT: {count}
                 "backblast for this AO and Q on this date. Please edit the backblast using the `Edit this backblast`"
                 "button. Thanks!",
             )
-            print(json.dumps({"event_type": "failed_db_insert", "team_name": region_record.workspace_name}))
 
     for file in file_send_list:
         try:
