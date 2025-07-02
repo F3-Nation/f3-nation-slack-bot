@@ -564,14 +564,14 @@ COUNT: {count}
         logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
         print(json.dumps({"event_type": "successful_slack_edit", "team_name": region_record.workspace_name}))
 
-        if event_instance_id:
-            DbManager.delete_records(
-                Attendance,
-                filters=[
-                    Attendance.event_instance_id == event_instance_id,
-                    not_(Attendance.is_planned),
-                ],
-            )
+    if event_instance_id:
+        DbManager.delete_records(
+            Attendance,
+            filters=[
+                Attendance.event_instance_id == event_instance_id,
+                not_(Attendance.is_planned),
+            ],
+        )
         logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
         print(json.dumps({"event_type": "successful_db_delete", "team_name": region_record.workspace_name}))
 
