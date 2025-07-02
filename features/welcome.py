@@ -1,5 +1,4 @@
 import copy
-import json
 import random
 from logging import Logger
 
@@ -83,7 +82,6 @@ def handle_welcome_message_config_post(
     )
 
     update_local_region_records()
-    print(json.dumps({"event_type": "successful_config_update", "team_name": region_record.workspace_name}))
 
 
 def handle_team_join(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

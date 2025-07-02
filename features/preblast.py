@@ -175,7 +175,6 @@ def handle_preblast_post(body: dict, client: WebClient, logger: Logger, context:
             metadata={"event_type": "backblast", "event_payload": preblast_data},
         )
         logger.debug("\nPreblast posted to Slack! \n{}".format(msg))
-        print(json.dumps({"event_type": "successful_preblast_create", "team_name": region_record.workspace_name}))
     elif create_or_edit == "edit":
         client.chat_update(
             channel=message_channel,
@@ -186,7 +185,6 @@ def handle_preblast_post(body: dict, client: WebClient, logger: Logger, context:
             blocks=blocks,
         )
         logger.debug("\nPreblast updated in Slack! \n{}".format(msg))
-        print(json.dumps({"event_type": "successful_preblast_edit", "team_name": region_record.workspace_name}))
 
 
 def handle_preblast_edit_button(

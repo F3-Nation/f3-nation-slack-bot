@@ -107,7 +107,6 @@ def build_existing_region_form(body: dict, client: WebClient, logger: Logger, co
             in region.name.lower()
         ][:5]
     else:
-        # print(json.dumps(form.to_dict(), indent=4))
         form: View = View(
             type="modal",
             callback_id=CONNECT_EXISTING_REGION_CALLBACK_ID,
