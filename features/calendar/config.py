@@ -5,7 +5,7 @@ from f3_data_models.models import SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
-from features.calendar import event_instance
+from features.calendar import event_instance, event_tag
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
 from utilities.slack import actions, orm
@@ -135,7 +135,7 @@ CALENDAR_CONFIG_FORM = orm.BlockView(
         ),
         orm.SectionBlock(
             label=":label: Manage Event Tags",
-            action=actions.CALENDAR_MANAGE_EVENT_TAGS,
+            action=event_tag.CALENDAR_MANAGE_EVENT_TAGS,
             element=orm.OverflowElement(
                 options=orm.as_selector_options(
                     names=["Add Event Tag", "Edit or Delete Event Tags"],

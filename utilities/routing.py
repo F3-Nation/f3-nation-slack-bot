@@ -15,7 +15,7 @@ from features import (
     weaselbot,
     welcome,
 )
-from features.calendar import ao, event_instance, event_preblast, event_type, home, location, series
+from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
 from scripts.q_lineups import handle_lineup_signup
 from utilities import announcements, builders, options
@@ -71,6 +71,7 @@ VIEW_MAPPER = {
     actions.CALENDAR_CONFIG_GENERAL_CALLBACK_ID: (calendar_config.handle_calendar_config_general, False),
     user.USER_FORM_ID: (user.handle_user_form, False),
     event_instance.ADD_EVENT_INSTANCE_CALLBACK_ID: (event_instance.handle_event_instance_add, False),
+    event_tag.CALENDAR_ADD_EVENT_TAG_CALLBACK_ID: (event_tag.handle_event_tag_add, False),
 }
 
 ACTION_MAPPER = {
@@ -152,7 +153,22 @@ ACTION_MAPPER = {
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_DATE: (event_instance.build_event_instance_list_form, False),
     actions.EVENT_TYPE_EDIT_DELETE: (event_type.handle_event_type_edit_delete, False),
     actions.OPEN_CALENDAR_IMAGE_BUTTON: (home.build_calendar_image_form, False),
+    event_tag.EVENT_TAG_EDIT_DELETE: (event_tag.handle_event_tag_edit_delete, False),
+    event_tag.CALENDAR_MANAGE_EVENT_TAGS: (event_tag.manage_event_tags, False),
 }
+
+ACTION_PREFIXES = [
+    actions.STRAVA_ACTIVITY_BUTTON,
+    actions.SERIES_EDIT_DELETE,
+    actions.LOCATION_EDIT_DELETE,
+    actions.AO_EDIT_DELETE,
+    actions.CALENDAR_HOME_EVENT,
+    actions.BACKBLAST_FILL_SELECT,
+    actions.LINEUP_SIGNUP_BUTTON,
+    actions.EVENT_INSTANCE_EDIT_DELETE,
+    actions.EVENT_TYPE_EDIT_DELETE,
+    event_tag.EVENT_TAG_EDIT_DELETE,
+]
 
 VIEW_CLOSED_MAPPER = {
     actions.CUSTOM_FIELD_ADD_FORM: (builders.ignore_event, False),

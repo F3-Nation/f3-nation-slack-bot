@@ -2,9 +2,23 @@ import json
 from typing import Any, Dict, List
 
 from slack_sdk.models.blocks import Block, ImageBlock, InputBlock, SectionBlock
+from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.views import View
 
+# slack_sdk.models.composition_objects.Option
 from utilities.helper_functions import safe_get
+
+
+def as_selector_options(names: List[str], values: List[str] = None, descriptions: List[str] = None) -> List[Option]:
+    """Helper to create a list of Option objects from a list of names and values."""
+    options = []
+    for i, name in enumerate(names):
+        value = values[i] if values else name
+        description = descriptions[i] if descriptions else None
+        options.append(Option(text=name, value=value, description=description))
+    if not options:
+        options.append(Option(text="No options available", value="none"))
+    return options
 
 
 class SdkBlockView:
@@ -25,6 +39,13 @@ class SdkBlockView:
         """Adds a block to the view."""
         self.blocks.append(block)
 
+    def get_block(self, block_id: str) -> Block | None:
+        """Finds a block in the view by its block_id."""
+        for block in self.blocks:
+            if getattr(block, "block_id", None) == block_id:
+                return block
+        return None
+
     def set_initial_values(self, values: dict):
         """
         Sets initial values for elements within the blocks.
@@ -33,25 +54,68 @@ class SdkBlockView:
         for block in self.blocks:
             if isinstance(block, InputBlock) and block.block_id in values:
                 if hasattr(block.element, "initial_value"):
-                    block.element.initial_value = values[block.block_id]
-                elif hasattr(block.element, "initial_options"):
-                    # This requires creating Option objects, which is more complex.
-                    # For now, this part is not fully supported for multi-selects.
-                    pass
-                elif hasattr(block.element, "initial_option"):
-                    # This requires creating an Option object, which is more complex.
-                    # For now, this part is not fully supported for single selects.
-                    pass
+                    if block.element.type == "number_input":
+                        if isinstance(values[block.block_id], str):
+                            try:
+                                values[block.block_id] = float(values[block.block_id])
+                            except ValueError:
+                                values[block.block_id] = 0.0
+                        if block.element.is_decimal_allowed:
+                            values[block.block_id] = round(values[block.block_id], 4)
+                        else:
+                            values[block.block_id] = int(values[block.block_id])
+                    block.element.initial_value = str(values[block.block_id])
+                elif block.element.type in ["multi_static_select", "checkboxes"]:
+                    block.element.initial_options = []
+                    for value in values[block.block_id]:
+                        selected_option = next((x for x in block.element.options if x.value == value), None)
+                        if selected_option:
+                            block.element.initial_options.append(selected_option)
+                elif block.element.type in ["static_select", "radio_buttons"]:
+                    selected_option = next(
+                        (x for x in block.element.options if x.value == values[block.block_id]), None
+                    )
+                    if selected_option:
+                        block.element.initial_option = selected_option
+                elif block.element.type == "external_select":
+                    block.element.initial_option = {
+                        "text": {"type": "plain_text", "text": values[block.block_id].get("text", "")},
+                        "value": values[block.block_id].get("value", ""),
+                    }
+                elif block.element.type == "multi_external_select":
+                    for value in values[block.block_id]:
+                        block.element.initial_options.append(
+                            {
+                                "text": {"type": "plain_text", "text": value.get("text", "")},
+                                "value": value.get("value", ""),
+                            }
+                        )
+                elif block.element.type == "channels_select":
+                    block.element.initial_channel = values[block.block_id]
+                elif block.element.type == "multi_channels_select":
+                    block.element.initial_channels = values[block.block_id]
+                elif block.element.type == "conversations_select":
+                    block.element.initial_conversation = values[block.block_id]
+                elif block.element.type == "multi_conversations_select":
+                    block.element.initial_conversations = values[block.block_id]
+                elif block.element.type == "datepicker":
+                    block.element.initial_date = values[block.block_id]
+                elif block.element.type == "timepicker":
+                    block.element.initial_time = values[block.block_id]
+                elif block.element.type == "users_select":
+                    block.element.initial_user = values[block.block_id]
+                elif block.element.type == "multi_users_select":
+                    block.element.initial_users = values[block.block_id]
+                # TODO: Add support for context block
             elif isinstance(block, SectionBlock) and block.block_id in values:
                 if hasattr(block.text, "text"):
                     block.text.text = values[block.block_id]
             elif isinstance(block, ImageBlock) and block.block_id in values:
                 block.image_url = values[block.block_id]
 
-    def set_options(self, options: Dict[str, List]):
+    def set_options(self, options: Dict[str, List[Option]]):
         """
         Sets options for select elements within the blocks.
-        NOTE: The options should be a list of slack_sdk.models.composition_objects.Option objects.
         """
         for block in self.blocks:
             if isinstance(block, InputBlock) and block.block_id in options:

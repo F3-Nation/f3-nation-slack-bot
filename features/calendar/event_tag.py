@@ -5,13 +5,19 @@ from typing import List
 
 from f3_data_models.models import EventTag, Org
 from f3_data_models.utils import DbManager
+from slack_sdk.models.blocks import (
+    DividerBlock,
+    InputBlock,
+    SectionBlock,
+)
+from slack_sdk.models.blocks.basic_components import ConfirmObject, PlainTextObject
+from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.web import WebClient
 
-from utilities import routing
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
-from utilities.slack import actions, orm
+from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
 
 # Action IDs
 CALENDAR_MANAGE_EVENT_TAGS = "calendar-manage-event-tags"
@@ -21,6 +27,7 @@ CALENDAR_ADD_EVENT_TAG_COLOR = "calendar-add-event-tag-color"
 EVENT_TAG_EDIT_DELETE = "event-tag-edit-delete"
 CALENDAR_ADD_EVENT_TAG_CALLBACK_ID = "calendar-add-event-tag-id"
 EDIT_DELETE_AO_CALLBACK_ID = "edit-delete-ao-id"
+CALENDAR_EVENT_TAG_COLORS_IN_USE = "calendar-event-tag-colors-in-use"
 
 
 class EventTagService:
@@ -98,14 +105,14 @@ class EventTagViews:
     """
 
     @staticmethod
-    def build_add_tag_modal(available_tags: List[EventTag], org_tags: List[EventTag]) -> orm.BlockView:
+    def build_add_tag_modal(available_tags: List[EventTag], org_tags: List[EventTag]) -> SdkBlockView:
         """
         Constructs the modal for adding a new or existing event tag.
         """
         form = copy.deepcopy(EVENT_TAG_FORM)
         form.set_options(
             {
-                CALENDAR_ADD_EVENT_TAG_SELECT: orm.as_selector_options(
+                CALENDAR_ADD_EVENT_TAG_SELECT: as_selector_options(
                     names=[tag.name for tag in available_tags],
                     values=[str(tag.id) for tag in available_tags],
                     descriptions=[tag.color for tag in available_tags],
@@ -113,11 +120,12 @@ class EventTagViews:
             }
         )
         color_list = [f"{e.name} - {e.color}" for e in org_tags]
-        form.blocks[-1].label = f"Colors already in use: \n - {'\n - '.join(color_list)}"
+        if color_block := form.get_block(CALENDAR_EVENT_TAG_COLORS_IN_USE):
+            color_block.text.text = f"Colors already in use: \n - {'\n - '.join(color_list)}"
         return form
 
     @staticmethod
-    def build_edit_tag_modal(tag_to_edit: EventTag, org_tags: List[EventTag]) -> orm.BlockView:
+    def build_edit_tag_modal(tag_to_edit: EventTag, org_tags: List[EventTag]) -> SdkBlockView:
         """
         Constructs the modal for editing an existing event tag.
         """
@@ -129,39 +137,45 @@ class EventTagViews:
             }
         )
 
-        # Keep only the name, color, and color list blocks
-        form.blocks = form.blocks[3:]
+        # Remove blocks that are not needed for editing
+        form.delete_block(CALENDAR_ADD_EVENT_TAG_SELECT)
 
-        form.blocks[0].label = "Edit Event Tag"
-        form.blocks[0].element.placeholder = "Edit Event Tag"
+        # Find the input block for the tag name and change its label
+        if name_input_block := form.get_block(CALENDAR_ADD_EVENT_TAG_NEW):
+            name_input_block.label.text = "Edit Event Tag"
+            name_input_block.element.placeholder.text = "Edit Event Tag"
 
+        # Update the list of colors in use
         color_list = [f"{e.name} - {e.color}" for e in org_tags]
-        form.blocks[-1].label = f"Colors already in use: \n - {'\n - '.join(color_list)}"
+        if color_block := form.get_block(CALENDAR_EVENT_TAG_COLORS_IN_USE):
+            color_block.text.text = f"Colors already in use: \n - {'\n - '.join(color_list)}"
+
         return form
 
     @staticmethod
-    def build_tag_list_modal(org_tags: List[EventTag]) -> orm.BlockView:
+    def build_tag_list_modal(org_tags: List[EventTag]) -> SdkBlockView:
         """
         Constructs the modal that lists an organization's event tags, with options to edit or delete them.
         """
         blocks = [
-            orm.SectionBlock(
-                label=s.name,
-                action=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
-                element=orm.StaticSelectElement(
+            SectionBlock(
+                text=s.name,
+                block_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
+                accessory=StaticSelectElement(
                     placeholder="Edit or Delete",
-                    options=orm.as_selector_options(names=["Edit", "Delete"]),
-                    confirm=orm.ConfirmObject(
+                    options=as_selector_options(names=["Edit", "Delete"]),
+                    confirm=ConfirmObject(
                         title="Are you sure?",
                         text="Are you sure you want to edit / delete this Event Tag? This cannot be undone.",
                         confirm="Yes, I'm sure",
                         deny="Whups, never mind",
                     ),
+                    action_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
                 ),
             )
             for s in org_tags
         ]
-        return orm.BlockView(blocks=blocks)
+        return SdkBlockView(blocks=blocks)
 
 
 def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -236,39 +250,36 @@ def handle_event_tag_edit_delete(
         service.delete_org_specific_tag(event_tag_id)
 
 
-EVENT_TAG_FORM = orm.BlockView(
+EVENT_TAG_FORM = SdkBlockView(
     blocks=[
-        orm.SectionBlock(
-            label="Note: Event tags are an way to add context about an event. They are different from Event Types, which are used to define the 'what you will do' of an event.",  # noqa
-        ),
-        orm.InputBlock(
-            label="Select from commonly used event tags",
-            element=orm.StaticSelectElement(placeholder="Select from commonly used event tags"),
-            optional=True,
-            action=CALENDAR_ADD_EVENT_TAG_SELECT,
-        ),
-        orm.DividerBlock(),
-        orm.InputBlock(
-            label="Or create a new event tag",
-            element=orm.PlainTextInputElement(placeholder="New event tag"),
-            action=CALENDAR_ADD_EVENT_TAG_NEW,
-            optional=True,
-        ),
-        orm.InputBlock(
-            label="Event tag color",
-            element=orm.StaticSelectElement(
-                placeholder="Select a color",
-                options=orm.as_selector_options(names=list(EVENT_TAG_COLORS.keys())),
+        SectionBlock(
+            text=PlainTextObject(
+                text="Note: Event tags are a way to add context about an event. They are different from Event Types, which are used to define the 'what you will do' of an event.",  # noqa
             ),
-            action=CALENDAR_ADD_EVENT_TAG_COLOR,
+        ),
+        InputBlock(
+            label=PlainTextObject(text="Select from commonly used event tags"),
+            element=StaticSelectElement(placeholder=PlainTextObject(text="Select from commonly used event tags")),
+            optional=True,
+            block_id=CALENDAR_ADD_EVENT_TAG_SELECT,
+        ),
+        DividerBlock(),
+        InputBlock(
+            label=PlainTextObject(text="Or create a new event tag"),
+            element=PlainTextInputElement(placeholder=PlainTextObject(text="New event tag")),
+            block_id=CALENDAR_ADD_EVENT_TAG_NEW,
+            optional=True,
+        ),
+        InputBlock(
+            label=PlainTextObject(text="Event tag color"),
+            element=StaticSelectElement(
+                placeholder=PlainTextObject(text="Select a color"),
+                options=as_selector_options(names=list(EVENT_TAG_COLORS.keys())),
+            ),
+            block_id=CALENDAR_ADD_EVENT_TAG_COLOR,
             optional=True,
             hint="This is the color that will be shown on the calendar",
         ),
-        orm.SectionBlock(label="Colors already in use:"),
+        SectionBlock(text="Colors already in use:", block_id=CALENDAR_EVENT_TAG_COLORS_IN_USE),
     ]
 )
-
-routing.ACTION_MAPPER[CALENDAR_MANAGE_EVENT_TAGS] = (manage_event_tags, False)
-routing.VIEW_MAPPER[CALENDAR_ADD_EVENT_TAG_CALLBACK_ID] = (handle_event_tag_add, False)
-routing.ACTION_MAPPER[EVENT_TAG_EDIT_DELETE] = (handle_event_tag_edit_delete, False)
-actions.ACTION_PREFIXES.append(EVENT_TAG_EDIT_DELETE)

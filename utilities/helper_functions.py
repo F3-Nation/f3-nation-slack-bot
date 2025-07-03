@@ -26,7 +26,6 @@ from utilities import constants
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
 from utilities.database.orm.paxminer import get_pm_engine
-from utilities.slack import actions
 
 REGION_RECORDS: Dict[str, SlackSettings] = {}
 SLACK_USERS: Dict[str, SlackUser] = {}
@@ -320,12 +319,14 @@ def populate_users(client: WebClient, team_id: str, org_id: int = None) -> None:
 
 
 def get_request_type(body: dict) -> Tuple[str]:
+    from utilities import routing
+
     request_type = safe_get(body, "type")
     if request_type == "event_callback":
         return ("event_callback", safe_get(body, "event", "type"))
     elif request_type == "block_actions":
         block_action = safe_get(body, "actions", 0, "action_id")
-        for action in actions.ACTION_PREFIXES:
+        for action in routing.ACTION_PREFIXES:
             if block_action[: len(action)] == action:
                 return ("block_actions", action)
         return ("block_actions", block_action)
