@@ -177,7 +177,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     update_view_id = safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
 
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
-
+    attendance_non_slack_users = []
     if event_instance_id:
         event_record: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
         event_metadata = event_record.meta or {}
@@ -645,7 +645,7 @@ def handle_backblast_edit_button(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
+    # channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
 
     slack_user = get_user(user_id, region_record, client, logger)
     user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
@@ -654,7 +654,6 @@ def handle_backblast_edit_button(
     backblast_data = safe_get(body, "message", "metadata", "event_payload") or json.loads(
         safe_get(body, "actions", 0, "value") or "{}"
     )
-
     if region_record.editing_locked == 1:
         allow_edit: bool = (
             user_is_admin
@@ -674,9 +673,17 @@ def handle_backblast_edit_button(
             region_record=region_record,
         )
     else:
-        client.chat_postEphemeral(
-            text="Editing this backblast is only allowed for the Q(s), the original poster, or your local region admins."  # noqa
-            "Please contact one of them to make changes.",
-            channel=channel_id,
-            user=user_id,
+        form = slack_orm.BlockView(
+            blocks=[
+                slack_orm.SectionBlock(
+                    label="Editing this backblast is only allowed for the Q(s), the original poster, or your local region admins.",  # noqa
+                )
+            ]
+        )
+        form.update_modal(
+            client=client,
+            view_id=safe_get(body, actions.LOADING_ID),
+            callback_id=actions.BACKBLAST_EDIT_CALLBACK_ID,
+            title_text="Backblast Edit",
+            submit_button_text="None",
         )
