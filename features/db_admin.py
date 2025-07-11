@@ -12,6 +12,7 @@ from sqlalchemy import engine, or_
 from features.calendar.series import create_events
 from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
+from scripts.update_slack_users import update_slack_users
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.helper_functions import current_date_cst, get_user, safe_get, trigger_map_revalidation
@@ -40,38 +41,6 @@ def build_db_admin_form(
     update_view_id = update_view_id or safe_get(body, actions.LOADING_ID)
     if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD") or message:
         form = copy.deepcopy(DB_ADMIN_FORM)
-        # alembic_cfg = config.Config("alembic.ini")
-        # engine = get_engine()
-        # db_at_head = check_current_head(alembic_cfg, engine)
-        # if message:
-        #     msg = message + "\n\n"
-        # else:
-        #     msg = ""
-
-        # if db_at_head:
-        #     msg += "Database is at the latest version."
-        #     form.blocks.append(
-        #         orm.ActionsBlock(
-        #             elements=[
-        #                 orm.ButtonElement(
-        #                     label="Reset database",
-        #                     action=actions.DB_ADMIN_RESET,
-        #                 ),
-        #             ],
-        #         )
-        #     )
-        # else:
-        #     msg += "Database is not at the latest version."
-        #     form.blocks.append(
-        #         orm.ActionsBlock(
-        #             elements=[
-        #                 orm.ButtonElement(
-        #                     label="Upgrade database",
-        #                     action=actions.DB_ADMIN_UPGRADE,
-        #                 ),
-        #             ],
-        #         )
-        #     )
         form.blocks[-1].label = message or " "
     else:
         form = copy.deepcopy(DB_WRONG_PASSWORD_FORM)
@@ -123,6 +92,16 @@ def handle_calendar_image_refresh(
     region_record: SlackSettings,
 ):
     generate_calendar_images()
+
+
+def handle_slack_user_refresh(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    update_slack_users()
 
 
 def handle_paxminer_migration(
@@ -319,6 +298,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Trigger Map Revalidation",
                     action=actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION,
+                ),
+                orm.ButtonElement(
+                    label="Refresh Slack Users",
+                    action=actions.SECRET_MENU_REFRESH_SLACK_USERS,
                 ),
             ],
         ),

@@ -36,9 +36,7 @@ def update_slack_users():
                 else:
                     if slack_user is None:
                         continue
-                        # Create a new SlackUser record if it doesn't exist
-                        # slack_user = SlackUser(slack_id=user["id"])
-                        # slack_user_dict[user["id"]] = slack_user
+                        # TODO: create a new SlackUser / User record if it doesn't exist
                     else:
                         update_fields = {
                             SlackUser.user_name: safe_get(user, "profile", "real_name") or safe_get(user, "name"),

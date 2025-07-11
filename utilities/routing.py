@@ -155,6 +155,7 @@ ACTION_MAPPER = {
     actions.OPEN_CALENDAR_IMAGE_BUTTON: (home.build_calendar_image_form, False),
     event_tag.EVENT_TAG_EDIT_DELETE: (event_tag.handle_event_tag_edit_delete, False),
     event_tag.CALENDAR_MANAGE_EVENT_TAGS: (event_tag.manage_event_tags, False),
+    actions.SECRET_MENU_REFRESH_SLACK_USERS: (db_admin.handle_slack_user_refresh, False),
 }
 
 ACTION_PREFIXES = [
