@@ -77,7 +77,6 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
 
     achievement_info: Achievement = DbManager.get(Achievement, achievement_id)
     achievement_name = achievement_info.name
-    achievement_verb = achievement_info.verb
 
     # Get all achievements for the year
     pax_awards: list[Achievement_x_User] = DbManager.find_records(
@@ -99,7 +98,7 @@ def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, conte
             pax_awards_this_achievement[award.user_id] += 1
 
     for pax in achievement_slack_user_list:
-        msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}* for {achievement_verb}!"
+        msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}*!"
         msg += f" This is achievement #{pax_awards_total[pax.user_id] + 1} for him this year"
         if pax_awards_this_achievement[pax.user_id] > 0:
             msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} time this year for this achievement."

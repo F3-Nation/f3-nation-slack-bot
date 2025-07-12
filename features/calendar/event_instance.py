@@ -217,9 +217,12 @@ def handle_event_instance_add(
     # Apply int conversion to all values if not null
     location_id = safe_convert(location_id, int)
     event_type_id = safe_convert(event_type_id, int)
-    org_id = safe_convert(
-        safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_AO) or safe_get(form_data, CALENDAR_ADD_EVENT_AO),
-        int,
+    org_id = (
+        safe_convert(
+            safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_AO) or safe_get(form_data, CALENDAR_ADD_EVENT_AO),
+            int,
+        )
+        or region_record.org_id
     )
     event_tag_id = safe_convert(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_TAG, 0), int)
 
@@ -417,11 +420,13 @@ INSTANCE_FORM = orm.BlockView(
             action=CALENDAR_ADD_EVENT_INSTANCE_AO,
             element=orm.StaticSelectElement(placeholder="Select an AO"),
             dispatch_action=True,
+            optional=False,
         ),
         orm.InputBlock(
             label="Location",
             action=CALENDAR_ADD_EVENT_INSTANCE_LOCATION,
             element=orm.StaticSelectElement(placeholder="Select the location"),
+            optional=False,
         ),
         orm.InputBlock(
             label="Event Type",
