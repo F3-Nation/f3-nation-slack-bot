@@ -41,8 +41,9 @@ def update_slack_users():
                         update_fields = {
                             SlackUser.user_name: safe_get(user, "profile", "real_name") or safe_get(user, "name"),
                             SlackUser.slack_updated: safe_get(user, "updated"),
-                            SlackUser.is_admin: safe_get(user, "is_admin"),
-                            SlackUser.is_owner: safe_get(user, "is_owner"),
+                            SlackUser.is_admin: safe_get(user, "is_admin") or False,
+                            SlackUser.is_owner: safe_get(user, "is_owner") or False,
+                            SlackUser.is_bot: safe_get(user, "is_bot") or False,
                             SlackUser.avatar_url: safe_get(user, "profile", "image_512"),
                         }
                         DbManager.update_record(SlackUser, slack_user.id, update_fields)
