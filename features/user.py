@@ -11,6 +11,7 @@ from utilities.slack.orm import (
     BlockView,
     ContextBlock,
     ContextElement,
+    DividerBlock,
     ExternalSelectElement,
     FileInputElement,
     ImageBlock,
@@ -23,6 +24,9 @@ USER_FORM_HOME_REGION = "user_home_region"
 USER_FORM_IMAGE = "user_image"
 USER_FORM_IMAGE_UPLOAD = "user_image_upload"
 USER_FORM_ID = "user_form_id"
+USER_FORM_EMERGENCY_CONTACT = "user_emergency_contact"
+USER_FORM_EMERGENCY_CONTACT_PHONE = "user_emergency_contact_phone"
+USER_FORM_EMERGENCY_CONTACT_NOTES = "user_emergency_contact_notes"
 
 
 def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -35,6 +39,9 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
 
     initial_values = {
         USER_FORM_USERNAME: user.f3_name,
+        USER_FORM_EMERGENCY_CONTACT: user.emergency_contact,
+        USER_FORM_EMERGENCY_CONTACT_PHONE: user.emergency_phone,
+        USER_FORM_EMERGENCY_CONTACT_NOTES: user.emergency_notes,
     }
     if user.home_region_id:
         initial_values[USER_FORM_HOME_REGION] = {
@@ -65,6 +72,9 @@ def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dic
     update_fields = {
         User.f3_name: safe_get(form_data, USER_FORM_USERNAME),
         User.home_region_id: safe_get(form_data, USER_FORM_HOME_REGION),
+        User.emergency_contact: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT),
+        User.emergency_phone: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT_PHONE),
+        User.emergency_notes: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT_NOTES),
     }
 
     file = safe_get(form_data, USER_FORM_IMAGE_UPLOAD, 0)
@@ -108,6 +118,28 @@ FORM = BlockView(
                     "heic",
                     "bmp",
                 ],
+            ),
+            optional=True,
+        ),
+        DividerBlock(),
+        InputBlock(
+            label="Emergency Contact",
+            action=USER_FORM_EMERGENCY_CONTACT,
+            element=PlainTextInputElement(placeholder="Enter an emergency contact name"),
+            optional=True,
+        ),
+        InputBlock(
+            label="Emergency Contact Phone",
+            action=USER_FORM_EMERGENCY_CONTACT_PHONE,
+            element=PlainTextInputElement(placeholder="Enter an emergency contact phone number"),
+            optional=True,
+        ),
+        InputBlock(
+            label="Emergency Contact Notes",
+            action=USER_FORM_EMERGENCY_CONTACT_NOTES,
+            element=PlainTextInputElement(
+                placeholder="Enter any notes in case of an emergency (e.g., allergies, medical conditions)",
+                multiline=True,
             ),
             optional=True,
         ),
