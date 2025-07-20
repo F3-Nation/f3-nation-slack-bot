@@ -4,7 +4,14 @@ import json
 from flask import Request, Response
 
 from features import canvas
-from scripts import auto_preblast_send, backblast_reminders, calendar_images, preblast_reminders, q_lineups, slack_users
+from scripts import (
+    auto_preblast_send,
+    backblast_reminders,
+    calendar_images,
+    preblast_reminders,
+    q_lineups,
+    update_slack_users,
+)
 
 
 def handle(request: Request) -> Response:
@@ -48,7 +55,7 @@ def handle(request: Request) -> Response:
             except Exception as e:
                 print(f"Error sending Q lineups: {e}")
             try:
-                slack_users.update_slack_users()
+                update_slack_users.update_slack_users()
             except Exception as e:
                 print(f"Error updating Slack users: {e}")
             return Response("Hourly scripts complete", status=200)
