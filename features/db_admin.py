@@ -4,18 +4,19 @@ from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
-from f3_data_models.models import Event, Org, Org_Type, Org_x_SlackSpace, Role_x_User_x_Org, SlackSpace
+from f3_data_models.models import Event, Org, Org_x_SlackSpace, Role_x_User_x_Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import engine, or_
 
+from features import user as user_form
 from features.calendar.series import create_events
 from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from scripts.update_slack_users import update_slack_users
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
-from utilities.helper_functions import current_date_cst, get_user, safe_get, trigger_map_revalidation
+from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -175,32 +176,24 @@ def handle_make_org(
     context: dict,
     region_record: SlackSettings,
 ):
-    try:
-        team_info = client.team_info()
-        team_name = team_info["team"]["name"]
-    except Exception:
-        team_name = safe_get(body, "team", "domain")
-    org_record = Org(
-        org_type=Org_Type.region,
-        name=team_name,
-        is_active=True,
-    )
-    org_record: Org = DbManager.create_record(org_record)
+    form_data = DB_ADMIN_FORM.get_selected_values(body)
+    region_org_id = safe_convert(safe_get(form_data, user_form.USER_FORM_HOME_REGION), int)
+    team_id = safe_get(body, "team", "id") or safe_get(body, "team_id")
+    if region_org_id and team_id:
+        slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == team_id])
+        if slack_space_record:
+            connect_record = Org_x_SlackSpace(
+                org_id=region_org_id,
+                slack_space_id=slack_space_record.id,
+            )
+            DbManager.create_record(connect_record)
 
-    region_record.org_id = org_record.id
-    DbManager.update_records(
-        cls=SlackSpace,
-        filters=[SlackSpace.team_id == region_record.team_id],
-        fields={SlackSpace.settings: region_record.__dict__},
-    )
-
-    slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == region_record.team_id])
-    DbManager.create_record(
-        Org_x_SlackSpace(
-            org_id=org_record.id,
-            slack_space_id=slack_space_record.id,
+        region_record.org_id = region_org_id
+        DbManager.update_records(
+            cls=SlackSpace,
+            filters=[SlackSpace.team_id == region_record.team_id],
+            fields={SlackSpace.settings: region_record.__dict__},
         )
-    )
 
 
 def handle_ao_lineups(
@@ -284,7 +277,7 @@ DB_ADMIN_FORM = orm.BlockView(
                     action=actions.SECRET_MENU_UPDATE_CANVAS,
                 ),
                 orm.ButtonElement(
-                    label="Create Org and Connect",
+                    label="Connect to Org",
                     action=actions.SECRET_MENU_MAKE_ORG,
                 ),
                 orm.ButtonElement(
@@ -318,7 +311,13 @@ DB_ADMIN_FORM = orm.BlockView(
             label="External Test",
             action=actions.USER_OPTION_LOAD,
             optional=True,
-            element=orm.MultiExternalSelectElement(),
+            element=orm.MultiExternalSelectElement(min_query_length=3),
+        ),
+        orm.InputBlock(
+            label="Region Org",
+            action=user_form.USER_FORM_HOME_REGION,
+            optional=True,
+            element=orm.ExternalSelectElement(min_query_length=3, placeholder="Select a region org"),
         ),
     ]
 )
