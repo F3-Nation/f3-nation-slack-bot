@@ -273,8 +273,8 @@ def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackS
         slackblast_region: Row = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).fetchone()
     engine.dispose()
 
-    slackblast_region = slackblast_region._mapping if isinstance(slackblast_region, Row) else slackblast_region
     if slackblast_region:
+        slackblast_region = slackblast_region._asdict()
         settings_starters.update({k: v for k, v in slackblast_region.items() if k in SlackSettings.__annotations__})
     else:
         engine = get_pm_engine("paxminer", echo=False)
