@@ -6,11 +6,9 @@ from logging import Logger
 import pytz
 from slack_sdk.web import WebClient
 
-from utilities.database import DbManager
 from utilities.database.orm import SlackSettings
-from utilities.database.orm.paxminer import PaxminerUser, Region
+from utilities.database.orm.paxminer import Region
 from utilities.helper_functions import (
-    get_user_names,
     remove_keys_from_dict,
     safe_get,
 )
@@ -25,8 +23,10 @@ def build_preblast_form(body: dict, client: WebClient, logger: Logger, context: 
     update_view_id = safe_get(body, actions.LOADING_ID)
     preblast_form = copy.deepcopy(forms.PREBLAST_LEGACY_FORM)
 
-    if (safe_get(body, "command") in ["/preblast"]) or (
-        safe_get(body, "actions", 0, "action_id") == actions.PREBLAST_NEW_BUTTON
+    if (
+        (safe_get(body, "command") in ["/preblast"])
+        or (safe_get(body, "actions", 0, "action_id") == actions.PREBLAST_NEW_BUTTON)
+        or (safe_get(body, "callback_id") == actions.PREBLAST_SHORTCUT)
     ):
         preblast_method = "New"
         parent_metadata = {}
@@ -95,10 +95,6 @@ def handle_preblast_post(body: dict, client: WebClient, logger: Logger, context:
     moleskin = safe_get(preblast_data, actions.PREBLAST_MOLESKIN)
     destination = safe_get(preblast_data, actions.PREBLAST_DESTINATION)
 
-    user_records = None
-    if region_record.paxminer_schema:
-        user_records = DbManager.find_records(PaxminerUser, filters=[True], schema=region_record.paxminer_schema)
-
     chan = destination
     if chan == "The_AO":
         chan = the_ao
@@ -111,9 +107,11 @@ def handle_preblast_post(body: dict, client: WebClient, logger: Logger, context:
         message_channel = chan
         message_ts = None
 
-    q_name, q_url = get_user_names([the_q], logger, client, return_urls=True, user_records=user_records)
-    q_name = (q_name or [""])[0]
-    q_url = q_url[0]
+    user_info = client.users_info(user=the_q)
+    q_name = safe_get(user_info, "user", "profile", "display_name") or safe_get(
+        user_info, "user", "profile", "real_name"
+    )
+    q_url = safe_get(user_info, "user", "profile", "image_192")
 
     header_msg = f"*Preblast: {title}*"
     date_msg = f"*Date*: {the_date}"

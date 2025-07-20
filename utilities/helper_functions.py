@@ -20,12 +20,12 @@ from slack_bolt.oauth.oauth_settings import OAuthSettings
 from slack_sdk.oauth.installation_store import FileInstallationStore
 from slack_sdk.oauth.state_store import FileOAuthStateStore
 from slack_sdk.web import WebClient
-from sqlalchemy import text
+from sqlalchemy import Row, text
 
 from utilities import constants
 from utilities.constants import LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
-from utilities.database.orm.paxminer import get_pm_engine
+from utilities.database.orm.paxminer import PaxminerUser, get_pm_engine
 
 REGION_RECORDS: Dict[str, SlackSettings] = {}
 SLACK_USERS: Dict[str, SlackUser] = {}
@@ -270,8 +270,10 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackSettings:
     engine = get_pm_engine("slackblast", echo=False)
     with engine.connect() as conn:
-        slackblast_region = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).fetchone()
+        slackblast_region: Row = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).fetchone()
     engine.dispose()
+
+    slackblast_region = slackblast_region._mapping if isinstance(slackblast_region, Row) else slackblast_region
     if slackblast_region:
         settings_starters.update({k: v for k, v in slackblast_region.items() if k in SlackSettings.__annotations__})
     else:
@@ -673,3 +675,50 @@ def upload_files_to_s3(
             logger.error(f"Error uploading file: {e}")
 
     return file_list, file_send_list, file_ids
+
+
+def get_user_names_legacy(
+    array_of_user_ids,
+    logger,
+    client: WebClient,
+    return_urls=False,
+    user_records: List[PaxminerUser] = None,
+):
+    names = []
+    urls = []
+
+    if user_records and not return_urls:
+        for user_id in array_of_user_ids:
+            user = [u for u in user_records if u.user_id == user_id]
+            if user:
+                user_name = user[0].user_name or user[0].real_name
+            else:
+                user_info_dict = client.users_info(user=user_id)
+                user_name = (
+                    safe_get(user_info_dict, "user", "profile", "display_name")
+                    or safe_get(user_info_dict, "user", "profile", "real_name")
+                    or None
+                )
+            if user_name:
+                names.append(user_name)
+
+    else:
+        for user_id in array_of_user_ids:
+            user_info_dict = client.users_info(user=user_id)
+            user_name = (
+                safe_get(user_info_dict, "user", "profile", "display_name")
+                or safe_get(user_info_dict, "user", "profile", "real_name")
+                or None
+            )
+            if user_name:
+                names.append(user_name)
+            logger.debug("user_name is {}".format(user_name))
+
+            user_icon_url = user_info_dict["user"]["profile"]["image_192"]
+            urls.append(user_icon_url)
+        logger.debug("names are {}".format(names))
+
+    if return_urls:
+        return names, urls
+    else:
+        return names

@@ -19,7 +19,7 @@ from utilities.database.orm.paxminer import Attendance, Backblast, PaxminerAO, P
 from utilities.helper_functions import (
     get_channel_id,
     get_pax,
-    get_user_names,
+    get_user_names_legacy,
     parse_rich_block,
     plain_text_to_rich_block,
     remove_keys_from_dict,
@@ -84,6 +84,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         (safe_get(body, "command") in ["/backblast", "/slackblast"])
         or (safe_get(body, "actions", 0, "action_id") == actions.BACKBLAST_NEW_BUTTON)
         or (safe_get(body, "view", "callback_id") == actions.BACKBLAST_CALLBACK_ID_LEGACY)
+        or (safe_get(body, "callback_id") == actions.BACKBLAST_SHORTCUT)
     ):
         backblast_method = "create"
         update_view_id = safe_get(body, actions.LOADING_ID)
@@ -345,7 +346,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         message_ts = None
 
     auto_count = len(set([the_q] + (the_coq or []) + pax))
-    pax_names_list = get_user_names(pax, logger, client, return_urls=False, user_records=user_records) or [""]
+    pax_names_list = get_user_names_legacy(pax, logger, client, return_urls=False, user_records=user_records) or [""]
     # names, urls = get_user_names(
     #     [pax, the_coq or [], the_q], logger, client, return_urls=True, region_record=region_record
     # )
@@ -372,14 +373,16 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     else:
         the_coqs_formatted = get_pax(the_coq)
         the_coqs_full_list = [the_coqs_formatted]
-        the_coqs_names_list = get_user_names(the_coq, logger, client, return_urls=False, user_records=user_records)
+        the_coqs_names_list = get_user_names_legacy(
+            the_coq, logger, client, return_urls=False, user_records=user_records
+        )
         the_coqs_formatted = ", " + ", ".join(the_coqs_full_list)
         the_coqs_names = ", " + ", ".join(the_coqs_names_list)
 
     # moleskin_formatted = parse_moleskin_users(moleskin, client, user_records)
 
     ao_name = get_channel_name(the_ao, logger, client, region_record)
-    q_name, q_url = get_user_names([the_q], logger, client, return_urls=True, user_records=user_records)
+    q_name, q_url = get_user_names_legacy([the_q], logger, client, return_urls=True, user_records=user_records)
     q_name = (q_name or [""])[0]
     q_url = q_url[0]
 
