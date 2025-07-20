@@ -89,7 +89,7 @@ def backblast_middleware(
     context: dict,
     region_record: SlackSettings,
 ):
-    if region_record.org_id is None:
+    if region_record.org_id is None or (region_record.migration_date or current_date_cst()) > current_date_cst():
         backblast_legacy.build_backblast_form(body, client, logger, context, region_record)
     else:
         user = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger)

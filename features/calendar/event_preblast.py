@@ -61,7 +61,7 @@ def preblast_middleware(
     context: dict,
     region_record: SlackSettings,
 ):
-    if region_record.org_id is None:
+    if region_record.org_id is None or (region_record.migration_date or current_date_cst()) < current_date_cst():
         preblast_legacy.build_preblast_form(body, client, logger, context, region_record)
     else:
         build_event_preblast_select_form(body, client, logger, context, region_record)

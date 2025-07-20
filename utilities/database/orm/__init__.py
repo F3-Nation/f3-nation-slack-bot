@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import date
 from typing import Any, Optional
 
 
@@ -51,3 +52,4 @@ class SlackSettings:
     canvas_channel: Optional[str] = None
     paxminer_schema: Optional[str] = None
     send_q_lineups: Optional[bool] = None
+    migration_date: Optional[date] = None

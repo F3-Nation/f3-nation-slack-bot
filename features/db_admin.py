@@ -242,7 +242,7 @@ def handle_generate_instances(
         ],
         joinedloads="all",
     )
-    create_events(event_records, clear_first=True)
+    create_events(event_records, clear_first=True, start_date=region_record.migration_date or current_date_cst())
 
 
 def handle_trigger_map_revalidation(
