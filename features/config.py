@@ -37,9 +37,10 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
         if user_is_admin:
             config_form = copy.deepcopy(forms.CONFIG_FORM)
         else:
-            if len(admin_users) == 0:
+            if region_record.org_id is None:
+                config_form = copy.deepcopy(forms.CONFIG_NO_ORG_FORM)
+            elif len(admin_users) == 0:
                 make_user_admin(region_record.org_id, slack_user.user_id)
-                config_form = copy.deepcopy(forms.CONFIG_FORM)
             else:
                 config_form = copy.deepcopy(forms.CONFIG_NO_PERMISSIONS_FORM)
                 config_form.blocks[1].label += " Your region's admin users are: "

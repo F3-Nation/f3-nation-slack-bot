@@ -238,10 +238,39 @@ CONFIG_FORM = orm.BlockView(
                     label=":bar_chart: Custom Field Settings",
                     action=actions.CONFIG_CUSTOM_FIELDS,
                 ),
+            ],
+        ),
+    ]
+)
+
+CONFIG_NO_ORG_FORM = orm.BlockView(
+    [
+        orm.ActionsBlock(
+            elements=[
                 # orm.ButtonElement(
-                #     label="Connect Region",
+                #     label=":date: Migration Settings",
                 #     action=actions.CONFIG_CONNECT,
                 # ),
+                orm.ButtonElement(
+                    label=":bust_in_silhouette: User Settings",
+                    action=actions.CONFIG_USER_SETTINGS,
+                ),
+                orm.ButtonElement(
+                    label=":speech_balloon: Welcomebot Settings",
+                    action=actions.CONFIG_WELCOME_MESSAGE,
+                ),
+                orm.ButtonElement(
+                    label=":gear: Backblast & Preblast Settings",
+                    action=actions.CONFIG_GENERAL,
+                ),
+                orm.ButtonElement(
+                    label=":email: Backblast Email Settings",
+                    action=actions.CONFIG_EMAIL,
+                ),
+                orm.ButtonElement(
+                    label=":bar_chart: Custom Field Settings",
+                    action=actions.CONFIG_CUSTOM_FIELDS,
+                ),
             ],
         ),
     ]

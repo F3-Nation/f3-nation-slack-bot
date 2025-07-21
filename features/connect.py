@@ -23,6 +23,7 @@ from slack_sdk.models.blocks.block_elements import (
 from slack_sdk.models.views import View, ViewState
 from slack_sdk.web import WebClient
 
+from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
 
 CONNECT_EXISTING_REGION = "connect_existing_region"
@@ -35,7 +36,9 @@ STARFISH_EXISTING_REGION = "connect_region_starfish"
 SEARCH_REGION = "search_region"
 
 
-def build_connect_options_form(body: dict, client: WebClient, logger: Logger, context: dict):
+def build_connect_options_form(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
     # Create the form
     # should start with text saying "Connect your workspace to a F3 region"
     # then two buttons: "Connect to an existing region" and "Create a new region"
@@ -64,11 +67,11 @@ def build_connect_options_form(body: dict, client: WebClient, logger: Logger, co
             ),
         ],
     )
-    client.views_open(trigger_id=safe_get(body, "trigger_id"), view=form)
+    client.views_push(trigger_id=safe_get(body, "trigger_id"), view=form)
     # client.views_push(interactivity_pointer=safe_get(body, "trigger_id"), view=form)
 
 
-def handle_connect_options(body: dict, client: WebClient, logger: Logger, context: dict):
+def handle_connect_options(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     action_id = safe_get(body, "actions", 0, "action_id")
     if action_id == CONNECT_EXISTING_REGION:
         build_existing_region_form(body, client, logger, context)
@@ -83,7 +86,9 @@ def handle_connect_options(body: dict, client: WebClient, logger: Logger, contex
         build_existing_region_form(body, client, logger, context)
 
 
-def build_existing_region_form(body: dict, client: WebClient, logger: Logger, context: dict):
+def build_existing_region_form(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
     unassigned_regions: List[Org] = DbManager.find_records(
         Org, [Org.org_type == Org_Type.region, Org.is_active], joinedloads=[Org.slack_space]
     )
@@ -151,7 +156,7 @@ def build_existing_region_form(body: dict, client: WebClient, logger: Logger, co
     client.views_update(view_id=safe_get(body, "view", "id"), view=form)
 
 
-def build_new_region_form(body: dict, client: WebClient, logger: Logger, context: dict):
+def build_new_region_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form: View = View(
         type="modal",
         callback_id=CREATE_NEW_REGION_CALLBACK_ID,
@@ -171,7 +176,9 @@ def build_new_region_form(body: dict, client: WebClient, logger: Logger, context
     client.views_update(view_id=safe_get(body, "view", "id"), view=form)
 
 
-def handle_existing_region_selection(body: dict, client: WebClient, logger: Logger, context: dict):
+def handle_existing_region_selection(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
     state = ViewState(**safe_get(body, "view", "state"))
     region_select = state.values.get(SELECT_REGION).get(SELECT_REGION)
     blocks = [
@@ -239,7 +246,9 @@ def handle_existing_region_selection(body: dict, client: WebClient, logger: Logg
     # print(f"Connecting to region with id {region_select.selected_option.get('value')}")
 
 
-def handle_new_region_creation(body: dict, client: WebClient, logger: Logger, context: dict):
+def handle_new_region_creation(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
     state = ViewState(**safe_get(body, "view", "state"))
     region_name = state.values.get(NEW_REGION_NAME).get(NEW_REGION_NAME)
     print(f"Creating new region with name {region_name.value}")
