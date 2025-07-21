@@ -1,6 +1,7 @@
 import json
 from copy import deepcopy
 from dataclasses import dataclass
+from datetime import datetime
 from logging import Logger
 from typing import List
 
@@ -61,7 +62,11 @@ def preblast_middleware(
     context: dict,
     region_record: SlackSettings,
 ):
-    if region_record.org_id is None or (region_record.migration_date or current_date_cst()) < current_date_cst():
+    if (
+        region_record.org_id is None
+        or (safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now())
+        > datetime.now()
+    ):
         preblast_legacy.build_preblast_form(body, client, logger, context, region_record)
     else:
         build_event_preblast_select_form(body, client, logger, context, region_record)

@@ -44,7 +44,7 @@ def build_preblast_form(body: dict, client: WebClient, logger: Logger, context: 
                 actions.PREBLAST_Q: user_id,
                 actions.PREBLAST_DATE: datetime.now(pytz.timezone("US/Central")).strftime("%Y-%m-%d"),
                 actions.PREBLAST_DESTINATION: "The_AO",
-                actions.PREBLAST_MOLESKIN: region_record.preblast_moleskin_template or "",
+                actions.PREBLAST_MOLESKIN: region_record.preblast_moleskin_template,
             }
         )
         if channel_id:

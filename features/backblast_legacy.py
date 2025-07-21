@@ -176,6 +176,11 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     else:
         logger.debug("ao_id is {}".format(ao_id))
         logger.debug("channel_id is {}".format(channel_id))
+        names = [f"The AO Channel (#{ao_name})"]
+        values = ["The_AO"]
+        if isinstance(channel_id, str) and channel_id != ao_id and channel_id != "":
+            names.append(f"Current Channel (#{channel_name})")
+            values.append(channel_id)
         backblast_form.set_options(
             {
                 actions.BACKBLAST_DESTINATION: slack_orm.as_selector_options(

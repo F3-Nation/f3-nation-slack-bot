@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from datetime import date, datetime
@@ -275,7 +276,17 @@ def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackS
 
     if slackblast_region:
         slackblast_region = slackblast_region._asdict()
-        settings_starters.update({k: v for k, v in slackblast_region.items() if k in SlackSettings.__annotations__})
+        dicts_to_convert = [
+            "backblast_moleskin_template",
+            "preblast_moleskin_template",
+            "welcome_dm_template",
+            "custom_fields",
+        ]
+        for k, v in slackblast_region.items():
+            if k in dicts_to_convert and isinstance(v, str):
+                v = safe_convert(v, json.loads)
+            if k in SlackSettings.__annotations__:
+                settings_starters[k] = v
     else:
         engine = get_pm_engine("paxminer", echo=False)
         with engine.connect() as conn:
