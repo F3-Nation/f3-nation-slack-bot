@@ -12,7 +12,7 @@ from slack_sdk.web import WebClient
 from features import db_admin
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import get_position_users, get_user_permission_list
+from utilities.database.special_queries import get_admin_users, get_position_users, make_user_admin
 from utilities.helper_functions import (
     get_user,
     safe_convert,
@@ -29,13 +29,27 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
         db_admin.build_db_admin_form(body, client, logger, context, region_record, update_view_id)
     else:
         slack_user = get_user(user_id, region_record, client, logger)
-        user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
-        user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
+        # user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
+        # user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
+        admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+        user_is_admin = any(u[0].id == slack_user.id for u in admin_users)
 
         if user_is_admin:
             config_form = copy.deepcopy(forms.CONFIG_FORM)
         else:
-            config_form = copy.deepcopy(forms.CONFIG_NO_PERMISSIONS_FORM)
+            if len(admin_users) == 0:
+                make_user_admin(region_record.org_id, slack_user.user_id)
+                config_form = copy.deepcopy(forms.CONFIG_FORM)
+            else:
+                config_form = copy.deepcopy(forms.CONFIG_NO_PERMISSIONS_FORM)
+                config_form.blocks[1].label += " Your region's admin users are: "
+                user_labels = []
+                for admin_user in admin_users:
+                    if admin_user[1]:
+                        user_labels.append(f" <@{admin_user[1].slack_id}>")
+                    else:
+                        user_labels.append(admin_user[0].f3_name or "")
+                config_form.blocks[1].label += ", ".join(user_labels)
 
         config_form.update_modal(
             client=client,

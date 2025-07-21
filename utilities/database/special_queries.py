@@ -214,3 +214,40 @@ def get_position_users(org_id: int, region_org_id: int, slack_team_id: str) -> L
             output.append(PositionExtended(position=position, slack_users=slack_users))
 
         return output
+
+
+def get_admin_users(org_id: int, slack_team_id: str) -> List[tuple[User, SlackUser]]:
+    with get_session() as session:
+        query = (
+            session.query(User, SlackUser)
+            .join(Role_x_User_x_Org, and_(Role_x_User_x_Org.user_id == User.id, Role_x_User_x_Org.org_id == org_id))
+            .join(Role, and_(Role.id == Role_x_User_x_Org.role_id, Role.name == "admin"))
+            .join(SlackUser, and_(SlackUser.user_id == User.id, SlackUser.slack_team_id == slack_team_id), isouter=True)
+        )
+        return query.all()
+
+
+def make_user_admin(org_id: int, user_id: int) -> None:
+    with get_session() as session:
+        # Check if the user is already an admin
+        existing_admin = (
+            session.query(Role_x_User_x_Org)
+            .filter(Role_x_User_x_Org.user_id == user_id, Role_x_User_x_Org.org_id == org_id)
+            .join(Role, Role.id == Role_x_User_x_Org.role_id)
+            .filter(Role.name == "admin")
+            .first()
+        )
+        if existing_admin:
+            return  # User is already an admin
+
+        # Create a new admin role if it doesn't exist
+        admin_role = session.query(Role).filter(Role.name == "admin").first()
+        if not admin_role:
+            admin_role = Role(name="admin")
+            session.add(admin_role)
+            session.commit()
+
+        # Assign the admin role to the user
+        new_admin = Role_x_User_x_Org(user_id=user_id, org_id=org_id, role_id=admin_role.id)
+        session.add(new_admin)
+        session.commit()
