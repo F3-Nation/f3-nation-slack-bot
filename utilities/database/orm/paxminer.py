@@ -182,10 +182,6 @@ class PaxminerAO(BaseClass, GetDBClass):
     channel_created: Mapped[int]
     archived: Mapped[tinyint]
     backblast: Mapped[tinyint]
-    qsignups_enabled: Mapped[Optional[tinyint]]
-    ao_display_name: Mapped[Optional[str45]]
-    ao_location_subtitle: Mapped[Optional[int]]
-    site_q_user_id = Mapped[Optional[str]]
 
     def get_id():
         return PaxminerAO.channel_id
