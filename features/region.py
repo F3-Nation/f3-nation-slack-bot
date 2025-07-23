@@ -8,7 +8,7 @@ from slack_sdk.web import WebClient
 
 from features import connect
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import get_admin_users_list
+from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
 from utilities.slack import actions, orm
 
@@ -26,8 +26,8 @@ def build_region_form(
     if not org_record:
         connect.build_connect_options_form(body, client, logger, context)
     else:
-        admin_users = get_admin_users_list(region_record.org_id, slack_team_id=region_record.team_id)
-        admin_user_ids = [u.slack_id for u in admin_users]
+        admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+        admin_user_ids = [u[1].slack_id for u in admin_users]
 
         form.set_initial_values(
             {
