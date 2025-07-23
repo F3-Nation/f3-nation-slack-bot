@@ -1,5 +1,6 @@
 import copy
 import os
+from datetime import datetime
 from logging import Logger
 
 from alembic import command, config, script
@@ -235,7 +236,10 @@ def handle_generate_instances(
         ],
         joinedloads="all",
     )
-    create_events(event_records, clear_first=True, start_date=region_record.migration_date or current_date_cst())
+    start_date = (
+        safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now()
+    ).date()
+    create_events(event_records, clear_first=True, start_date=start_date)
 
 
 def handle_trigger_map_revalidation(
