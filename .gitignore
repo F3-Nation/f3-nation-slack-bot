@@ -152,3 +152,7 @@ env.json
 
 .aws-sam/
 .aws-sam-old/
+
+# manifest files
+app_manifest.yaml
+app_manifest.json
