@@ -111,10 +111,11 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
         }
 
+        recurrence_pattern = edit_event.recurrence_pattern or Event_Cadence.weekly
         initial_values.update(
             {
                 actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
-                actions.CALENDAR_ADD_SERIES_FREQUENCY: edit_event.recurrence_pattern.name,
+                actions.CALENDAR_ADD_SERIES_FREQUENCY: recurrence_pattern.name,
                 actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
                 if edit_event.recurrence_interval
                 else "1",
