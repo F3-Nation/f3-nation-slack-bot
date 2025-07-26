@@ -34,7 +34,7 @@ If you don’t have a development environment of choice, I’m going to make two
 2. **Unix environment:** if on Windows 10+, you can enable “Windows Subsystem for Linux” (WSL), that will allow you to run a version of linux directly on top of / inside of Windows. VSCode makes it very easy to “remote” into WSL: [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (I use Ubuntu FWIW).
 3. **Python 3.12:** you may already have this, but if not I recommend pyenv to manage python installations: [pyenv/pyenv: Simple Python version management](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation). Specifically, F3 Nation currently uses **Python 3.12**
 4. **Postgresql:** this app uses postgresql 16 on the backend, so you will need to set up a local instance for testing.
-5. **Ngrok:** you will use this to forward network traffic to your locally running development app: [Download (ngrok.com)](https://ngrok.com/download). You will need to create a free account and install your authtoken: [Your Authtoken - ngrok](https://dashboard.ngrok.com/get-started/your-authtoken)
+5. **Ngrok:** you will use this to forward network traffic to your locally running development app: [Download (ngrok.com)](https://ngrok.com/download) or alternatively use a [snap](https://snapcraft.io/ngrok). You will need to create a free account and install your authtoken: [Your Authtoken - ngrok](https://dashboard.ngrok.com/get-started/your-authtoken)
 6. **Poetry:** I use Poetry for of my apps’ dependency / environment management: [Introduction | Documentation | Poetry - Python dependency management and packaging made easy (python-poetry.org)](https://python-poetry.org/docs/)
 7. **Git:** Git should be installed in most unix environments, here’s unix: [Git (git-scm.com)](https://git-scm.com/download/linux)
 8. **Nodemon:** this is a useful utility for having “hot reload” when you’re developing: [nodemon - npm (npmjs.com)](https://www.npmjs.com/package/nodemon). You will likely need to install npm: [How to install Node.js and NPM on WSL2 (cloudbytes.dev)](https://cloudbytes.dev/snippets/how-to-install-nodejs-and-npm-on-wsl2)
@@ -67,84 +67,22 @@ poetry install
     1. Navigate to [api.slack.com]()
     2. Click "Create an app"
     3. Click "From a manifest", select your workspace
-    4. Paste in the manifest below
+    4. Export the YOUR_URL variable, and generate a manifest, and paste in the contents to manifest window.
+       ```
+       export YOUR_URL=myuniqueurl
+       ```
+       ```
+       ./generate_app_manifest.sh 
+        Generated app_manifest.yaml with URL: weshayutinfoo.ngrok-free.app
+        Converting YAML to JSON using yq...
+        Generated app_manifest.json
+       ```
+       ```
+       cat app_manifest.yaml # or .json if the website manifest validation is finicky 
+       ```
     5. After creating the app, you will need a couple of items: first, copy and save the Signing Secret from Basic Information. Second, copy and save the Bot User OAuth Token from OAuth & Permissions
 
-```yaml
-display_information:
-  name: f3-nation-dev
-  description: An invokable form to produce properly-formatted backblasts and preblasts
-  background_color: "#000000"
-features:
-  bot_user:
-    display_name: f3-Nation-Dev
-    always_online: true
-  slash_commands:
-    - command: /preblast
-      url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-      description: Launch preblast template
-      should_escape: false
-    - command: /f3-nation-settings
-      url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-      description: Managers your region's settings for F3 Nation, including your schedule
-      should_escape: false
-    - command: /backblast
-      url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-      description: Launch backblast template
-      should_escape: false
-    - command: /tag-achievement
-      url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-      description: Lauches a form for manually tagging Weaselbot achievements
-      should_escape: false
-    - command: /send-announcement
-      url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-      description: Triggers a announcement send
-      should_escape: false
-    - command: /calendar
-      url: https://YOUR-URL.ngrok-free.app/slack/events
-      description: Opens the event calendar
-      should_escape: false
-oauth_config:
-  redirect_urls:
-    - https://YOUR-URL.ngrok-free.app/slack/install # You'll be editing this
-  scopes:
-    user:
-      - files:write
-    bot:
-      - app_mentions:read
-      - channels:history
-      - channels:join
-      - channels:read
-      - chat:write
-      - chat:write.customize
-      - chat:write.public
-      - commands
-      - files:read
-      - files:write
-      - im:history
-      - im:read
-      - im:write
-      - incoming-webhook
-      - reactions:read
-      - reactions:write
-      - team:read
-      - users.profile:read
-      - users:read
-      - users:read.email
-      - canvases:write
-      - canvases:read
-settings:
-  event_subscriptions:
-    request_url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-    bot_events:
-      - team_join
-  interactivity:
-    is_enabled: true
-    request_url: https://YOUR-URL.ngrok-free.app/slack/events # You'll be editing this
-  org_deploy_enabled: false
-  socket_mode_enabled: false
-  token_rotation_enabled: false
-```
+
 5. Copy `.env.example`, replacing `ADMIN_DATABASE_PASSWORD` with the one you used to set up Postgresql, `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above, and save the new file as `.env` in the base directory. There are several secrets you will need from Moneyball.
 6. Run Ngrok with the following command from your terminal:
 ```sh
