@@ -860,6 +860,7 @@ class BlockView:
         close_button_text: str = "Close",
         notify_on_close: bool = False,
         new_or_add: str = "new",
+        try_load_without: List[str] = None,
     ) -> dict:
         blocks = self.as_form_field()
 
@@ -878,9 +879,24 @@ class BlockView:
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
         if new_or_add == "new":
-            res = client.views_open(trigger_id=trigger_id, view=view)
+            try:
+                res = client.views_open(trigger_id=trigger_id, view=view)
+            except Exception:
+                if try_load_without:
+                    for field in try_load_without:
+                        self.delete_block(field)
+                    blocks = self.as_form_field()
+                    res = client.views_open(trigger_id=trigger_id, view=view)
         elif new_or_add == "add":
-            res = client.views_push(trigger_id=trigger_id, view=view)
+            try:
+                res = client.views_push(trigger_id=trigger_id, view=view)
+            except Exception:
+                if try_load_without:
+                    for field in try_load_without:
+                        self.delete_block(field)
+                    blocks = self.as_form_field()
+                    view["blocks"] = blocks
+                    res = client.views_push(trigger_id=trigger_id, view=view)
 
         return res
 
@@ -894,6 +910,7 @@ class BlockView:
         parent_metadata: dict = None,
         close_button_text: str = "Close",
         notify_on_close: bool = False,
+        try_load_without: List[str] = None,
     ):
         blocks = self.as_form_field()
 
@@ -910,7 +927,15 @@ class BlockView:
         if submit_button_text != "None":
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
-        client.views_update(view_id=view_id, view=view)
+        try:
+            client.views_update(view_id=view_id, view=view)
+        except Exception:
+            if try_load_without:
+                for field in try_load_without:
+                    self.delete_block(field)
+                blocks = self.as_form_field()
+                view["blocks"] = blocks
+                client.views_update(view_id=view_id, view=view)
 
 
 def parse_welcome_template(template: str, user_id: str) -> List[BaseBlock]:
