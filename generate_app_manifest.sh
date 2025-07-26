@@ -7,16 +7,37 @@ YOUR_URL="${YOUR_URL:-your-ngrok-url-here}"
 cat > app_manifest.yaml << EOF
 display_information:
   name: f3-nation-dev
-  description: An invokable form to produce properly-formatted backblasts and preblasts
+  description: The official F3 Slack app to manage your region's scheduling, signups, attendance tracking, and more!
   background_color: "#000000"
 features:
   bot_user:
     display_name: f3-Nation-Dev
     always_online: true
+  shortcuts:
+    - name: Create a backblast
+      type: global
+      callback_id: backblast_shortcut
+      description: Opens a form to create a backblast for a recent event
+    - name: Create a preblast
+      type: global
+      callback_id: preblast_shortcut
+      description: Opens a form to create a preblast for an upcoming event
+    - name: Open F3 Nation Settings
+      type: global
+      callback_id: settings_shortcut
+      description: Opens F3 user and region settings (if you're an admin)
+    - name: Open F3 Calendar
+      type: global
+      callback_id: calendar_shortcut
+      description: Opens your F3 region's calendar
+    - name: Tag an Achievement
+      type: global
+      callback_id: tag_achievement_shortcut
+      description: Tag an achievement manually for someone    
   slash_commands:
     - command: /preblast
       url: https://${YOUR_URL}.ngrok-free.app/slack/events # You'll be editing this
-      description: Launch preblast template
+      description: Launch preblast form
       should_escape: false
     - command: /f3-nation-settings
       url: https://${YOUR_URL}.ngrok-free.app/slack/events # You'll be editing this
@@ -24,17 +45,13 @@ features:
       should_escape: false
     - command: /backblast
       url: https://${YOUR_URL}.ngrok-free.app/slack/events # You'll be editing this
-      description: Launch backblast template
+      description: Launch backblast form
       should_escape: false
     - command: /tag-achievement
       url: https://${YOUR_URL}.ngrok-free.app/slack/events # You'll be editing this
-      description: Lauches a form for manually tagging Weaselbot achievements
+      description: Lauches a form for manually tagging achievements
       should_escape: false
-    - command: /send-announcement
-      url: https://${YOUR_URL}.ngrok-free.app/slack/events # You'll be editing this
-      description: Triggers a announcement send
-      should_escape: false
-    - command: /calendar
+    - command: /f3-calendar
       url: https://${YOUR_URL}.ngrok-free.app/slack/events
       description: Opens the event calendar
       should_escape: false
