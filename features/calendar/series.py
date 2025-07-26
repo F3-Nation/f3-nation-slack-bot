@@ -345,12 +345,13 @@ def create_events(
         end_date = series.end_date or start_date.replace(year=start_date.year + 2)
         max_interval = series.recurrence_interval or 1
         index_within_interval = series.index_within_interval or 1
+        recurrence_pattern = series.recurrence_pattern or Event_Cadence.weekly
         current_interval = 1
         current_index = 0
         series_type_id = series.event_types[0].id  # TODO: handle multiple event types
         series_tag_id = series.event_tags[0].id if series.event_tags else None  # TODO: handle multiple event tags
         # for monthly series, figure out which occurence of the day of the week the start date is within the month
-        if series.recurrence_pattern.name == Event_Cadence.monthly.name:
+        if recurrence_pattern.name == Event_Cadence.monthly.name:
             current_date = current_date.replace(day=1)
             while current_date <= start_date:
                 if current_date.strftime("%A").lower() == series.day_of_week.name:
@@ -361,9 +362,7 @@ def create_events(
         while current_date <= end_date:
             if current_date.strftime("%A").lower() == series.day_of_week.name:
                 current_index += 1
-                if (current_index == index_within_interval) or (
-                    series.recurrence_pattern.name == Event_Cadence.weekly.name
-                ):
+                if (current_index == index_within_interval) or (recurrence_pattern.name == Event_Cadence.weekly.name):
                     if current_interval == 1:
                         event = EventInstance(
                             name=series.name,
