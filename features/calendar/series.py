@@ -48,7 +48,14 @@ def build_series_add_form(
     edit_event: Event | None = None,
     new_preblast: bool = False,
 ):
-    parent_metadata = {"series_id": edit_event.id} if edit_event else {}
+    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    if safe_get(metadata, "series_id"):
+        edit_event: Event = DbManager.get(
+            Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
+        )
+        parent_metadata = metadata
+    else:
+        parent_metadata = {"series_id": edit_event.id} if edit_event else {}
 
     if edit_event:
         title_text = "Edit a Series"
@@ -95,7 +102,6 @@ def build_series_add_form(
     )
 
     if edit_event:
-        print("Edit event", edit_event)
         initial_values = {
             actions.CALENDAR_ADD_SERIES_NAME: edit_event.name,
             actions.CALENDAR_ADD_SERIES_DESCRIPTION: edit_event.description,
