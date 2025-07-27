@@ -55,7 +55,7 @@ def build_ao_add_form(
     )
 
     if edit_ao:
-        slack_id = edit_ao.meta.get("slack_channel_id")
+        slack_id = safe_get(edit_ao.meta, "slack_channel_id")
         form.set_initial_values(
             {
                 actions.CALENDAR_ADD_AO_NAME: edit_ao.name,
