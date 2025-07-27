@@ -533,14 +533,6 @@ COUNT: {count}
                     attachments=file_send_list,
                 )
                 logger.debug("\nEmail Sent! \n{}".format(email_msg))
-                print(
-                    json.dumps(
-                        {
-                            "event_type": "successful_email_sent",
-                            "team_name": region_record.workspace_name,
-                        }
-                    )
-                )
             except Exception as sendmail_err:
                 logger.error("Error with sendmail: {}".format(sendmail_err))
                 logger.debug("\nEmail Sent! \n{}".format(email_msg))
@@ -616,14 +608,6 @@ COUNT: {count}
                 )
 
             DbManager.create_records(schema=region_record.paxminer_schema, records=attendance_records)
-            print(
-                json.dumps(
-                    {
-                        "event_type": "successful_db_insert",
-                        "team_name": region_record.workspace_name,
-                    }
-                )
-            )
 
             paxminer_log_channel = get_channel_id(name="paxminer_logs", client=client, logger=logger)
             if paxminer_log_channel:

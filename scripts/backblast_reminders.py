@@ -109,7 +109,6 @@ class BackblastList:
         )
         records = query.all()
         session.expunge_all()
-        # print(records)
         self.items = [
             BackblastItem(
                 event=r[0],
@@ -132,7 +131,6 @@ def send_backblast_reminders():
     if current_time.hour == 17:
         backblast_list = BackblastList()
         backblast_list.pull_data()
-        print(f"Found {len(backblast_list.items)} backblasts to remind about")
 
         for backblast in backblast_list.items:
             # TODO: add some handling for missing stuff

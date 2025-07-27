@@ -134,7 +134,6 @@ def send_automated_preblasts():
             ]
         )
         preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
-        print(f"Found {len(preblast_list.items)} preblasts to send.")
 
         for preblast in preblast_list.items:
             ssl_context = ssl.create_default_context()

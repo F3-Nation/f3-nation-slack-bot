@@ -243,7 +243,6 @@ def handle_existing_region_selection(
         text="Connection Request",
         blocks=blocks,
     )
-    # print(f"Connecting to region with id {region_select.selected_option.get('value')}")
 
 
 def handle_new_region_creation(

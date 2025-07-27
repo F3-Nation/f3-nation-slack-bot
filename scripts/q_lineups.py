@@ -34,7 +34,6 @@ def send_lineups(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 5:00 PM and 6:00 PM on Sundays, eventually configurable
-    print(current_time.hour, current_time.weekday())
     if (current_time.hour == 7 and current_time.weekday() == 1) or force:
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
@@ -55,7 +54,6 @@ def send_lineups(force: bool = False):
             event_org_list.setdefault(event.org.id, []).append(event)
 
         for org in event_org_list:
-            print(f"Processing Q Lineup for {event_org_list[org][0].org.name}")
             org_events = event_org_list[org]
             org_record = org_events[0].org
             slack_settings = org_events[0].slack_settings
@@ -159,7 +157,6 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
     if week_start and week_end:
         this_week_start = datetime.strptime(week_start, "%y-%m-%d").date()
         this_week_end = datetime.strptime(week_end, "%y-%m-%d").date()
-        print(f"Week start: {this_week_start}, week end: {this_week_end}")
     else:
         # Default to the current week
         tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()

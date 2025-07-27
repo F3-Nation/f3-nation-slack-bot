@@ -92,9 +92,6 @@ def home_schedule_query(
     # To execute the query and fetch all results
     results = session.execute(query).all()
 
-    # results: List[Tuple[Event, Org, EventType, str, str, str]] = result.scalars().all()
-    # print(results)
-
     # Turn EventType into a list of EventType objects for each Event.id
     event_types = {}
     for r in results:

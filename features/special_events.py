@@ -18,7 +18,6 @@ def build_special_settings_form(
     region_record: SlackSettings,
 ):
     form = copy.deepcopy(SPECIAL_EVENTS_FORM)
-    print(region_record)
     form.set_initial_values(
         {
             actions.SPECIAL_EVENTS_ENABLED: "enable" if region_record.special_events_enabled else None,

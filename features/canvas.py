@@ -81,7 +81,6 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
     # post to canvas
     if region_record.canvas_channel:
         channel_info = client.conversations_info(channel=region_record.canvas_channel)
-        print(channel_info)
         canvas_id = safe_get(channel_info, "channel", "properties", "canvas", "file_id") or safe_get(
             channel_info, "channel", "properties", "tabs", 0, "data", "file_id"
         )

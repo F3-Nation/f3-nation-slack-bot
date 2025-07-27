@@ -581,7 +581,6 @@ def handle_event_preblast_action(
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
         if metadata.get("preblast_ts") and metadata["preblast_ts"] != "None":
-            print(metadata["preblast_ts"])
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,

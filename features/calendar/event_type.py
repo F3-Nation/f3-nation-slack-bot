@@ -162,8 +162,6 @@ def build_event_type_list_form(
             )
         )
 
-    print(blocks)
-
     form = orm.BlockView(blocks=blocks)
 
     form.post_modal(

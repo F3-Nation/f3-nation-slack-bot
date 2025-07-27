@@ -1,5 +1,4 @@
 import copy
-import json
 from logging import Logger
 
 from f3_data_models.models import SlackSpace
@@ -230,15 +229,6 @@ def handle_custom_field_add(body: dict, client: WebClient, logger: Logger, conte
             fields={SlackSpace.settings: region_record.__dict__},
         )
         update_local_region_records()
-
-        print(
-            json.dumps(
-                {
-                    "event_type": "successful_custom_field_add_edit",
-                    "team_name": region_record.workspace_name,
-                }
-            )
-        )
 
     previous_view_id = safe_get(body, "view", "previous_view_id")
     build_custom_field_menu(body, client, logger, context, region_record, update_view_id=previous_view_id)

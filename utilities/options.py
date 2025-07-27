@@ -46,7 +46,6 @@ def handle_request(
             filters=[and_(Org.name.ilike(f"%{value}%"), Org.org_type == Org_Type.region)],
             # TODO: add area / sector as description
         )
-        print(f"Org records: {org_records}")
         options = []
         for org in org_records[:10]:
             display_name = org.name

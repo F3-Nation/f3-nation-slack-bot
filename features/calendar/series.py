@@ -311,7 +311,6 @@ def update_from_map(request: Request) -> Response:
     }
     """
 
-    print("Updating from map...")
     if request.json:
         try:
             response_data = safe_get(request.json, "data") or {}
@@ -347,7 +346,7 @@ def create_events(
 ):
     event_records = []
     for series in records:
-        start_date = max(series.start_date, ((start_date or current_date_cst()) - timedelta(days=30)))
+        start_date = max(series.start_date, (start_date or current_date_cst()))
         current_date = start_date
         end_date = series.end_date or start_date.replace(year=start_date.year + 2)
         max_interval = series.recurrence_interval or 1

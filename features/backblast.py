@@ -49,7 +49,6 @@ def add_custom_field_blocks(
 ) -> slack_orm.BlockView:
     if initial_values is None:
         initial_values = {}
-    print(initial_values)
     output_form = copy.deepcopy(form)
     for custom_field in (region_record.custom_fields or {}).values():
         if safe_get(custom_field, "enabled"):
@@ -71,7 +70,6 @@ def add_custom_field_blocks(
                     }
                 )
             if initial_values and custom_field["name"] in initial_values:
-                print("setting initial value for custom field:", custom_field["name"])
                 output_form.set_initial_values(
                     {
                         actions.CUSTOM_FIELD_PREFIX + custom_field["name"]: initial_values.get(
@@ -334,7 +332,6 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         for block in forms.UNSCHEDULED_BACKBLAST_BLOCKS:
             backblast_form.blocks.append(block)
         backblast_data: dict = backblast_form.get_selected_values(body)
-        print("Backblast data from form:", backblast_data)
         event_org = DbManager.get(Org, safe_convert(safe_get(backblast_data, actions.BACKBLAST_AO), int))
 
     logger.debug(f"Backblast data: {backblast_data}")
@@ -540,14 +537,6 @@ COUNT: {count}
                     attachments=file_send_list,
                 )
                 logger.debug("\nEmail Sent! \n{}".format(email_msg))
-                print(
-                    json.dumps(
-                        {
-                            "event_type": "successful_email_sent",
-                            "team_name": region_record.workspace_name,
-                        }
-                    )
-                )
             except Exception as sendmail_err:
                 logger.error("Error with sendmail: {}".format(sendmail_err))
                 logger.debug("\nEmail Sent! \n{}".format(email_msg))
@@ -611,7 +600,6 @@ COUNT: {count}
         )  # TODO: handle multiple event types
     else:
         db_fields = {k.key: v for k, v in db_fields.items()}
-        print("Creating new event instance with fields:", db_fields)
         event = DbManager.create_record(EventInstance(**db_fields))
         event_instance_id = event.id
         DbManager.create_record(
@@ -629,14 +617,6 @@ COUNT: {count}
         for user, attendance_type in zip(db_users, attendance_types)
     ]
     DbManager.create_records(attendance_records)
-    print(
-        json.dumps(
-            {
-                "event_type": "successful_db_insert",
-                "team_name": region_record.workspace_name,
-            }
-        )
-    )
 
     for file in file_send_list:
         try:

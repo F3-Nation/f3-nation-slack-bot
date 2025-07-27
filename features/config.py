@@ -33,7 +33,6 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
         # user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
         admin_users = get_admin_users(region_record.org_id, region_record.team_id)
         user_is_admin = any(u[0].id == slack_user.user_id for u in admin_users)
-        print(f"There are {len(admin_users)} admin users for org {region_record.org_id}.")
 
         if user_is_admin:
             config_form = copy.deepcopy(forms.CONFIG_FORM)

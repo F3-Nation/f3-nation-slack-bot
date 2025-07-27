@@ -238,16 +238,6 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 
         if not org_record:
             region_record = migrate_slackblast_settings(team_id, settings_starters)
-            # if True:  # not LOCAL_DEVELOPMENT:
-            #     print("Not connected")
-            #     return None
-            # else:
-            #     org_record = Org(
-            #         org_type=Org_Type.region,
-            #         name=team_name,
-            #         is_active=True,
-            #     )
-            #     org_record: Org = DbManager.create_record(org_record)
         else:
             settings_starters.update({"org_id": org_record.id})
             region_record = SlackSettings(**settings_starters)

@@ -26,8 +26,6 @@ def check_current_head(alembic_cfg: config.Config, connectable: engine.Engine) -
     directory = script.ScriptDirectory.from_config(alembic_cfg)
     with connectable.begin() as connection:
         context = migration.MigrationContext.configure(connection)
-        print(context.get_current_heads())
-        print(directory.get_heads())
         return set(context.get_current_heads()) == set(directory.get_heads())
 
 
@@ -204,7 +202,6 @@ def handle_ao_lineups(
     context: dict,
     region_record: SlackSettings,
 ):
-    print(context["bot_token"])
     send_lineups(force=True)
 
 

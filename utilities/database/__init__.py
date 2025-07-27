@@ -35,7 +35,6 @@ def get_engine(echo=False, schema=None, paxminer_db=True) -> Engine:
         database = schema or os.environ[constants.PAXMINER_DATABASE_SCHEMA]
         db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
         engine = sqlalchemy.create_engine(db_url, echo=echo)
-        print(engine.url)
         return engine
     else:
         host = os.environ[constants.DATABASE_HOST]

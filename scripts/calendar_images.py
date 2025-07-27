@@ -194,7 +194,6 @@ def generate_calendar_images():
                     if df["q_last_updated"].isnull().all()
                     else df["q_last_updated"].max()
                 )
-                print(f"max_event_updated: {max_event_updated}, max_q_last_updated: {max_q_last_updated}")
                 max_changed = max(max_event_updated, max_q_last_updated)
                 max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
                 first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
@@ -320,7 +319,6 @@ def generate_calendar_images():
                                 s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
                             os.remove(filename)
                         else:
-                            print(f"detecting existing file: {existing_file}")
                             if existing_file:
                                 os.remove(f"/mnt/calendar-images/{existing_file}")
 
