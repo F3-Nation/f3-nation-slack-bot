@@ -185,7 +185,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
         DbManager.update_records(Event, [Event.org_id == ao_id], fields={"is_active": False})
         DbManager.update_records(
             EventInstance,
-            [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.now()],
+            [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.datetime.now()],
             fields={"is_active": False},
         )
         trigger_map_revalidation()
