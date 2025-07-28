@@ -3,6 +3,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
+from slack_sdk.web import WebClient
+
 from utilities.helper_functions import safe_get
 
 
@@ -851,7 +853,7 @@ class BlockView:
 
     def post_modal(
         self,
-        client: Any,
+        client: WebClient,
         trigger_id: str,
         title_text: str,
         callback_id: str,
@@ -860,7 +862,6 @@ class BlockView:
         close_button_text: str = "Close",
         notify_on_close: bool = False,
         new_or_add: str = "new",
-        try_load_without: List[str] = None,
     ) -> dict:
         blocks = self.as_form_field()
 
@@ -879,24 +880,9 @@ class BlockView:
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
         if new_or_add == "new":
-            try:
-                res = client.views_open(trigger_id=trigger_id, view=view)
-            except Exception:
-                if try_load_without:
-                    for field in try_load_without:
-                        self.delete_block(field)
-                    blocks = self.as_form_field()
-                    res = client.views_open(trigger_id=trigger_id, view=view)
+            res = client.views_open(trigger_id=trigger_id, view=view)
         elif new_or_add == "add":
-            try:
-                res = client.views_push(trigger_id=trigger_id, view=view)
-            except Exception:
-                if try_load_without:
-                    for field in try_load_without:
-                        self.delete_block(field)
-                    blocks = self.as_form_field()
-                    view["blocks"] = blocks
-                    res = client.views_push(trigger_id=trigger_id, view=view)
+            res = client.views_push(trigger_id=trigger_id, view=view)
 
         return res
 
@@ -910,7 +896,6 @@ class BlockView:
         parent_metadata: dict = None,
         close_button_text: str = "Close",
         notify_on_close: bool = False,
-        try_load_without: List[str] = None,
     ):
         blocks = self.as_form_field()
 
@@ -927,15 +912,7 @@ class BlockView:
         if submit_button_text != "None":
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
-        try:
-            client.views_update(view_id=view_id, view=view)
-        except Exception:
-            if try_load_without:
-                for field in try_load_without:
-                    self.delete_block(field)
-                blocks = self.as_form_field()
-                view["blocks"] = blocks
-                client.views_update(view_id=view_id, view=view)
+        client.views_update(view_id=view_id, view=view)
 
 
 def parse_welcome_template(template: str, user_id: str) -> List[BaseBlock]:

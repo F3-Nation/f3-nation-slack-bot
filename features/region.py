@@ -2,6 +2,7 @@ import copy
 import re
 from logging import Logger
 
+import requests
 from f3_data_models.models import Org, Role, Role_x_User_x_Org, SlackUser
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
@@ -44,7 +45,11 @@ def build_region_form(
         )
 
         if org_record.logo_url:
-            form.blocks.insert(2, orm.ImageBlock(image_url=org_record.logo_url, alt_text="Region Logo"))
+            try:
+                if requests.head(org_record.logo_url).status_code == 200:
+                    form.blocks.insert(2, orm.ImageBlock(image_url=org_record.logo_url, alt_text="Region Logo"))
+            except requests.RequestException as e:
+                logger.error(f"Error fetching region logo: {e}")
 
         form.post_modal(
             client=client,
