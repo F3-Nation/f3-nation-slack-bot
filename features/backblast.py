@@ -578,6 +578,12 @@ COUNT: {count}
             ],
         )
         logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
+    else:
+        event_instance = DbManager.create_record(EventInstance(start_date=the_date, org_id=event_org.id))
+        event_instance_id = event_instance.id
+        DbManager.create_record(
+            EventType_x_EventInstance(event_instance_id=event_instance_id, event_type_id=event_type)
+        )
 
     # res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 
@@ -605,21 +611,13 @@ COUNT: {count}
         EventInstance.meta: custom_fields,
         EventInstance.is_active: True,
     }
-    if event_instance_id:
-        event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
-        DbManager.update_record(EventInstance, event_instance_id, fields=db_fields)
-        DbManager.update_records(
-            EventType_x_EventInstance,
-            [EventType_x_EventInstance.event_instance_id == event_instance_id],
-            fields={EventType_x_EventInstance.event_type_id: event_type},
-        )  # TODO: handle multiple event types
-    else:
-        db_fields = {k.key: v for k, v in db_fields.items()}
-        event = DbManager.create_record(EventInstance(**db_fields))
-        event_instance_id = event.id
-        DbManager.create_record(
-            EventType_x_EventInstance(event_instance_id=event_instance_id, event_type_id=event_type)
-        )
+    event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+    DbManager.update_record(EventInstance, event_instance_id, fields=db_fields)
+    DbManager.update_records(
+        EventType_x_EventInstance,
+        [EventType_x_EventInstance.event_instance_id == event_instance_id],
+        fields={EventType_x_EventInstance.event_type_id: event_type},
+    )  # TODO: handle multiple event types
 
     attendance_types = [2 if u.slack_id == the_q else 3 if u.slack_id in (the_coq or []) else 1 for u in db_users]
     attendance_records = [
