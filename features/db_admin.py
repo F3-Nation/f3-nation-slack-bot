@@ -217,6 +217,18 @@ def handle_preblast_reminders(
     send_preblast_reminders()
 
 
+def handle_backblast_reminders(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    from scripts.backblast_reminders import send_backblast_reminders
+
+    send_backblast_reminders()
+
+
 def handle_generate_instances(
     body: dict,
     client: WebClient,
@@ -264,6 +276,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Preblast Reminders",
                     action=actions.SECRET_MENU_PREBLAST_REMINDERS,
+                ),
+                orm.ButtonElement(
+                    label="Backblast Reminders",
+                    action=actions.SECRET_MENU_BACKBLAST_REMINDERS,
                 ),
                 # orm.ButtonElement(
                 #     label="Paxminer Migration (Selected Region)",

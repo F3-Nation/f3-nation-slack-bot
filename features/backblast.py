@@ -93,6 +93,21 @@ def backblast_middleware(
         > datetime.now()
     ):
         backblast_legacy.build_backblast_form(body, client, logger, context, region_record)
+    elif safe_get(body, "actions", 0, "action_id") == actions.MSG_EVENT_BACKBLAST_BUTTON:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
+        event_instance = DbManager.get(EventInstance, event_instance_id)
+        if event_instance.backblast_ts:
+            form = copy.deepcopy(forms.ALREADY_POSTED_FORM)
+            form.post_modal(
+                client=client,
+                trigger_id=safe_get(body, "trigger_id"),
+                title_text="Backblast",
+                callback_id=actions.ALREADY_POSTED,
+                submit_button_text="None",
+            )
+            return
+        else:
+            build_backblast_form(body, client, logger, context, region_record)
     else:
         user = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger)
         user_id = user.user_id

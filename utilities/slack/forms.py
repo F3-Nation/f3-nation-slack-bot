@@ -897,3 +897,18 @@ PREBLAST_LEGACY_FORM = orm.BlockView(
         ),
     ]
 )
+
+ALREADY_POSTED_FORM = orm.BlockView(
+    blocks=[
+        orm.SectionBlock(
+            label="This backblast has already been posted! If you want to edit it, please use the "
+            "edit button in the original post.",
+            action=actions.ALREADY_POSTED,
+        ),
+        orm.ContextBlock(
+            element=orm.ContextElement(
+                initial_value="If you think this is an error, please contact your region's Weasel Shaker.",
+            ),
+        ),
+    ]
+)
