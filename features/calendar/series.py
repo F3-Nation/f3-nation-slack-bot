@@ -121,11 +121,9 @@ def build_series_add_form(
         initial_values.update(
             {
                 actions.CALENDAR_ADD_SERIES_DOW: [edit_event.day_of_week.name],
-                actions.CALENDAR_ADD_SERIES_FREQUENCY: recurrence_pattern.name,
-                actions.CALENDAR_ADD_SERIES_INTERVAL: str(edit_event.recurrence_interval)
-                if edit_event.recurrence_interval
-                else "1",
-                actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval,
+                actions.CALENDAR_ADD_SERIES_FREQUENCY: recurrence_pattern.name or Event_Cadence.weekly.name,
+                actions.CALENDAR_ADD_SERIES_INTERVAL: safe_convert(edit_event.recurrence_interval, str) or "1",
+                actions.CALENDAR_ADD_SERIES_INDEX: edit_event.index_within_interval or "1",
             }
         )
         if edit_event.event_tags:
@@ -578,7 +576,9 @@ SERIES_FORM = orm.BlockView(
             element=orm.StaticSelectElement(
                 placeholder="Select the interval",
                 options=orm.as_selector_options(**constants.INTERVAL_OPTIONS),
+                initial_value="1",
             ),
+            optional=False,
         ),
         orm.InputBlock(
             label="Series Frequency",
@@ -586,7 +586,9 @@ SERIES_FORM = orm.BlockView(
             element=orm.StaticSelectElement(
                 placeholder="Select the frequency",
                 options=orm.as_selector_options(names=["Week", "Month"], values=[p.name for p in Event_Cadence]),
+                initial_value=Event_Cadence.weekly.name,
             ),
+            optional=False,
         ),
         # orm.InputBlock(
         #     label="Interval",
@@ -604,8 +606,9 @@ SERIES_FORM = orm.BlockView(
             element=orm.NumberInputElement(
                 placeholder="Enter the index",
                 is_decimal_allowed=False,
+                initial_value="1",
             ),
-            optional=True,
+            optional=False,
             hint="Only relevant if Month is selected above.",  # noqa
         ),
         orm.InputBlock(
