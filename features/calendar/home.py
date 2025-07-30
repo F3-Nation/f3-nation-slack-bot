@@ -3,6 +3,7 @@ import time
 from logging import Logger
 from typing import List
 
+import requests
 from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, EventType, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
@@ -180,7 +181,7 @@ def build_home_form(
 
     filter = [
         or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)),
-        EventInstance.start_date > start_date,
+        EventInstance.start_date >= start_date,
         EventInstance.is_active,
     ]
 
@@ -303,27 +304,63 @@ def build_calendar_image_form(
     context: dict,
     region_record: SlackSettings,
 ):
+    this_week_valid = False
+    next_week_valid = False
     if LOCAL_DEVELOPMENT:
-        this_week_url = S3_IMAGE_URL.format(
-            image_name=region_record.calendar_image_current or "default.png",
-        )
-        next_week_url = S3_IMAGE_URL.format(
-            image_name=region_record.calendar_image_next or "default.png",
-        )
+        try:
+            this_week_valid = (
+                requests.head(S3_IMAGE_URL.format(image_name=region_record.calendar_image_current)).status_code == 200
+            )
+            next_week_valid = (
+                requests.head(S3_IMAGE_URL.format(image_name=region_record.calendar_image_next)).status_code == 200
+            )
+        except Exception as e:
+            logger.error(f"Error checking S3 image URLs: {e}")
+        if this_week_valid and next_week_valid:
+            this_week_url = S3_IMAGE_URL.format(
+                image_name=region_record.calendar_image_current or "default.png",
+            )
+            next_week_url = S3_IMAGE_URL.format(
+                image_name=region_record.calendar_image_next or "default.png",
+            )
     else:
-        this_week_url = GCP_IMAGE_URL.format(
-            bucket="f3nation-calendar-images",
-            image_name=region_record.calendar_image_current or "default.png",
-        )
-        next_week_url = GCP_IMAGE_URL.format(
-            bucket="f3nation-calendar-images",
-            image_name=region_record.calendar_image_next or "default.png",
-        )
-
-    blocks = [
-        orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url),
-        orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url),
-    ]
+        try:
+            this_week_valid = (
+                requests.head(
+                    GCP_IMAGE_URL.format(
+                        bucket="f3nation-calendar-images",
+                        image_name=region_record.calendar_image_current or "default.png",
+                    )
+                ).status_code
+                == 200
+            )
+            next_week_valid = (
+                requests.head(
+                    GCP_IMAGE_URL.format(
+                        bucket="f3nation-calendar-images",
+                        image_name=region_record.calendar_image_next or "default.png",
+                    )
+                ).status_code
+                == 200
+            )
+        except Exception as e:
+            logger.error(f"Error checking GCP image URLs: {e}")
+        if this_week_valid and next_week_valid:
+            this_week_url = GCP_IMAGE_URL.format(
+                bucket="f3nation-calendar-images",
+                image_name=region_record.calendar_image_current or "default.png",
+            )
+            next_week_url = GCP_IMAGE_URL.format(
+                bucket="f3nation-calendar-images",
+                image_name=region_record.calendar_image_next or "default.png",
+            )
+    if this_week_valid and next_week_valid:
+        blocks = [
+            orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url),
+            orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url),
+        ]
+    else:
+        blocks = [orm.SectionBlock(label="No calendar images available. Please wait for them to generate.")]
     form = orm.BlockView(blocks=blocks)
     form.post_modal(
         client=client,

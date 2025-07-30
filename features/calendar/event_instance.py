@@ -331,9 +331,9 @@ def build_event_instance_list_form(
             EventInstance.start_date >= start_date,
         ],
     )
-    print(f"Found {len(records)} event instances for org {filter_org} after {start_date}")
-    records: list[EventInstance] = [x[0] for x in records][:40]
+    records: list[EventInstance] = [x[0] for x in records]
     records.sort(key=lambda x: (x.start_date, x.start_time, x.name))
+    records = records[:40]
 
     # TODO: separate into weekly / non-weekly event_instance?
     ao_orgs = DbManager.find_records(
