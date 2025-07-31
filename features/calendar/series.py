@@ -107,7 +107,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_DESCRIPTION: edit_event.description,
             actions.CALENDAR_ADD_SERIES_AO: str(edit_event.org_id),
             actions.CALENDAR_ADD_EVENT_AO: str(edit_event.org_id),
-            actions.CALENDAR_ADD_SERIES_LOCATION: str(edit_event.location_id),
+            actions.CALENDAR_ADD_SERIES_LOCATION: safe_convert(edit_event.location_id, str),
             actions.CALENDAR_ADD_SERIES_TYPE: str(edit_event.event_types[0].id),  # TODO: handle multiple event types
             actions.CALENDAR_ADD_SERIES_START_DATE: safe_convert(
                 edit_event.start_date, datetime.strftime, ["%Y-%m-%d"]

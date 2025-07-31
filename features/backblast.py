@@ -337,7 +337,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     backblast_form = add_custom_field_blocks(backblast_form, region_record)
 
     if event_instance_id:
-        event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+        event: EventInstance = DbManager.get(
+            EventInstance, event_instance_id, joinedloads=[EventInstance.org, EventInstance.event_types]
+        )
         date = event.start_date
         event_type = event.event_types[0].id if event.event_types else None
         event_org = event.org

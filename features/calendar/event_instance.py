@@ -129,7 +129,7 @@ def build_event_instance_add_form(
             CALENDAR_ADD_EVENT_INSTANCE_NAME: edit_event_instance.name,
             CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION: edit_event_instance.description,
             CALENDAR_ADD_EVENT_INSTANCE_AO: str(edit_event_instance.org_id),
-            CALENDAR_ADD_EVENT_INSTANCE_LOCATION: str(edit_event_instance.location_id),
+            CALENDAR_ADD_EVENT_INSTANCE_LOCATION: safe_convert(edit_event_instance.location_id, str),
             CALENDAR_ADD_EVENT_INSTANCE_TYPE: str(
                 edit_event_instance.event_types[0].id
             ),  # TODO: handle multiple event types

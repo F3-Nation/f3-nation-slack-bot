@@ -486,10 +486,11 @@ def build_preblast_info(
     location = ""
     if safe_get(event_record.org.meta, "slack_channel_id"):
         location += f"<#{event_record.org.meta['slack_channel_id']}> - "
-    if event_record.location.latitude and event_record.location.longitude:
-        location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{event_record.location.name}>"
-    else:
-        location += event_record.location.name
+    if event_record.location:
+        if event_record.location.latitude and event_record.location.longitude:
+            location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{event_record.location.name}>"
+        else:
+            location += event_record.location.name
 
     event_details = f"*Preblast: {event_record.name}*"
     event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
