@@ -196,7 +196,9 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     attendance_non_slack_users = []
     if event_instance_id:
-        event_record: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+        event_record: EventInstance = DbManager.get(
+            EventInstance, event_instance_id, joinedloads=[EventInstance.org, EventInstance.event_types]
+        )
         event_metadata = event_record.meta or {}
         already_posted = event_record.backblast_ts is not None
         attendance_records: List[Attendance] = DbManager.find_records(
@@ -470,6 +472,23 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     backblast_data[actions.BACKBLAST_OP] = user_id
     backblast_data["event_instance_id"] = event_instance_id
 
+    if event_instance_id:
+        DbManager.delete_records(
+            Attendance,
+            filters=[
+                Attendance.event_instance_id == event_instance_id,
+                not_(Attendance.is_planned),
+            ],
+        )
+        logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
+    else:
+        event_instance = DbManager.create_record(EventInstance(start_date=the_date, org_id=event_org.id, name=title))
+        event_instance_id = event_instance.id
+        DbManager.create_record(
+            EventType_x_EventInstance(event_instance_id=event_instance_id, event_type_id=event_type)
+        )
+        backblast_data["event_instance_id"] = event_instance_id
+
     edit_block = slack_orm.ActionsBlock(
         elements=[
             slack_orm.ButtonElement(
@@ -568,22 +587,6 @@ COUNT: {count}
             metadata={"event_type": "backblast", "event_payload": backblast_data},
         )
         logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
-
-    if event_instance_id:
-        DbManager.delete_records(
-            Attendance,
-            filters=[
-                Attendance.event_instance_id == event_instance_id,
-                not_(Attendance.is_planned),
-            ],
-        )
-        logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
-    else:
-        event_instance = DbManager.create_record(EventInstance(start_date=the_date, org_id=event_org.id))
-        event_instance_id = event_instance.id
-        DbManager.create_record(
-            EventType_x_EventInstance(event_instance_id=event_instance_id, event_type_id=event_type)
-        )
 
     # res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 
