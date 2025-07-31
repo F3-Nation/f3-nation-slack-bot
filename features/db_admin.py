@@ -5,19 +5,25 @@ from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
-from f3_data_models.models import Event, Org, Org_x_SlackSpace, Role_x_User_x_Org, SlackSpace
+from f3_data_models.models import Event, Org, Org_Type, Org_x_SlackSpace, Role, Role_x_User_x_Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import engine, or_
 
-from features import user as user_form
 from features.calendar.series import create_events
 from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from scripts.update_slack_users import update_slack_users
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
-from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get, trigger_map_revalidation
+from utilities.helper_functions import (
+    current_date_cst,
+    get_region_record,
+    get_user,
+    safe_convert,
+    safe_get,
+    trigger_map_revalidation,
+)
 from utilities.slack import actions, orm
 
 
@@ -168,33 +174,6 @@ def handle_make_admin(
     )
 
 
-def handle_make_org(
-    body: dict,
-    client: WebClient,
-    logger: Logger,
-    context: dict,
-    region_record: SlackSettings,
-):
-    form_data = DB_ADMIN_FORM.get_selected_values(body)
-    region_org_id = safe_convert(safe_get(form_data, user_form.USER_FORM_HOME_REGION), int)
-    team_id = safe_get(body, "team", "id") or safe_get(body, "team_id")
-    if region_org_id and team_id:
-        slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == team_id])
-        if slack_space_record:
-            connect_record = Org_x_SlackSpace(
-                org_id=region_org_id,
-                slack_space_id=slack_space_record.id,
-            )
-            DbManager.create_record(connect_record)
-
-        region_record.org_id = region_org_id
-        DbManager.update_records(
-            cls=SlackSpace,
-            filters=[SlackSpace.team_id == region_record.team_id],
-            fields={SlackSpace.settings: region_record.__dict__},
-        )
-
-
 def handle_ao_lineups(
     body: dict,
     client: WebClient,
@@ -261,10 +240,60 @@ def handle_trigger_map_revalidation(
     trigger_map_revalidation()
 
 
+def handle_make_org(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    team_id = safe_get(body, "team", "id") or safe_get(body, "team_id")
+    region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
+    # Create a new region org record
+    org_record: Org = DbManager.create_record(
+        Org(
+            org_type=Org_Type.region,
+            name="My Region",
+            is_active=True,
+        )
+    )
+    # Connect the new org to the Slack space
+    if team_id:
+        slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == team_id])
+        if slack_space_record:
+            connect_record = Org_x_SlackSpace(
+                org_id=org_record.id,
+                slack_space_id=slack_space_record.id,
+            )
+            DbManager.create_record(connect_record)
+        # Update the slack space record with the new org
+        region_record.org_id = org_record.id
+        DbManager.update_records(
+            cls=SlackSpace,
+            filters=[SlackSpace.team_id == region_record.team_id],
+            fields={SlackSpace.settings: region_record.__dict__},
+        )
+    # Make the current user an admin of the new org
+    slack_user_id = safe_get(body, "user", "id")
+    user_id = get_user(slack_user_id, region_record, client, logger).user_id
+    admin_role_id = DbManager.find_first_record(Role, filters=[Role.name == "admin"]).id
+    DbManager.create_record(
+        Role_x_User_x_Org(
+            user_id=user_id,
+            org_id=org_record.id,
+            role_id=admin_role_id,
+        )
+    )
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
             elements=[
+                orm.ButtonElement(
+                    label="Initialize New Region",
+                    action=actions.SECRET_MENU_MAKE_ORG,
+                ),
                 orm.ButtonElement(
                     label="Calendar Images",
                     action=actions.SECRET_MENU_CALENDAR_IMAGES,
@@ -281,25 +310,9 @@ DB_ADMIN_FORM = orm.BlockView(
                     label="Backblast Reminders",
                     action=actions.SECRET_MENU_BACKBLAST_REMINDERS,
                 ),
-                # orm.ButtonElement(
-                #     label="Paxminer Migration (Selected Region)",
-                #     action=actions.SECRET_MENU_PAXMINER_MIGRATION,
-                # ),
-                # orm.ButtonElement(
-                #     label="Paxminer Migration (All Regions)",
-                #     action=actions.SECRET_MENU_PAXMINER_MIGRATION_ALL,
-                # ),
                 orm.ButtonElement(
                     label="Update Canvas",
                     action=actions.SECRET_MENU_UPDATE_CANVAS,
-                ),
-                orm.ButtonElement(
-                    label="Connect to Org",
-                    action=actions.SECRET_MENU_MAKE_ORG,
-                ),
-                orm.ButtonElement(
-                    label="Make myself an admin",
-                    action=actions.SECRET_MENU_MAKE_ADMIN,
                 ),
                 orm.ButtonElement(
                     label="Generate Event Instances",
@@ -315,26 +328,9 @@ DB_ADMIN_FORM = orm.BlockView(
                 ),
             ],
         ),
-        orm.InputBlock(
-            label="Paxminer region to migrate",
-            action=actions.PAXMINER_MIGRATION_REGION,
-            element=orm.PlainTextInputElement(placeholder="Enter the region to migrate"),
-        ),
         orm.SectionBlock(
             action=actions.DB_ADMIN_TEXT,
             label=" ",
-        ),
-        orm.InputBlock(
-            label="External Test",
-            action=actions.USER_OPTION_LOAD,
-            optional=True,
-            element=orm.MultiExternalSelectElement(min_query_length=3),
-        ),
-        orm.InputBlock(
-            label="Region Org",
-            action=user_form.USER_FORM_HOME_REGION,
-            optional=True,
-            element=orm.ExternalSelectElement(min_query_length=3, placeholder="Select a region org"),
         ),
     ]
 )
