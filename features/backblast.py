@@ -380,7 +380,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     file_ids = safe_get(backblast_data, "file_ids") or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list, file_ids = upload_files_to_storage(files=files, logger=logger, client=client)
+    file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
+        files=files, logger=logger, client=client
+    )
 
     if (
         region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]

@@ -537,34 +537,41 @@ def current_date_cst() -> date:
 
 def upload_files_to_storage(
     files: List[Dict[str, str]], client: WebClient, logger: Logger, enforce_square: bool = False, max_height: int = None
-) -> Tuple[List[str], List[Dict[str, Any]], List[str]]:
+) -> Tuple[List[str], List[Dict[str, Any]], List[str], List[str]]:
     file_list = []
     file_send_list = []
     file_ids = [file["id"] for file in files]
+    low_res_file_list = []
     for file in files or []:
         try:
-            r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
-            r.raise_for_status()
+            r_full = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
+            r_full.raise_for_status()
 
             file_name = f"{file['id']}.{file['filetype']}"
             file_path = f"/mnt/backblast-images/{file_name}"
             file_mimetype = file["mimetype"]
 
-            if file["filetype"] == "heic":
-                file_path_heic = "/tmp/" + file_name
-                with open(file_path_heic, "wb") as f:
-                    f.write(r.content)
-                img = Image.open(file_path_heic)
-                x, y = img.size
-                coeff = min(constants.MAX_HEIC_SIZE / max(x, y), 1)
-                img = img.resize((int(x * coeff), int(y * coeff)))
-                os.remove(file_path_heic)
-                file_path = file_path.replace(".heic", ".png")
-                file_name = file_name.replace(".heic", ".png")
-                file_mimetype = "image/png"
-            else:
-                with open(file_path, "wb") as f:
-                    f.write(r.content)
+            # Determine the highest thumbnail size possible
+            highest_thumb = max(file["original_w"], file["original_h"])
+            thumb_sizes = [64, 80, 160, 480, 720, 800, 960, 1024]
+            thumb_size = next(
+                (size for size in thumb_sizes if size >= highest_thumb), 1024
+            )  # default to 1024 if no larger size found
+            r_low_res = requests.get(
+                file[f"thumb_{thumb_size}"],
+                headers={"Authorization": f"Bearer {client.token}"},
+                params={"width": constants.LOW_REZ_IMAGE_SIZE, "height": constants.LOW_REZ_IMAGE_SIZE},
+            )
+            file_name_low_res = f"{file['id']}_low_res.png"
+            file_path_low_res = f"/tmp/{file_name_low_res}"
+
+            with open(file_path, "wb") as f:
+                f.write(r_full.content)
+
+            with open(file_path_low_res, "wb") as f:
+                f.write(r_low_res.content)
+
+            if enforce_square or max_height:
                 img = None
                 if file_mimetype.startswith("image/"):
                     try:
@@ -572,14 +579,7 @@ def upload_files_to_storage(
                     except Exception as e:
                         logger.error(f"Error opening image: {e}")
 
-            # If we have an image, apply enforce_square and max_height
-            if file["filetype"] == "heic" or (img is not None):
-                if img is None:
-                    try:
-                        img = Image.open(file_path)
-                    except Exception as e:
-                        logger.error(f"Error opening image: {e}")
-                        img = None
+                # If we have an image, apply enforce_square and max_height
                 if img is not None:
                     # Enforce square if requested
                     if enforce_square:
@@ -596,9 +596,10 @@ def upload_files_to_storage(
                     img_format = "PNG" if file["filetype"] == "heic" else img.format
                     img.save(file_path, format=img_format, quality=95, optimize=True)
 
-            # TODO: if LOCAL_DEVELOPMENT, upload to google storage
+                # TODO: if LOCAL_DEVELOPMENT, upload to google storage
 
             file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name}")
+            low_res_file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name_low_res}")
             file_send_list.append(
                 {
                     "filepath": file_path,
@@ -612,7 +613,7 @@ def upload_files_to_storage(
         except Exception as e:
             logger.error(f"Error uploading file: {e}")
 
-    return file_list, file_send_list, file_ids
+    return file_list, file_send_list, file_ids, low_res_file_list
 
 
 def upload_files_to_s3(
