@@ -314,13 +314,18 @@ def generate_calendar_images():
                                 s3_client.upload_fileobj(
                                     f, "slackblast-images", filename, ExtraArgs={"ContentType": "image/png"}
                                 )
-
-                            if existing_file:
-                                s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
-                            os.remove(filename)
+                            try:
+                                if existing_file:
+                                    s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
+                                os.remove(filename)
+                            except Exception as e:
+                                print(f"Error deleting old file {existing_file} from S3: {e}")
                         else:
                             if existing_file:
-                                os.remove(f"/mnt/calendar-images/{existing_file}")
+                                try:
+                                    os.remove(f"/mnt/calendar-images/{existing_file}")
+                                except Exception as e:
+                                    print(f"Error deleting old file {existing_file} from local storage: {e}")
 
                         # update org record with new filename
                         slack_app_settings[f"calendar_image_{week}"] = filename
