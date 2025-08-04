@@ -661,7 +661,7 @@ def handle_event_preblast_action(
                 icon_url=q_url,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:
-            if user_id in metadata["qs"]:
+            if user_id in (safe_get(metadata, "qs") or []):
                 build_event_preblast_form(
                     body, client, logger, context, region_record, event_instance_id=event_instance_id
                 )
