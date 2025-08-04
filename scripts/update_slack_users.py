@@ -30,7 +30,8 @@ def update_slack_users():
                     continue  # Skip bots and the Slackbot
 
                 slack_user = slack_user_dict.get(user["id"])
-
+                if slack_user is None:
+                    continue
                 if slack_user.slack_updated and slack_user.slack_updated >= user["updated"]:
                     continue
                 else:
