@@ -1,0 +1,63 @@
+# start f3 dev environment w/ docker-compose
+services:
+
+## f3-nation-slack-bot-app, this container waits for the db and
+## db migrations to be ready and then runs the app.
+## Use --profile app to include this service
+  app:
+    profiles:
+      - app
+    build: .
+    restart: always
+    ports:
+      - 3000:3000
+    environment:
+      - LOCAL_DEVELOPMENT=true
+      - DATABASE_HOST=db
+    env_file:
+      - .env
+    depends_on:
+      - db
+      - db-init
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: ["nodemon", "--exec", "python main.py", "-e", "py"]
+
+##  Just a simple postgres db.
+  db:
+    image: postgres:16
+    restart: always
+    # set shared memory limit when using docker compose
+    shm_size: 128mb
+    ports:
+      - 5432:5432
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+## A web ui for the db. # this can be a different tool
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+## under dir db-init, check out the Dockerfile and entrypoint.sh for details.
+## Essentially checks out F3-Data-Models and runs the migrations.
+  db-init:
+    build: 
+      context: ./db-init
+      args:
+        CACHEBUST: "$(date +%Y%m%d%H%M%S)"
+    environment:
+      - DATABASE_HOST=db
+      - PYTHON_VERSION=3.12
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+volumes:
+  postgres_data:
