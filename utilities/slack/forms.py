@@ -912,3 +912,27 @@ ALREADY_POSTED_FORM = orm.BlockView(
         ),
     ]
 )
+
+SUBMIT_FORM = orm.BlockView(
+    blocks=[
+        orm.SectionBlock(
+            label=":hourglass_flowing_sand: Your form has been submitted! Saving data and posting to Slack...",
+            action="submit_form_message",
+        ),
+        orm.ContextBlock(
+            action="submit_context",
+            element=orm.ContextElement(
+                initial_value="If this form does not close automatically after a few seconds, you can close it yourself."  # noqa: E501
+            ),
+        ),
+    ]
+)
+
+SUBMIT_FORM_SUCCESS = orm.BlockView(
+    blocks=[
+        orm.SectionBlock(
+            label=":white_check_mark: Your form has been submitted successfully! You can close this form now.",
+            action="submit_form_success_message",
+        ),
+    ]
+)
