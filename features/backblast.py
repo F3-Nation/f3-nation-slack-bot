@@ -380,7 +380,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     file_ids = safe_get(backblast_data, "file_ids") or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
+    file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
         files=files, logger=logger, client=client
     )
 
@@ -526,11 +526,11 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         )
 
     blocks = [msg_block.as_form_field(), moleskin]
-    for id in file_ids or []:
+    for url in low_rez_file_list or []:
         blocks.append(
             slack_orm.ImageBlock(
                 alt_text=title,
-                slack_file_id=id,
+                image_url=url,
             ).as_form_field()
         )
     blocks.append(edit_block.as_form_field())
