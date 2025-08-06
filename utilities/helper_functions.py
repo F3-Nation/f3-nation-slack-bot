@@ -563,7 +563,7 @@ def upload_files_to_storage(
                 params={"width": constants.LOW_REZ_IMAGE_SIZE, "height": constants.LOW_REZ_IMAGE_SIZE},
             )
             file_name_low_res = f"{file['id']}_low_res.png"
-            file_path_low_res = f"/tmp/{file_name_low_res}"
+            file_path_low_res = f"//mnt/backblast-images/{file_name_low_res}"
 
             with open(file_path, "wb") as f:
                 f.write(r_full.content)
