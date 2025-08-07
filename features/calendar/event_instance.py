@@ -332,7 +332,7 @@ def build_event_instance_list_form(
         ],
     )
     records: list[EventInstance] = [x[0] for x in records]
-    records.sort(key=lambda x: (x.start_date, x.start_time, x.name))
+    records.sort(key=lambda x: (x.start_date, x.start_time, (x.name or "")))
     records = records[:40]
 
     # TODO: separate into weekly / non-weekly event_instance?

@@ -382,7 +382,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     if action in ["View Preblast", "Edit Preblast"]:
         build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     elif action == "Take Q":
-        DbManager.create_record(
+        DbManager.create_or_ignore(
             Attendance(
                 event_instance_id=event_instance_id,
                 user_id=user_id,
@@ -434,13 +434,22 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
                     if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
                 ],  # noqa
             }
-            client.chat_update(
-                channel=preblast_info.event_record.org.meta.get("slack_channel_id"),
-                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
-                blocks=blocks,
-                text="Event Preblast",
-                metadata={"event_type": "preblast", "event_payload": metadata},
-            )
+            try:
+                client.chat_update(
+                    channel=preblast_info.event_record.org.meta.get("slack_channel_id"),
+                    ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                )
+            except Exception as e:
+                logger.error(f"Error updating preblast post, posting a new one: {e}")
+                client.chat_postMessage(
+                    channel=preblast_info.event_record.org.meta.get("slack_channel_id"),
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                )
 
     elif action == "edit":
         pass

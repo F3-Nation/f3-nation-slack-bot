@@ -105,7 +105,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
             files=[file], logger=logger, client=client, enforce_square=True, max_height=512
         )
-        logo_url = file_list[0]
+        logo_url = safe_get(file_list, 0)
         # try:
         #     r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
         #     r.raise_for_status()

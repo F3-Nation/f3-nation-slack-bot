@@ -552,24 +552,29 @@ def upload_files_to_storage(
             file_mimetype = file["mimetype"]
 
             # Determine the highest thumbnail size possible
-            highest_thumb = max(file["original_w"], file["original_h"])
-            thumb_sizes = [64, 80, 160, 480, 720, 800, 960, 1024]
-            thumb_size = next(
-                (size for size in thumb_sizes if size >= highest_thumb), 1024
-            )  # default to 1024 if no larger size found
-            r_low_res = requests.get(
-                file[f"thumb_{thumb_size}"],
-                headers={"Authorization": f"Bearer {client.token}"},
-                params={"width": constants.LOW_REZ_IMAGE_SIZE, "height": constants.LOW_REZ_IMAGE_SIZE},
-            )
-            file_name_low_res = f"{file['id']}_low_res.png"
-            file_path_low_res = f"//mnt/backblast-images/{file_name_low_res}"
+            thumb_sizes = [64, 80, 160, 360, 480, 720, 800, 960, 1024]
+            # Find the largest thumbnail that actually exists in the file object
+            available_thumbs = [size for size in thumb_sizes if f"thumb_{size}" in file]
+            thumb_size = max(available_thumbs) if available_thumbs else None
 
             with open(file_path, "wb") as f:
                 f.write(r_full.content)
 
-            with open(file_path_low_res, "wb") as f:
-                f.write(r_low_res.content)
+            if thumb_size is not None:
+                r_low_res = requests.get(
+                    file[f"thumb_{thumb_size}"],
+                    headers={"Authorization": f"Bearer {client.token}"},
+                    params={"width": constants.LOW_REZ_IMAGE_SIZE, "height": constants.LOW_REZ_IMAGE_SIZE},
+                )
+                file_name_low_res = f"{file['id']}_low_res.png"
+                file_path_low_res = f"/mnt/backblast-images/{file_name_low_res}"
+
+                with open(file_path_low_res, "wb") as f:
+                    f.write(r_low_res.content)
+
+                low_res_file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name_low_res}")
+            else:
+                low_res_file_list = []
 
             if enforce_square or max_height:
                 img = None
@@ -599,7 +604,6 @@ def upload_files_to_storage(
                 # TODO: if LOCAL_DEVELOPMENT, upload to google storage
 
             file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name}")
-            low_res_file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name_low_res}")
             file_send_list.append(
                 {
                     "filepath": file_path,
