@@ -107,7 +107,7 @@ def handle_slack_user_refresh(
     context: dict,
     region_record: SlackSettings,
 ):
-    update_slack_users()
+    update_slack_users(force=True)
 
 
 def handle_paxminer_migration(

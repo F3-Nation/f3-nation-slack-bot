@@ -11,7 +11,7 @@ from slack_sdk.errors import SlackApiError
 from utilities.helper_functions import safe_get
 
 
-def update_slack_users():
+def update_slack_users(force=False):
     """
     Update Slack users in the database with their latest information from Slack.
     """
@@ -32,7 +32,7 @@ def update_slack_users():
                 slack_user = slack_user_dict.get(user["id"])
                 if slack_user is None:
                     continue
-                if slack_user.slack_updated and slack_user.slack_updated >= user["updated"]:
+                if slack_user.slack_updated and slack_user.slack_updated >= user["updated"] and not force:
                     continue
                 else:
                     if slack_user is None:
