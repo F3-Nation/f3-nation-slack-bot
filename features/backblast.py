@@ -26,7 +26,7 @@ from sqlalchemy import not_, or_
 from features import backblast_legacy
 from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import event_attendance_query, get_user_permission_list
+from utilities.database.special_queries import event_attendance_query, get_admin_users
 from utilities.helper_functions import (
     current_date_cst,
     get_pax,
@@ -668,8 +668,8 @@ def handle_backblast_edit_button(
     # channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
 
     slack_user = get_user(user_id, region_record, client, logger)
-    user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
-    user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
+    admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+    user_is_admin = any(u[0].id == slack_user.user_id for u in admin_users)
 
     backblast_data = safe_get(body, "message", "metadata", "event_payload") or json.loads(
         safe_get(body, "actions", 0, "value") or "{}"
