@@ -383,12 +383,15 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     elif action == "Take Q":
         DbManager.create_or_ignore(
-            Attendance(
-                event_instance_id=event_instance_id,
-                user_id=user_id,
-                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
-                is_planned=True,
-            )
+            Attendance,
+            [
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=user_id,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
+                    is_planned=True,
+                )
+            ],
         )
         # TODO: build the q / preblast form
         update_post = True
