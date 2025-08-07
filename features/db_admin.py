@@ -286,6 +286,27 @@ def handle_make_org(
     )
 
 
+def handle_update_bot_token(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    bot_token = safe_get(context, "bot_token")
+
+    if bot_token:
+        region_record.bot_token = bot_token
+        DbManager.update_records(
+            cls=SlackSpace,
+            filters=[SlackSpace.team_id == region_record.team_id],
+            fields={
+                SlackSpace.bot_token: bot_token,
+                SlackSpace.settings: region_record.__dict__,
+            },
+        )
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -325,6 +346,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Refresh Slack Users",
                     action=actions.SECRET_MENU_REFRESH_SLACK_USERS,
+                ),
+                orm.ButtonElement(
+                    label="Update Bot Token",
+                    action=actions.SECRET_MENU_UPDATE_BOT_TOKEN,
                 ),
             ],
         ),

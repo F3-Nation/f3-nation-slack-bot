@@ -157,6 +157,7 @@ ACTION_MAPPER = {
     event_tag.EVENT_TAG_EDIT_DELETE: (event_tag.handle_event_tag_edit_delete, False),
     event_tag.CALENDAR_MANAGE_EVENT_TAGS: (event_tag.manage_event_tags, False),
     actions.SECRET_MENU_REFRESH_SLACK_USERS: (db_admin.handle_slack_user_refresh, False),
+    actions.SECRET_MENU_UPDATE_BOT_TOKEN: (db_admin.handle_update_bot_token, False),
 }
 
 ACTION_PREFIXES = [
