@@ -1,10 +1,7 @@
 import os
 import ssl
 from logging import Logger
-from typing import List
 
-from f3_data_models.models import Org, Org_Type
-from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import (
     ActionsBlock,
     HeaderBlock,
@@ -14,11 +11,10 @@ from slack_sdk.models.blocks import (
     RichTextSectionElement,
     SectionBlock,
 )
-from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.blocks.block_elements import (
     ButtonElement,
+    ExternalDataSelectElement,
     PlainTextInputElement,
-    RadioButtonsElement,
 )
 from slack_sdk.models.views import View, ViewState
 from slack_sdk.web import WebClient
@@ -55,14 +51,14 @@ def build_connect_options_form(
                         text="Connect to an existing region",
                         action_id=CONNECT_EXISTING_REGION,
                     ),
-                    ButtonElement(
-                        text="Create a new region",
-                        action_id=CREATE_NEW_REGION,
-                    ),
-                    ButtonElement(
-                        text="Starfish from an exisiting region",
-                        action_id=STARFISH_EXISTING_REGION,
-                    ),
+                    # ButtonElement(
+                    #     text="Create a new region",
+                    #     action_id=CREATE_NEW_REGION,
+                    # ),
+                    # ButtonElement(
+                    #     text="Starfish from an exisiting region",
+                    #     action_id=STARFISH_EXISTING_REGION,
+                    # ),
                 ]
             ),
         ],
@@ -89,70 +85,25 @@ def handle_connect_options(body: dict, client: WebClient, logger: Logger, contex
 def build_existing_region_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    unassigned_regions: List[Org] = DbManager.find_records(
-        Org, [Org.org_type == Org_Type.region, Org.is_active], joinedloads=[Org.slack_space]
+    form: View = View(
+        type="modal",
+        callback_id=CONNECT_EXISTING_REGION_CALLBACK_ID,
+        title="Connect existing region",
+        blocks=[
+            InputBlock(
+                label="Search for a region",
+                block_id=SELECT_REGION,
+                element=ExternalDataSelectElement(
+                    action_id=SELECT_REGION,
+                    placeholder="Start typing to search...",
+                    min_query_length=3,
+                ),
+                optional=False,
+            ),
+        ],
+        submit="Request Connection",
     )
-    unassigned_regions = [region for region in unassigned_regions if not region.slack_space]
-    if safe_get(body, "actions", 0, "action_id") == SEARCH_REGION:
-        view_data = safe_get(body, "view")
-        form: View = View(
-            type=view_data.get("type"),
-            callback_id=view_data.get("callback_id"),
-            title=view_data.get("title"),
-            blocks=view_data.get("blocks"),
-            submit=view_data.get("submit"),
-        )
-        form.blocks[1].element.options = [
-            Option(
-                text=region.name,
-                value=str(region.id),
-            )
-            for region in unassigned_regions
-            if safe_get(body, "view", "state", "values", SEARCH_REGION, SEARCH_REGION, "value").lower()
-            in region.name.lower()
-        ][:5]
-    else:
-        form: View = View(
-            type="modal",
-            callback_id=CONNECT_EXISTING_REGION_CALLBACK_ID,
-            title="Connect existing region",
-            blocks=[
-                InputBlock(
-                    label="Search for a region",
-                    block_id=SEARCH_REGION,
-                    element=PlainTextInputElement(
-                        placeholder="Enter the region name",
-                        action_id=SEARCH_REGION,
-                    ),
-                    dispatch_action=True,
-                ),
-                InputBlock(
-                    label="Select a region",
-                    block_id=SELECT_REGION,
-                    element=RadioButtonsElement(
-                        action_id=SELECT_REGION,
-                        options=[
-                            Option(
-                                text=region.name,
-                                value=str(region.id),
-                            )
-                            for region in unassigned_regions
-                        ][:5],
-                    ),
-                    # element=StaticSelectElement(
-                    #     placeholder="Select a region",
-                    #     action_id=SELECT_REGION,
-                    #     options=options,
-                    # ),
-                ),
-            ],
-            submit="Request Connection",
-        )
 
-    # if safe_get(body, "actions", 0, "action_id") == SEARCH_REGION:
-    #     state = ViewState(**safe_get(body, "view", "state"))
-    #     form.blocks[]
-    #     form.blocks[0].element.initial_value = state.get(SEARCH_REGION).get(SEARCH_REGION).value
     client.views_update(view_id=safe_get(body, "view", "id"), view=form)
 
 
@@ -181,6 +132,7 @@ def handle_existing_region_selection(
 ):
     state = ViewState(**safe_get(body, "view", "state"))
     region_select = state.values.get(SELECT_REGION).get(SELECT_REGION)
+    print(region_select)
     blocks = [
         HeaderBlock(text="Region Connection Request"),
         RichTextBlock(
@@ -237,12 +189,16 @@ def handle_existing_region_selection(
     ssl_context = ssl.create_default_context()
     ssl_context.check_hostname = False
     ssl_context.verify_mode = ssl.CERT_NONE
-    send_client = WebClient(token=os.environ.get("ADMIN_BOT_TOKEN"), ssl=ssl_context)
-    send_client.chat_postMessage(
-        channel=os.environ.get("ADMIN_CHANNEL_ID"),
-        text="Connection Request",
-        blocks=blocks,
-    )
+    if os.environ.get("ADMIN_BOT_TOKEN") and os.environ.get("ADMIN_CHANNEL_ID"):
+        try:
+            send_client = WebClient(token=os.environ.get("ADMIN_BOT_TOKEN"), ssl=ssl_context)
+            send_client.chat_postMessage(
+                channel=os.environ.get("ADMIN_CHANNEL_ID"),
+                text="Region Connection Request",
+                blocks=blocks,
+            )
+        except Exception as e:
+            logger.error(f"Error sending region connection request: {e}")
 
 
 def handle_new_region_creation(
