@@ -40,7 +40,9 @@ def update_slack_users(force=False):
                         # TODO: create a new SlackUser / User record if it doesn't exist
                     else:
                         update_fields = {
-                            SlackUser.user_name: safe_get(user, "profile", "real_name") or safe_get(user, "name"),
+                            SlackUser.user_name: safe_get(user, "profile", "display_name")
+                            or safe_get(user, "profile", "real_name")
+                            or safe_get(user, "name"),
                             SlackUser.slack_updated: safe_get(user, "updated"),
                             SlackUser.is_admin: safe_get(user, "is_admin") or False,
                             SlackUser.is_owner: safe_get(user, "is_owner") or False,
