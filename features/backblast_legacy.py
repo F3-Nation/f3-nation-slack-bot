@@ -75,10 +75,10 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     channel_name = safe_get(body, "channel_name") or safe_get(body, "channel", "name")
     trigger_id = safe_get(body, "trigger_id")
 
-    for block in safe_get(body, "view", "blocks") or []:
-        if not channel_id and block["block_id"] == actions.BACKBLAST_DESTINATION:
-            channel_id = block["element"]["options"][1]["value"]
-            channel_name = get_channel_name(channel_id, logger, client, region_record)
+    # for block in safe_get(body, "view", "blocks") or []:
+    #     if not channel_id and block["block_id"] == actions.BACKBLAST_DESTINATION:
+    #         channel_id = block["element"]["options"][1]["value"]
+    #         channel_name = get_channel_name(channel_id, logger, client, region_record)
 
     if (
         (safe_get(body, "command") in ["/backblast", "/slackblast"])
@@ -171,7 +171,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         }
 
         backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
-        backblast_form.delete_block(actions.BACKBLAST_DESTINATION)
+        # backblast_form.delete_block(actions.BACKBLAST_DESTINATION)
         callback_id = actions.BACKBLAST_EDIT_CALLBACK_ID_LEGACY
     else:
         logger.debug("ao_id is {}".format(ao_id))
@@ -181,32 +181,32 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         if isinstance(channel_id, str) and channel_id != ao_id and channel_id != "":
             names.append(f"Current Channel (#{channel_name})")
             values.append(channel_id)
-        backblast_form.set_options(
-            {
-                actions.BACKBLAST_DESTINATION: slack_orm.as_selector_options(
-                    names=names,
-                    values=values,
-                )
-            }
-        )
+        # backblast_form.set_options(
+        #     {
+        #         actions.BACKBLAST_DESTINATION: slack_orm.as_selector_options(
+        #             names=names,
+        #             values=values,
+        #         )
+        #     }
+        # )
         if not ((region_record.email_enabled is not None) & (region_record.email_option_show is not None)):
             backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
         backblast_metadata = None
         callback_id = actions.BACKBLAST_CALLBACK_ID_LEGACY
 
     if backblast_method == "create":
-        if (region_record.default_backblast_destination or "") == constants.CONFIG_DESTINATION_CURRENT["value"]:
-            default_destination_id = channel_id
-        elif (region_record.default_backblast_destination or "") == constants.CONFIG_DESTINATION_AO["value"]:
-            default_destination_id = "The_AO"
-        else:
-            default_destination_id = None
+        # if (region_record.default_backblast_destination or "") == constants.CONFIG_DESTINATION_CURRENT["value"]:
+        #     default_destination_id = channel_id
+        # elif (region_record.default_backblast_destination or "") == constants.CONFIG_DESTINATION_AO["value"]:
+        #     default_destination_id = "The_AO"
+        # else:
+        #     default_destination_id = None
 
         backblast_form.set_initial_values(
             {
                 actions.BACKBLAST_Q: user_id,
                 actions.BACKBLAST_DATE: datetime.now(pytz.timezone("US/Central")).strftime("%Y-%m-%d"),
-                actions.BACKBLAST_DESTINATION: default_destination_id or "The_AO",
+                # actions.BACKBLAST_DESTINATION: default_destination_id or "The_AO",
                 actions.BACKBLAST_MOLESKIN: region_record.backblast_moleskin_template
                 or constants.DEFAULT_BACKBLAST_MOLESKINE_TEMPLATE,
             }
@@ -262,7 +262,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     fngs = safe_get(backblast_data, actions.BACKBLAST_FNGS)
     count = safe_get(backblast_data, actions.BACKBLAST_COUNT)
     moleskin = safe_get(backblast_data, actions.BACKBLAST_MOLESKIN)
-    destination = safe_get(backblast_data, actions.BACKBLAST_DESTINATION)
+    # destination = safe_get(backblast_data, actions.BACKBLAST_DESTINATION)
     email_send = safe_get(backblast_data, actions.BACKBLAST_EMAIL_SEND)
     ao = safe_get(backblast_data, actions.BACKBLAST_AO)
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
@@ -345,9 +345,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     if region_record.paxminer_schema:
         user_records = DbManager.find_records(PaxminerUser, filters=[True], schema=region_record.paxminer_schema)
 
-    chan = destination
-    if chan == "The_AO":
-        chan = the_ao
+    # chan = destination
+    # if chan == "The_AO":
+    #     chan = the_ao
 
     if create_or_edit == "edit":
         message_metadata = json.loads(body["view"]["private_metadata"])
@@ -355,7 +355,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         message_ts = safe_get(message_metadata, "message_ts")
         file_list = safe_get(message_metadata, "files") if not file_list else file_list
     else:
-        message_channel = chan
+        if (
+            region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
+            and region_record.backblast_destination_channel
+        ):
+            message_channel = region_record.backblast_destination_channel
+        else:
+            message_channel = safe_get("body", "channel", "id") or safe_get("body", "channel_id")
         message_ts = None
 
     auto_count = len(set([the_q] + (the_coq or []) + pax))
@@ -492,7 +498,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         if region_record.paxminer_schema is None:
             text = (post_msg + "\n" + moleskin_text)[:1500]
             res = client.chat_postMessage(
-                channel=chan,
+                channel=message_channel,
                 text=text,
                 username=f"{q_name} (via Slackblast)",
                 icon_url=q_url,
@@ -500,7 +506,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         else:
             text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]
             res = client.chat_postMessage(
-                channel=chan,
+                channel=message_channel,
                 text=text,
                 username=f"{q_name} (via Slackblast)",
                 icon_url=q_url,
@@ -571,7 +577,7 @@ COUNT: {count}
             )
         logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
 
-    res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
+    res_link = client.chat_getPermalink(channel=message_channel, message_ts=res["ts"])
 
     if region_record.paxminer_schema is not None:
         backblast_parsed = f"""Backblast! {title}
@@ -589,7 +595,7 @@ COUNT: {count}
                 record=Backblast(
                     timestamp=message_ts or res["ts"],
                     ts_edited=safe_get(res, "message", "edited", "ts"),
-                    ao_id=ao or chan,
+                    ao_id=ao or message_channel,
                     bd_date=the_date,
                     q_user_id=the_q,
                     coq_user_id=the_coq[0] if the_coq else None,
@@ -609,7 +615,7 @@ COUNT: {count}
                         timestamp=message_ts or res["ts"],
                         ts_edited=safe_get(res, "message", "edited", "ts"),
                         user_id=pax_id,
-                        ao_id=ao or chan,
+                        ao_id=ao or message_channel,
                         date=the_date,
                         q_user_id=the_q,
                     )
@@ -622,7 +628,7 @@ COUNT: {count}
                 import_or_edit = "imported" if create_or_edit == "create" else "edited"
                 client.chat_postMessage(
                     channel=paxminer_log_channel,
-                    text=f"Backblast successfully {import_or_edit} for AO: <#{ao or chan}> Date: {the_date} Q: {q_name}"
+                    text=f"Backblast successfully {import_or_edit} for AO: <#{ao or message_channel}> Date: {the_date} Q: {q_name}"  # noqa: E501
                     f"\nLink: {res_link['permalink']}",
                 )
         except Exception as e:
