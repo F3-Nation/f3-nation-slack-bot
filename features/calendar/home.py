@@ -382,17 +382,18 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     if action in ["View Preblast", "Edit Preblast"]:
         build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     elif action == "Take Q":
-        DbManager.create_or_ignore(
-            Attendance,
-            [
+        try:
+            DbManager.create_record(
                 Attendance(
                     event_instance_id=event_instance_id,
                     user_id=user_id,
                     attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
                     is_planned=True,
                 )
-            ],
-        )
+            )
+        except Exception:
+            logger.info("Maybe already signed up?")
+
         # TODO: build the q / preblast form
         update_post = True
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
