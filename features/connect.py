@@ -26,7 +26,7 @@ from sqlalchemy import or_
 
 from features.calendar.series import create_events
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get
+from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get, update_local_region_records
 
 CONNECT_EXISTING_REGION = "connect_existing_region"
 CREATE_NEW_REGION = "create_new_region"
@@ -333,6 +333,8 @@ def handle_approve_connection(
             )
         except Exception as e:
             logger.error(f"Error sending region connection approval: {e}")
+
+    update_local_region_records()
 
 
 def handle_deny_connection(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
