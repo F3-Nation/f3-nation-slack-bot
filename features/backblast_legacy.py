@@ -361,7 +361,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         ):
             message_channel = region_record.backblast_destination_channel
         else:
-            message_channel = safe_get("body", "channel", "id") or safe_get("body", "channel_id")
+            message_channel = safe_get(body, "channel", "id") or safe_get(body, "channel_id")
         message_ts = None
 
     auto_count = len(set([the_q] + (the_coq or []) + pax))
