@@ -270,7 +270,7 @@ def handle_approve_connection(
     # Connect the slack space to the new org
     if team_id:
         slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == team_id])
-        region_record = slack_space_record.settings
+        region_record = SlackSettings(**slack_space_record.settings or {})
         if slack_space_record:
             connect_record = Org_x_SlackSpace(
                 org_id=org_record.id,
