@@ -349,6 +349,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     # if chan == "The_AO":
     #     chan = the_ao
 
+    message_channel = the_ao
     if create_or_edit == "edit":
         message_metadata = json.loads(body["view"]["private_metadata"])
         message_channel = safe_get(message_metadata, "channel_id")
@@ -360,8 +361,6 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
             and region_record.backblast_destination_channel
         ):
             message_channel = region_record.backblast_destination_channel
-        else:
-            message_channel = safe_get(body, "channel", "id") or safe_get(body, "channel_id")
         message_ts = None
 
     auto_count = len(set([the_q] + (the_coq or []) + pax))
