@@ -158,6 +158,8 @@ ACTION_MAPPER = {
     event_tag.CALENDAR_MANAGE_EVENT_TAGS: (event_tag.manage_event_tags, False),
     actions.SECRET_MENU_REFRESH_SLACK_USERS: (db_admin.handle_slack_user_refresh, False),
     actions.SECRET_MENU_UPDATE_BOT_TOKEN: (db_admin.handle_update_bot_token, False),
+    connect.DENY_CONNECTION: (connect.handle_deny_connection, False),
+    connect.APPROVE_CONNECTION: (connect.handle_approve_connection, False),
 }
 
 ACTION_PREFIXES = [
@@ -185,6 +187,7 @@ EVENT_MAPPER = {
 OPTIONS_MAPPER = {
     actions.USER_OPTION_LOAD: (options.handle_request, False),
     user.USER_FORM_HOME_REGION: (options.handle_request, False),
+    connect.SELECT_REGION: (options.handle_request, False),
 }
 
 SHORTCUT_MAPPER = {

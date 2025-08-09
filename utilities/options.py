@@ -40,7 +40,7 @@ def handle_request(
                 }
             )
         return options
-    elif action_id == user_form.USER_FORM_HOME_REGION or action_id == connect_form.SELECT_REGION:
+    elif action_id in [user_form.USER_FORM_HOME_REGION, connect_form.SELECT_REGION]:
         # Handle the home region selection
         org_records = DbManager.find_records(
             cls=Org,

@@ -247,10 +247,10 @@ CONFIG_NO_ORG_FORM = orm.BlockView(
     [
         orm.ActionsBlock(
             elements=[
-                # orm.ButtonElement(
-                #     label=":date: Migration Settings",
-                #     action=actions.CONFIG_CONNECT,
-                # ),
+                orm.ButtonElement(
+                    label=":date: Migration Settings",
+                    action=actions.CONFIG_CONNECT,
+                ),
                 orm.ButtonElement(
                     label=":bust_in_silhouette: User Settings",
                     action=actions.CONFIG_USER_SETTINGS,
