@@ -60,7 +60,10 @@ def send_lineups(force: bool = False):
             if slack_settings.send_q_lineups:
                 blocks = build_lineup_blocks(org_events, org_record)
                 # Send the Q Lineup message to the Slack channel
-                send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
+                try:
+                    send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
+                except Exception as e:
+                    print(f"Error sending Q Lineup message for org {org}: {e}")
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:

@@ -136,15 +136,19 @@ def send_automated_preblasts():
         preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
 
         for preblast in preblast_list.items:
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-            slack_client = WebClient(preblast.slack_settings.bot_token, ssl=ssl_context)
-            event_preblast.send_preblast(
-                event_instance_id=preblast.event.id,
-                region_record=preblast.slack_settings,
-                client=slack_client,
-            )
+            try:
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+                slack_client = WebClient(preblast.slack_settings.bot_token, ssl=ssl_context)
+                event_preblast.send_preblast(
+                    event_instance_id=preblast.event.id,
+                    region_record=preblast.slack_settings,
+                    client=slack_client,
+                )
+            except Exception as e:
+                print(f"Error sending preblast for event {preblast.event.id}: {e}")
+                continue
 
 
 if __name__ == "__main__":
