@@ -1,4 +1,5 @@
 import datetime
+import json
 import time
 from logging import Logger
 from typing import List
@@ -16,7 +17,7 @@ from features.calendar.event_preblast import (
 )
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import CalendarHomeQuery, home_schedule_query
+from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, home_schedule_query
 from utilities.helper_functions import get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -45,6 +46,13 @@ def build_home_form(
         return
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     user_id = get_user(slack_user_id, region_record, client, logger).user_id
+
+    metadata = safe_convert(safe_get(body, "view", "metadata", "event_payload"), json.loads) or {}
+    user_is_admin = safe_get(metadata, "user_is_admin")
+    if user_is_admin is None:
+        admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+        user_is_admin = any(u[0].id == user_id for u in admin_users)
+        metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
     ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id])
@@ -232,6 +240,8 @@ def build_home_form(
             option_names.append("HC")
         if event.event.preblast_rich:
             label += " :pencil:"
+        if user_is_admin:
+            option_names.append("Assign Q")
         blocks.append(
             orm.SectionBlock(
                 label=label,
@@ -250,48 +260,24 @@ def build_home_form(
     split_time = time.time()
     print(f"Block build 2 time: {split_time - start_time}")
     start_time = time.time()
-    try:
-        if view_id:
-            form.update_modal(
-                client=client,
-                view_id=view_id,
-                title_text="Calendar Home",
-                callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-                submit_button_text="None",
-            )
-        else:
-            form.post_modal(
-                client=client,
-                trigger_id=safe_get(body, "trigger_id"),
-                title_text="Calendar Home",
-                callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-                new_or_add="new",
-            )
-    except Exception as e:
-        logger.error(f"Error building calendar home form: {e}")
-        logger.info("Trying to resend without the images...")
-        blocks = [b for b in blocks if not isinstance(b, orm.ImageBlock)]
-        form = orm.BlockView(blocks=blocks)
-        form.set_initial_values(existing_filter_data)
-        try:
-            if view_id:
-                form.update_modal(
-                    client=client,
-                    view_id=view_id,
-                    title_text="Calendar Home",
-                    callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-                    submit_button_text="None",
-                )
-            else:
-                form.post_modal(
-                    client=client,
-                    trigger_id=safe_get(body, "trigger_id"),
-                    title_text="Calendar Home",
-                    callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
-                    new_or_add="new",
-                )
-        except Exception as e2:
-            logger.error(f"Error resending calendar home form without images: {e2}")
+    if view_id:
+        form.update_modal(
+            client=client,
+            view_id=view_id,
+            title_text="Calendar Home",
+            callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+            submit_button_text="None",
+            parent_metadata=metadata,
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Calendar Home",
+            callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+            new_or_add="new",
+            parent_metadata=metadata,
+        )
     split_time = time.time()
     print(f"Sending: {split_time - start_time}")
     start_time = time.time()
@@ -372,6 +358,85 @@ def build_calendar_image_form(
     )
 
 
+ASSIGN_Q_FORM = orm.BlockView(
+    blocks=[
+        orm.SectionBlock(label="Assign Q to this event"),
+        orm.InputBlock(
+            label="Select User",
+            action=actions.CALENDAR_HOME_ASSIGN_Q_USER,
+            element=orm.UsersSelectElement(
+                placeholder="Select a user to assign to the Q",
+            ),
+        ),
+        orm.InputBlock(
+            label="Select Co-Qs (optional)",
+            action=actions.CALENDAR_HOME_ASSIGN_Q_CO_QS,
+            element=orm.MultiUsersSelectElement(
+                placeholder="Select users to assign as Co-Qs",
+            ),
+            optional=True,
+        ),
+    ]
+)
+
+
+def build_assign_q_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+    event_instance_id: int,
+    update_view_id: str = None,
+):
+    event_instance = DbManager.get(EventInstance, event_instance_id, joinedloads=[EventInstance.org])
+    attendance = DbManager.find_records(
+        Attendance,
+        filters=[Attendance.event_instance_id == event_instance_id],
+        joinedloads=[Attendance.slack_users, Attendance.attendance_types],
+    )
+
+    form = ASSIGN_Q_FORM
+    form.blocks[0].label = f"Assign Q to this event\n*AO:* {event_instance.org.name}\n"
+    f"*Event:* {event_instance.name}\n"
+    f"*Date:* {event_instance.start_date.strftime('%A, %B %d')}\n"
+    f"*Start Time:* {event_instance.start_time or 'TBD'}\n"
+
+    existing_q_slack_users = [a.slack_users for a in attendance if any(at.type == "Q" for at in a.attendance_types)]
+    if existing_q_slack_users:
+        slack_user_id = [su.slack_id for su in existing_q_slack_users[0] if su.slack_team_id == region_record.team_id]
+        print(f"Existing Q slack user: {slack_user_id}")
+        form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_USER: safe_get(slack_user_id, 0)})
+    existing_co_q_slack_users = [
+        a.slack_users for a in attendance if any(at.type == "Co-Q" for at in a.attendance_types)
+    ]
+    if existing_co_q_slack_users:
+        slack_user_ids = []
+        for slack_user in existing_co_q_slack_users:
+            slack_user_id = [su.slack_id for su in slack_user if su.slack_team_id == region_record.team_id]
+            slack_user_ids.append(safe_get(slack_user_id, 0))
+        print(f"Existing Co-Q slack users: {slack_user_ids}")
+        form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_CO_QS: slack_user_ids})
+    form.update_modal(
+        client=client,
+        view_id=safe_get(body, "view", "id"),
+        title_text="Assign Q",
+        callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+        submit_button_text="Assign Q",
+        parent_metadata={"event_instance_id": event_instance_id},
+    )
+
+
+def handle_assign_q_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    pass
+
+
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     event_instance_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
@@ -420,6 +485,10 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             joinedloads=[Attendance.attendance_types],
         )
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+    elif action == "Assign Q":
+        build_assign_q_form(
+            body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
+        )
 
     if update_post:
         preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)

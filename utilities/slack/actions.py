@@ -43,6 +43,8 @@ SECRET_MENU_REFRESH_SLACK_USERS = "refresh-slack-users"
 ALREADY_POSTED = "already_posted"
 SECRET_MENU_BACKBLAST_REMINDERS = "secret-menu-backblast-reminders"
 SECRET_MENU_UPDATE_BOT_TOKEN = "secret-menu-update-bot-token"
+CALENDAR_HOME_ASSIGN_Q_USER = "calendar-home-assign-q-user"
+CALENDAR_HOME_ASSIGN_Q_CO_QS = "calendar-home-assign-q-co-qs"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"
