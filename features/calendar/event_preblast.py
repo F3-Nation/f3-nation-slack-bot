@@ -546,7 +546,7 @@ def handle_event_preblast_action(
                     Attendance.event_instance_id == event_instance_id,
                     Attendance.user_id == user_id,
                     Attendance.is_planned,
-                    Attendance.attendance_x_attendance_types.has(Attendance_x_AttendanceType.attendance_type_id == 1),
+                    Attendance.attendance_x_attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),
                 ],
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
