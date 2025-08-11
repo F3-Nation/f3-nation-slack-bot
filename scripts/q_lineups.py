@@ -67,7 +67,10 @@ def send_lineups(force: bool = False):
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
-    org_events.sort(key=lambda x: x.event.start_date + timedelta(hours=int(x.event.start_time[:2])))
+    org_events.sort(
+        key=lambda x: x.event.start_date
+        + timedelta(hours=safe_convert(x.event.start_time[:2] if x.event.start_time else "0", int))
+    )
     blocks: List[BaseBlock] = [
         SectionBlock(label=f"Hello HIMs of {org.name}! Here is your Q lineup for the week\n\n*Weekly Q Lineup:*"),
         DividerBlock(),
