@@ -24,46 +24,19 @@ The F3 Nation Slack Bot is in active development, and I welcome any and all help
 
 ## Local Development
 
-If you'd like to contribute to the F3 Nation Slack Bot, I highly recommend setting up a local development environment for testing. Below are the steps to get it running (I did this in unix via WSL on Windows, YMMV on OSX):
-
-### Development Environment:
-
-If you don’t have a development environment of choice, I’m going to make two strong recommendations; VSCode is a VERY good and free IDE, and I would strongly make the case for using a unix environment.
-
-1. **VSCode:** [Download Visual Studio Code - Mac, Linux, Windows](https://code.visualstudio.com/download)
-2. **Unix environment:** if on Windows 10+, you can enable “Windows Subsystem for Linux” (WSL), that will allow you to run a version of linux directly on top of / inside of Windows. VSCode makes it very easy to “remote” into WSL: [Install WSL](https://learn.microsoft.com/en-us/windows/wsl/install) (I use Ubuntu FWIW).
-3. **Python 3.12:** you may already have this, but if not I recommend pyenv to manage python installations: [pyenv/pyenv: Simple Python version management](https://github.com/pyenv/pyenv?tab=readme-ov-file#installation). Specifically, F3 Nation currently uses **Python 3.12**
-4. **Postgresql:** this app uses postgresql 16 on the backend, so you will need to set up a local instance for testing.
-5. **Ngrok:** you will use this to forward network traffic to your locally running development app: [Download (ngrok.com)](https://ngrok.com/download) or alternatively use a [snap](https://snapcraft.io/ngrok). You will need to create a free account and install your authtoken: [Your Authtoken - ngrok](https://dashboard.ngrok.com/get-started/your-authtoken)
-6. **Poetry:** I use Poetry for of my apps’ dependency / environment management: [Introduction | Documentation | Poetry - Python dependency management and packaging made easy (python-poetry.org)](https://python-poetry.org/docs/)
-7. **Git:** Git should be installed in most unix environments, here’s unix: [Git (git-scm.com)](https://git-scm.com/download/linux)
-8. **Nodemon:** this is a useful utility for having “hot reload” when you’re developing: [nodemon - npm (npmjs.com)](https://www.npmjs.com/package/nodemon). You will likely need to install npm: [How to install Node.js and NPM on WSL2 (cloudbytes.dev)](https://cloudbytes.dev/snippets/how-to-install-nodejs-and-npm-on-wsl2)
-9. **VSCode extensions:** one of the best things about VSCode are the thousands of extensions that are available to help your coding experience
-    - Once you will need for sure:
-      - WSL (if using WSL)
-      - Remote Explorer (may come with the one above)
-      - Python Extention Pack
-    - Some other favorites of mine
-      - Github Copilot - has blown my mind on how good it is, but it is $10 a month
-      - Gitlens
-      - Error Lens
-      - Ruff
-      - Database Client JDBC
+If you'd like to contribute to the F3 Nation Slack Bot, I highly recommend setting up a local development environment for testing. This is super easy to spin up thanks to @weshayutin for the Docker configuration!
 
 ### Project setup
 
-1. Replicate the F3 Nation data structure through the instructions found here: https://github.com/F3-Nation/F3-Data-Models?tab=readme-ov-file#running-locally
-2. Clone the repo:
-```sh
-git clone https://github.com/F3-Nation/f3-nation-slack-bot.git
-```
-3. Use Poetry to install dependencies:
-```sh
-cd f3-nation-slack-bot
-poetry env use 3.12
-poetry install
-```
-4. Create your development Slack bot: 
+1. Clone the repo:
+  ```bash
+  git clone https://github.com/F3-Nation/f3-nation-slack-bot.git
+  ```
+2. Run Ngrok with the following command from your terminal and copy the forwarding URL ID (the part before `ngrok-free.app`):
+  ```bash
+  ngrok http 3000
+  ```
+3. Create your development Slack bot: 
     1. Navigate to [api.slack.com]()
     2. Click "Create an app"
     3. Click "From a manifest", select your workspace
@@ -83,30 +56,47 @@ poetry install
     5. After creating the app, you will need a couple of items: first, copy and save the Signing Secret from Basic Information. Second, copy and save the Bot User OAuth Token from OAuth & Permissions
 
 
-5. Copy `.env.example`, replacing `ADMIN_DATABASE_PASSWORD` with the one you used to set up Postgresql, `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above, and save the new file as `.env` in the base directory. There are several secrets you will need from Moneyball.
-6. Run Ngrok with the following command from your terminal:
-```sh
-ngrok http 3000
-```
-7. Copy the Forwarding URL (has `ngrok-free.app` at the end)
-8. Back in your browser for the Slack app, replace **all** of the YOUR_URLs with the ngrok Forwarding URL
-9. You are now ready to roll! This would be a good time to make sure you're on your own branch :)
-10. To run the app with "hot reload" (restarts anytime you save a file), run from the f3-nation-slack-bot subdirectory:
-```sh
-source .env && nodemon --exec "poetry run python main.py" -e py
-```
-11. Use ctrl-C to stop both Ngrok and nodemon
-12. Repeat steps 6-11 whenever you stop and want to come back to your app
+4. **Create your `.env` file** with your Slack credentials:
+  ```bash
+  cp .env.example .env  # if available
+   # Edit .env with your values
+   ```
+  Replace `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above. There are several secrets you will need from Moneyball that you may need as well.
 
-> [!NOTE]
-> If you want to access your db, there's an excellent vscode extension called [Database Client JDBC](https://marketplace.visualstudio.com/items?itemName=cweijan.dbclient-jdbc). Note, if using WSL, your WSL's IP address CAN CHANGE, meaning you would need to edit your connection when it does. I got the Server Host port number by running `wsl hostname -I` from Powershell.
+5. **Build your development environment:**
+   ```bash
+   # Start all services including the app container
+   docker-compose --profile app up --build
+   ```
 
-<img src="assets/local_setup.png" width="500">
+  That's it! The F3-Data-Models repository is automatically cloned and set up during the Docker build process.
+  
+  ### What Happens
+
+  1. **Database Service** (`db`): PostgreSQL 16 starts up
+  2. **Database Initialization** (`db-init`): 
+    - Built from `./db-init/Dockerfile`
+    - Automatically clones the F3-Data-Models repository
+    - Waits for database to be ready (5-second intervals)
+    - Creates the database if it doesn't exist
+    - Installs Poetry dependencies for migrations
+    - Runs Alembic migrations to create all tables
+    - Sets up the complete F3 database schema
+  3. **App Service** (`app`): 
+    - Starts the F3 Nation Slack Bot
+    - Connects to the initialized database
+    - Runs with hot-reloading for development
+
+  ### Services
+
+  - **App**: http://localhost:3000
+  - **Database**: localhost:5432 (postgres/postgres)
+  - **Adminer**: http://localhost:8080 (admin WEBUI for the db)
 
 > [!NOTE]
 > if you add or change packages via `poetry add ...`, you will need to also add it to `f3-nation-slack-bot/requirements.txt`. You can make sure that this file fully reflects the poetry virtual environment via: `poetry export -f requirements.txt -o requirements.txt --without-hashes`
 
-## Codebase Structure
+## Codebase Structure and Design Notes
 
 This codebase utilizes the slack-bolt python sdk throughout, and auto-deploys to the Google Cloud Run function. Here is a high-level walkthrough of the most important components:
 
@@ -115,3 +105,5 @@ This codebase utilizes the slack-bolt python sdk throughout, and auto-deploys to
 - `utilities/slack/actions.py` - this is where I store the constant values of the various action ids used throughout. Eventually I'd like to move these to the feature modules
 - `features/` - this is where the meat of the functionality lives. Functions are generally either "building" a Slack form / modal, and / or responding "handling" an action or submission of a form. The design pattern I've used is including the build function, the handle function, and the UI form layout for a particular menu / feature in a single file. In the future I'd like to make this more modular
 - `utilities/slack/orm.py` - this is where I've defined most of the Slack API UI elements in python class form, that is then used throughout. The ORM defines "blocks", that can then be converted to Slack's required json format via the `.as_form_field()` method. I'd eventually like to use the ORM directly from the Slack SDK, as it has some validation features I like
+- See `features/calendar/event_tag.py` for an example of the design pattern I'd like to refactor to (more modular, uses the Slack SDK ORM, etc.)
+- **Data Access:** - right now, I use a SQLAlchemy wrapper I built in the `f3-data-models` repo, which has direct db access. However, we've aligned that we want all db interactions for F3 apps to go through a yet-to-be-built API.
