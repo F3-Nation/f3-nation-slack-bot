@@ -297,6 +297,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             }
             for r in attendance_non_slack_users
         ]
+        print(update_list)
         backblast_form.set_initial_values({actions.USER_OPTION_LOAD: update_list})
 
     if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
