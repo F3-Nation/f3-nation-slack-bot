@@ -23,7 +23,7 @@ from features import preblast_legacy
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import event_attendance_query
+from utilities.database.special_queries import event_attendance_query, get_admin_users
 from utilities.helper_functions import (
     current_date_cst,
     get_user,
