@@ -661,7 +661,9 @@ def handle_event_preblast_action(
                 icon_url=q_url,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:
-            if user_id in (safe_get(metadata, "qs") or []):
+            admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+            user_is_admin = any(u[0].id == slack_user.user_id for u in admin_users)
+            if (user_id in (safe_get(metadata, "qs") or [])) or user_is_admin:
                 build_event_preblast_form(
                     body, client, logger, context, region_record, event_instance_id=event_instance_id
                 )
