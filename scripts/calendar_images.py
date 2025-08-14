@@ -145,7 +145,7 @@ def generate_calendar_images():
                 (EventInstance.start_date >= current_week_start),
                 (EventInstance.start_date < next_week_end),
                 (EventInstance.is_active),
-                (EventInstance.series_id is not None),
+                (EventInstance.series_id.is_not(None)),
             )
         )
 
