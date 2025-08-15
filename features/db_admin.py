@@ -97,7 +97,7 @@ def handle_calendar_image_refresh(
     context: dict,
     region_record: SlackSettings,
 ):
-    generate_calendar_images()
+    generate_calendar_images(force=True)
 
 
 def handle_slack_user_refresh(

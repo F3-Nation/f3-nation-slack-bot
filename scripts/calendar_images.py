@@ -72,7 +72,7 @@ def set_text_color(s, color_dict):
     return text_color_list
 
 
-def generate_calendar_images():
+def generate_calendar_images(force: bool = False):
     with get_session() as session:
         tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
         current_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week + 1)
@@ -200,7 +200,7 @@ def generate_calendar_images():
                     max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
                     first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
 
-                    if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run or LOCAL_DEVELOPMENT:
+                    if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run or LOCAL_DEVELOPMENT or force:
                         # convert start_date from date to string
                         df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
                         df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
