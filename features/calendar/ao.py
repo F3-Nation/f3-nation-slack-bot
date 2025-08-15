@@ -141,7 +141,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     ao_records: List[Org] = DbManager.find_records(
-        Org, [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao]
+        Org, [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)],
     )
 
     blocks = [
