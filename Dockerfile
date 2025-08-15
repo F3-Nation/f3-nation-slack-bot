@@ -5,26 +5,27 @@ ENV DEBIAN_FRONTEND=noninteractive \
     APP_HOME=/app \
     GOOGLE_FUNCTION_TARGET=handler
 
-# Base OS deps
+# Install base deps and Python 3.12 from deadsnakes (no distutils package in 3.12)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common curl ca-certificates gnupg wget \
+      software-properties-common curl ca-certificates gnupg wget \
     && add-apt-repository ppa:deadsnakes/ppa \
     && apt-get update && apt-get install -y --no-install-recommends \
-       python3.12 python3.12-venv python3.12-distutils build-essential \
+      python3.12 python3.12-venv python3.12-dev build-essential \
     && curl -sS https://bootstrap.pypa.io/get-pip.py -o get-pip.py \
     && python3.12 get-pip.py \
     && ln -s /usr/bin/python3.12 /usr/local/bin/python \
     && rm get-pip.py \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    && apt-get purge -y software-properties-common \
+    && apt-get autoremove -y && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $APP_HOME
 
-# Copy and install Python deps first for layer caching
+# Copy and install Python deps first
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browser + required system deps
-# (install-deps will apt-get the necessary libraries on Ubuntu)
+# Install Playwright browser + system deps (runs apt internally)
 RUN python -m playwright install chromium && \
     python -m playwright install-deps
 
