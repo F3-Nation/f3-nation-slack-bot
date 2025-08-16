@@ -4,6 +4,7 @@ from typing import Any, List
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
+    Event,
     EventInstance,
     EventTag,
     EventType,
@@ -35,6 +36,7 @@ class CalendarHomeQuery:
     planned_qs: str = None
     user_attending: int = None
     user_q: int = None
+    series: Event = None
 
 
 def home_schedule_query(
@@ -79,11 +81,14 @@ def home_schedule_query(
 
     # Create the main query
     query = (
-        select(EventInstance, Org, EventType, subquery.c.planned_qs, subquery.c.user_attending, subquery.c.user_q)
+        select(
+            EventInstance, Org, EventType, subquery.c.planned_qs, subquery.c.user_attending, subquery.c.user_q, Event
+        )
         .join(Org, Org.id == EventInstance.org_id)
         .join(EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id)
         .join(EventType, EventType.id == EventType_x_EventInstance.event_type_id)
         .outerjoin(subquery, subquery.c.event_instance_id == EventInstance.id)
+        .outerjoin(Event, Event.id == EventInstance.series_id)
         .filter(*filters)
         .order_by(EventInstance.start_date, EventInstance.id, Org.name, EventInstance.start_time)
         .limit(limit)
@@ -109,6 +114,7 @@ def home_schedule_query(
                 planned_qs=r[3],
                 user_attending=r[4],
                 user_q=r[5],
+                series=r[6],
             )
         )
     session.close()

@@ -55,7 +55,9 @@ def build_home_form(
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
-    ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)])
+    ao_records = DbManager.find_records(
+        Org, filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)]
+    )
     event_type_records: List[EventType] = DbManager.find_records(
         EventType,
         filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id.is_(None)],
@@ -225,7 +227,10 @@ def build_home_form(
             active_date = event.event.start_date
             blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
             block_count += 1
-        label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
+        if event.series and event.series.name and event.org.name not in event.series.name:
+            label = f"{event.series.name} @ {event.org.name} @ {event.event.start_time}"
+        else:
+            label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
         if event.planned_qs:
             label += f" / Q: {event.planned_qs}"
         else:
