@@ -505,7 +505,9 @@ def build_preblast_info(
 
     preblast_blocks = [
         orm.SectionBlock(label=event_details),
-        orm.RichTextBlock(label=event_record.preblast_rich or DEFAULT_PREBLAST),
+        orm.RichTextBlock(
+            label=event_record.preblast_rich or region_record.preblast_moleskin_template or DEFAULT_PREBLAST
+        ),
     ]
     return PreblastInfo(
         event_record=event_record,
