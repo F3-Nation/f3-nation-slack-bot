@@ -278,11 +278,11 @@ def handle_event_preblast_edit(
         ),
     }
     DbManager.update_record(EventInstance, event_instance_id, update_fields)
+    DbManager.delete_records(
+        cls=EventTag_x_EventInstance,
+        filters=[EventTag_x_EventInstance.event_instance_id == event_instance_id],
+    )
     if form_data[actions.EVENT_PREBLAST_TAG]:
-        DbManager.delete_records(
-            cls=EventTag_x_EventInstance,
-            filters=[EventTag_x_EventInstance.event_instance_id == event_instance_id],
-        )
         DbManager.create_record(
             EventTag_x_EventInstance(
                 event_instance_id=event_instance_id,
