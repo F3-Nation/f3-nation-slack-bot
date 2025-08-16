@@ -63,6 +63,8 @@ oauth_config:
       - files:write
     bot:
       - app_mentions:read
+      - canvases:read
+      - canvases:write
       - channels:history
       - channels:join
       - channels:read
@@ -82,8 +84,34 @@ oauth_config:
       - users.profile:read
       - users:read
       - users:read.email
-      - canvases:write
-      - canvases:read
+      - channels:manage
+      - channels:write.invites
+      - channels:write.topic
+      - emoji:read
+      - groups:history
+      - groups:read
+      - groups:write
+      - groups:write.topic
+      - groups:write.invites
+      - im:write.topic
+      - metadata.message:read
+      - links.embed:write
+      - links:read
+      - links:write
+      - mpim:history
+      - mpim:read
+      - mpim:write
+      - reminders:read
+      - pins:read
+      - pins:write
+      - remote_files:read
+      - reminders:write
+      - remote_files:share
+      - mpim:write.topic
+      - remote_files:write
+      - usergroups:read
+      - usergroups:write
+      - users:write
 settings:
   event_subscriptions:
     request_url: https://${YOUR_URL}.ngrok-free.app/slack/events # You'll be editing this

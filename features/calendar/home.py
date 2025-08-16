@@ -5,7 +5,7 @@ from logging import Logger
 from typing import List
 
 import requests
-from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, EventType, Org
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, EventType, Org, Org_Type
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
@@ -55,7 +55,7 @@ def build_home_form(
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
-    ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id])
+    ao_records = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)])
     event_type_records: List[EventType] = DbManager.find_records(
         EventType,
         filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id.is_(None)],

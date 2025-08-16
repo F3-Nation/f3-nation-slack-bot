@@ -10,6 +10,10 @@ import pytz
 import requests
 from f3_data_models.models import (
     Org,
+    Org_Type,
+    Org_x_SlackSpace,
+    Role,
+    Role_x_User_x_Org,
     SlackSpace,
     SlackUser,
     User,
@@ -237,7 +241,19 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         }
 
         if not org_record:
-            region_record = migrate_slackblast_settings(team_id, settings_starters)
+            if LOCAL_DEVELOPMENT:
+                region_record = SlackSettings(**settings_starters)
+            
+                org_record = DbManager.create_record(
+                    Org(
+                        name="My Region",
+                        org_type=Org_Type.region,
+                        is_active=True,
+                    )
+                )
+                region_record.org_id = org_record.id
+            else:
+                region_record = migrate_slackblast_settings(team_id, settings_starters)
         else:
             settings_starters.update({"org_id": org_record.id})
             region_record = SlackSettings(**settings_starters)
@@ -249,6 +265,25 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
             settings=region_record.__dict__,
         )
         slack_space_record: SlackSpace = DbManager.create_record(slack_space_record)
+
+        if org_record and LOCAL_DEVELOPMENT:
+            # Connect the org to the slack space
+            DbManager.create_record(
+                Org_x_SlackSpace(
+                    org_id=org_record.id,
+                    slack_space_id=slack_space_record.id,
+                )
+            )
+            # Make the current user an admin of the org
+            user_id = get_user(safe_get(body, "user_id"), region_record, client, logger).user_id
+            admin_role_id = DbManager.find_first_record(Role, filters=[Role.name == "admin"]).id
+            DbManager.create_record(
+                Role_x_User_x_Org(
+                    user_id=user_id,
+                    org_id=org_record.id,
+                    role_id=admin_role_id,
+                )
+            )
 
         REGION_RECORDS[team_id] = region_record
 

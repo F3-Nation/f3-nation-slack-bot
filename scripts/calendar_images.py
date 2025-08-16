@@ -72,7 +72,7 @@ def set_text_color(s, color_dict):
     return text_color_list
 
 
-def generate_calendar_images():
+def generate_calendar_images(force: bool = False):
     with get_session() as session:
         tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
         current_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week + 1)
@@ -145,6 +145,7 @@ def generate_calendar_images():
                 (EventInstance.start_date >= current_week_start),
                 (EventInstance.start_date < next_week_end),
                 (EventInstance.is_active),
+                (EventInstance.series_id.is_not(None)),
             )
         )
 
@@ -163,179 +164,182 @@ def generate_calendar_images():
         )
 
         for region_id in df_all["region_id"].unique():
-            region_id = int(region_id)
-            df_full = df_all[df_all["region_id"] == region_id].copy()
-            region_name = df_full["region_name"].iloc[0]
-            print(f"Running for {region_name}")
+            try:
+                region_id = int(region_id)
+                df_full = df_all[df_all["region_id"] == region_id].copy()
+                region_name = df_full["region_name"].iloc[0]
+                print(f"Running for {region_name}")
 
-            color_dict = {
-                t.name: t.color for t in event_tags if t.specific_org_id == region_id or t.specific_org_id is None
-            }
-            if "Open" in color_dict:
-                color_dict["OPEN!"] = color_dict.pop("Open")
+                color_dict = {
+                    t.name: t.color for t in event_tags if t.specific_org_id == region_id or t.specific_org_id is None
+                }
+                if "Open" in color_dict:
+                    color_dict["OPEN!"] = color_dict.pop("Open")
 
-            for week in ["current", "next"]:
-                if week == "current":
-                    df = df_full[
-                        (df_full["start_date"] >= current_week_start) & (df_full["start_date"] < current_week_end)
-                    ].copy()
-                else:
-                    df = df_full[
-                        (df_full["start_date"] >= next_week_start) & (df_full["start_date"] < next_week_end)
-                    ].copy()
-
-                max_event_updated = (
-                    datetime(year=1900, month=1, day=1)
-                    if df["event_updated"].isnull().all()
-                    else df["event_updated"].max()
-                )
-                max_q_last_updated = (
-                    datetime(year=1900, month=1, day=1)
-                    if df["q_last_updated"].isnull().all()
-                    else df["q_last_updated"].max()
-                )
-                max_changed = max(max_event_updated, max_q_last_updated)
-                max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
-                first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
-
-                if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run or LOCAL_DEVELOPMENT:
-                    # convert start_date from date to string
-                    df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
-                    df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
-                    df.loc[:, "event_time"] = df["start_time"]
-                    df.loc[df["q_name"].isna(), "q_name"] = "OPEN!"
-                    df.loc[:, "q_name"] = df["q_name"].str.replace(r"\s\(([\s\S]*?\))", "", regex=True)
-
-                    df.loc[:, "label"] = df["q_name"] + "\n" + df["event_acronym"] + " " + df["event_time"]
-                    df.loc[(df["event_tag"].notnull()), ("label")] = (
-                        df["q_name"] + "\n" + df["event_tag"] + "\n" + df["event_time"]
-                    )
-                    df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
-                    df.loc[df["ao_description"].notnull(), "AO\nLocation"] = df["ao_name"] + "\n" + df["ao_description"]
-                    df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
-                    df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
-
-                    # Combine cells for days / AOs with more than one event
-                    df.sort_values(["ao_name", "event_date", "event_time"], ignore_index=True, inplace=True)
-                    prior_date = ""
-                    prior_label = ""
-                    prior_ao = ""
-                    include_list = []
-                    for i in range(len(df)):
-                        row2 = df.loc[i]
-                        if (row2["event_date_fmt"] == prior_date) & (row2["ao_name"] == prior_ao):
-                            df.loc[i, "label"] = prior_label + "\n" + df.loc[i, "label"]
-                            prior_label = df.loc[i, "label"]
-                            include_list.append(False)
-                        else:
-                            if prior_label != "":
-                                include_list.append(True)
-                            prior_date = row2["event_date_fmt"]
-                            prior_ao = row2["ao_name"]
-                            prior_label = row2["label"]
-
-                    include_list.append(True)
-
-                    # filter out duplicate dates
-                    df = df[include_list]
-
-                    # Reshape to wide format by date
-                    df2 = df.pivot(
-                        index="AO\nLocation",
-                        columns=["event_day_of_week", "event_date_fmt"],
-                        values="label",
-                    ).fillna("")
-
-                    # Sort and enforce word wrap on labels
-                    df2.sort_index(axis=1, level=["event_date_fmt"], inplace=True)
-                    df2.columns = df2.columns.map("\n".join).str.strip("\n")
-                    df2.reset_index(inplace=True)
-
-                    # Take out "The " for sorting
-                    df2["AO\nLocation2"] = df2["AO\nLocation"].str.replace("The ", "")
-                    df2.sort_values(by=["AO\nLocation2"], axis=0, inplace=True)
-                    df2.drop(["AO\nLocation2"], axis=1, inplace=True)
-                    df2.reset_index(inplace=True, drop=True)
-
-                    # Set CSS properties for th elements in dataframe
-                    th_props = [
-                        ("font-size", "15px"),
-                        ("text-align", "center"),
-                        ("font-weight", "bold"),
-                        ("color", "#F0FFFF"),
-                        ("background-color", "#000000"),
-                        ("white-space", "pre-wrap"),
-                        ("border", "1px solid #F0FFFF"),
-                    ]
-
-                    # Set CSS properties for td elements in dataframe
-                    td_props = [
-                        ("font-size", "15px"),
-                        ("text-align", "center"),
-                        ("white-space", "pre-wrap"),
-                        # ('background-color', '#000000'),
-                        # ("color", "#F0FFFF"),
-                        ("border", "1px solid #F0FFFF"),
-                    ]
-
-                    # Set table styles
-                    styles = [
-                        {"selector": "th", "props": th_props},
-                        {"selector": "td", "props": td_props},
-                    ]
-
-                    # set style and export png
-                    # df_styled = df2.style.set_table_styles(styles).apply(highlight_cells).hide_index()
-                    # apply styles, hide the index
-                    df_styled = (
-                        df2.style.set_table_styles(styles)
-                        .apply(highlight_cells, color_dict=color_dict)
-                        .hide(axis="index")
-                    )
-                    df_styled = df_styled.apply(set_text_color, color_dict=color_dict, axis=1)
-
-                    # create calendar image
-                    random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
-                    filename = f"{region_id}-{week}-{random_chars}.png"
-                    if LOCAL_DEVELOPMENT:
-                        dfi.export(df_styled, filename, table_conversion="playwright")
+                for week in ["current", "next"]:
+                    if week == "current":
+                        df = df_full[
+                            (df_full["start_date"] >= current_week_start) & (df_full["start_date"] < current_week_end)
+                        ].copy()
                     else:
-                        dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
+                        df = df_full[
+                            (df_full["start_date"] >= next_week_start) & (df_full["start_date"] < next_week_end)
+                        ].copy()
 
-                    # upload to s3 and remove local file
-                    region_org_record = safe_get([r for r in region_org_records if r[0].id == region_id], 0)
-                    if region_org_record:
-                        slack_app_settings = region_org_record[2].settings
-                        existing_file = slack_app_settings.get(f"calendar_image_{week}")
+                    max_event_updated = (
+                        datetime(year=1900, month=1, day=1)
+                        if df["event_updated"].isnull().all()
+                        else df["event_updated"].max()
+                    )
+                    max_q_last_updated = (
+                        datetime(year=1900, month=1, day=1)
+                        if df["q_last_updated"].isnull().all()
+                        else df["q_last_updated"].max()
+                    )
+                    max_changed = max(max_event_updated, max_q_last_updated)
+                    max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
+                    first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
 
-                        if LOCAL_DEVELOPMENT:  # TODO: upload to GCP
-                            s3_client = boto3.client("s3")
-                            with open(filename, "rb") as f:
-                                s3_client.upload_fileobj(
-                                    f, "slackblast-images", filename, ExtraArgs={"ContentType": "image/png"}
-                                )
-                            try:
-                                if existing_file:
-                                    s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
-                                os.remove(filename)
-                            except Exception as e:
-                                print(f"Error deleting old file {existing_file} from S3: {e}")
-                        else:
-                            if existing_file:
-                                try:
-                                    os.remove(f"/mnt/calendar-images/{existing_file}")
-                                except Exception as e:
-                                    print(f"Error deleting old file {existing_file} from local storage: {e}")
+                    if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run or LOCAL_DEVELOPMENT or force:
+                        # convert start_date from date to string
+                        df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
+                        df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
+                        df.loc[:, "event_time"] = df["start_time"]
+                        df.loc[df["q_name"].isna(), "q_name"] = "OPEN!"
+                        df.loc[:, "q_name"] = df["q_name"].str.replace(r"\s\(([\s\S]*?\))", "", regex=True)
 
-                        # update org record with new filename
-                        slack_app_settings[f"calendar_image_{week}"] = filename
-                        session.query(SlackSpace).filter(SlackSpace.team_id == slack_app_settings["team_id"]).update(
-                            {"settings": slack_app_settings}
+                        df.loc[:, "label"] = df["q_name"] + "\n" + df["event_acronym"] + " " + df["event_time"]
+                        df.loc[(df["event_tag"].notnull()), ("label")] = (
+                            df["q_name"] + "\n" + df["event_tag"] + "\n" + df["event_time"]
                         )
-                        session.commit()
-                    else:
-                        print(f"No Slack settings found for region {region_id}. Skipping upload.")
+                        df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
+                        df.loc[df["ao_description"].notnull(), "AO\nLocation"] = df["ao_name"] + "\n" + df["ao_description"]
+                        df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
+                        df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
 
+                        # Combine cells for days / AOs with more than one event
+                        df.sort_values(["ao_name", "event_date", "event_time"], ignore_index=True, inplace=True)
+                        prior_date = ""
+                        prior_label = ""
+                        prior_ao = ""
+                        include_list = []
+                        for i in range(len(df)):
+                            row2 = df.loc[i]
+                            if (row2["event_date_fmt"] == prior_date) & (row2["ao_name"] == prior_ao):
+                                df.loc[i, "label"] = prior_label + "\n" + df.loc[i, "label"]
+                                prior_label = df.loc[i, "label"]
+                                include_list.append(False)
+                            else:
+                                if prior_label != "":
+                                    include_list.append(True)
+                                prior_date = row2["event_date_fmt"]
+                                prior_ao = row2["ao_name"]
+                                prior_label = row2["label"]
+
+                        include_list.append(True)
+
+                        # filter out duplicate dates
+                        df = df[include_list]
+
+                        # Reshape to wide format by date
+                        df2 = df.pivot(
+                            index="AO\nLocation",
+                            columns=["event_day_of_week", "event_date_fmt"],
+                            values="label",
+                        ).fillna("")
+
+                        # Sort and enforce word wrap on labels
+                        df2.sort_index(axis=1, level=["event_date_fmt"], inplace=True)
+                        df2.columns = df2.columns.map("\n".join).str.strip("\n")
+                        df2.reset_index(inplace=True)
+
+                        # Take out "The " for sorting
+                        df2["AO\nLocation2"] = df2["AO\nLocation"].str.replace("The ", "")
+                        df2.sort_values(by=["AO\nLocation2"], axis=0, inplace=True)
+                        df2.drop(["AO\nLocation2"], axis=1, inplace=True)
+                        df2.reset_index(inplace=True, drop=True)
+
+                        # Set CSS properties for th elements in dataframe
+                        th_props = [
+                            ("font-size", "15px"),
+                            ("text-align", "center"),
+                            ("font-weight", "bold"),
+                            ("color", "#F0FFFF"),
+                            ("background-color", "#000000"),
+                            ("white-space", "pre-wrap"),
+                            ("border", "1px solid #F0FFFF"),
+                        ]
+
+                        # Set CSS properties for td elements in dataframe
+                        td_props = [
+                            ("font-size", "15px"),
+                            ("text-align", "center"),
+                            ("white-space", "pre-wrap"),
+                            # ('background-color', '#000000'),
+                            # ("color", "#F0FFFF"),
+                            ("border", "1px solid #F0FFFF"),
+                        ]
+
+                        # Set table styles
+                        styles = [
+                            {"selector": "th", "props": th_props},
+                            {"selector": "td", "props": td_props},
+                        ]
+
+                        # set style and export png
+                        # df_styled = df2.style.set_table_styles(styles).apply(highlight_cells).hide_index()
+                        # apply styles, hide the index
+                        df_styled = (
+                            df2.style.set_table_styles(styles)
+                            .apply(highlight_cells, color_dict=color_dict)
+                            .hide(axis="index")
+                        )
+                        df_styled = df_styled.apply(set_text_color, color_dict=color_dict, axis=1)
+
+                        # create calendar image
+                        random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
+                        filename = f"{region_id}-{week}-{random_chars}.png"
+                        if LOCAL_DEVELOPMENT:
+                            dfi.export(df_styled, filename, table_conversion="playwright")
+                        else:
+                            dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
+
+                        # upload to s3 and remove local file
+                        region_org_record = safe_get([r for r in region_org_records if r[0].id == region_id], 0)
+                        if region_org_record:
+                            slack_app_settings = region_org_record[2].settings
+                            existing_file = slack_app_settings.get(f"calendar_image_{week}")
+
+                            if LOCAL_DEVELOPMENT:  # TODO: upload to GCP
+                                s3_client = boto3.client("s3")
+                                with open(filename, "rb") as f:
+                                    s3_client.upload_fileobj(
+                                        f, "slackblast-images", filename, ExtraArgs={"ContentType": "image/png"}
+                                    )
+                                try:
+                                    if existing_file:
+                                        s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
+                                    os.remove(filename)
+                                except Exception as e:
+                                    print(f"Error deleting old file {existing_file} from S3: {e}")
+                            else:
+                                if existing_file:
+                                    try:
+                                        os.remove(f"/mnt/calendar-images/{existing_file}")
+                                    except Exception as e:
+                                        print(f"Error deleting old file {existing_file} from local storage: {e}")
+
+                            # update org record with new filename
+                            slack_app_settings[f"calendar_image_{week}"] = filename
+                            session.query(SlackSpace).filter(SlackSpace.team_id == slack_app_settings["team_id"]).update(
+                                {"settings": slack_app_settings}
+                            )
+                            session.commit()
+                        else:
+                            print(f"No Slack settings found for region {region_id}. Skipping upload.")
+
+            except Exception as e:
+                print(f"Error processing region {region_id}: {e}")
     update_local_region_records()
 
 

@@ -23,7 +23,7 @@ from features import preblast_legacy
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import event_attendance_query
+from utilities.database.special_queries import event_attendance_query, get_admin_users
 from utilities.helper_functions import (
     current_date_cst,
     get_user,
@@ -661,7 +661,9 @@ def handle_event_preblast_action(
                 icon_url=q_url,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:
-            if user_id in (safe_get(metadata, "qs") or []):
+            admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+            user_is_admin = any(u[0].id == user_id for u in admin_users)
+            if (user_id in (safe_get(metadata, "qs") or [])) or user_is_admin:
                 build_event_preblast_form(
                     body, client, logger, context, region_record, event_instance_id=event_instance_id
                 )
