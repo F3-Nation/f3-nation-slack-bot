@@ -417,13 +417,14 @@ def build_assign_q_form(
             slack_user_ids.append(safe_get(slack_user_id, 0))
         print(f"Existing Co-Q slack users: {slack_user_ids}")
         form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_CO_QS: slack_user_ids})
-    form.update_modal(
+    form.post_modal(
         client=client,
-        view_id=safe_get(body, "view", "id"),
+        trigger_id=safe_get(body, "trigger_id"),
         title_text="Assign Q",
         callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
         submit_button_text="Assign Q",
         parent_metadata={"event_instance_id": event_instance_id},
+        new_or_add="add",
     )
 
 
