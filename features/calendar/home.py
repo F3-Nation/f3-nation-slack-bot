@@ -397,10 +397,12 @@ def build_assign_q_form(
     )
 
     form = ASSIGN_Q_FORM
-    form.blocks[0].label = f"Assign Q to this event\n*AO:* {event_instance.org.name}\n"
-    f"*Event:* {event_instance.name}\n"
-    f"*Date:* {event_instance.start_date.strftime('%A, %B %d')}\n"
-    f"*Start Time:* {event_instance.start_time or 'TBD'}\n"
+    form.blocks[0].label = (
+        f"*AO:* {event_instance.org.name}\n"
+        + f"*Event:* {event_instance.name}\n"
+        + f"*Date:* {event_instance.start_date.strftime('%A, %B %d')}\n"
+        + f"*Start Time:* {event_instance.start_time or 'TBD'}\n"
+    )
 
     existing_q_slack_users = [a.slack_users for a in attendance if any(at.type == "Q" for at in a.attendance_types)]
     if existing_q_slack_users:
@@ -421,9 +423,9 @@ def build_assign_q_form(
         client=client,
         trigger_id=safe_get(body, "trigger_id"),
         title_text="Assign Q",
-        callback_id=actions.CALENDAR_HOME_CALLBACK_ID,
+        callback_id=actions.HOME_ASSIGN_Q_CALLBACK_ID,
         submit_button_text="Assign Q",
-        parent_metadata={"event_instance_id": event_instance_id},
+        parent_metadata={"event_instance_id": event_instance_id, "update_view_id": update_view_id},
         new_or_add="add",
     )
 
@@ -435,7 +437,58 @@ def handle_assign_q_form(
     context: dict,
     region_record: SlackSettings,
 ):
-    pass
+    form_data = ASSIGN_Q_FORM.get_selected_values(body)
+    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
+    event_instance_id = safe_convert(safe_get(metadata, "event_instance_id"), int)
+
+    # Get the selected user and co-Qs
+    q_user = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER)
+    q_user = get_user(q_user, region_record, client, logger).user_id
+    co_qs = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
+    co_qs = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs]
+
+    # Replace existing Q and Co-Q assignments
+    DbManager.delete_records(
+        cls=Attendance,
+        filters=[
+            Attendance.event_instance_id == event_instance_id,
+            Attendance.attendance_types.any(
+                or_(
+                    Attendance_x_AttendanceType.attendance_type_id == 2,  # Q
+                    Attendance_x_AttendanceType.attendance_type_id == 3,  # Co-Q
+                )
+            ),
+        ],
+        joinedloads=[Attendance.attendance_types],
+    )
+
+    # Create new Q and Co-Q records
+    DbManager.create_record(
+        Attendance(
+            event_instance_id=event_instance_id,
+            user_id=q_user,
+            is_planned=True,
+            attendance_x_attendance_types=[
+                Attendance_x_AttendanceType(attendance_type_id=2)  # Q
+            ],
+        )
+    )
+    for co_q in co_qs:
+        DbManager.create_record(
+            Attendance(
+                event_instance_id=event_instance_id,
+                user_id=co_q,
+                is_planned=True,
+                attendance_x_attendance_types=[
+                    Attendance_x_AttendanceType(attendance_type_id=3)  # Co-Q
+                ],
+            )
+        )
+
+    # Update the home view if needed
+    update_view_id = safe_get(metadata, "update_view_id")
+    if update_view_id:
+        build_home_form(body, client, logger, context, region_record, update_view_id=update_view_id)
 
 
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
