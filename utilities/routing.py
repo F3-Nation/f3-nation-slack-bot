@@ -73,6 +73,7 @@ VIEW_MAPPER = {
     event_instance.ADD_EVENT_INSTANCE_CALLBACK_ID: (event_instance.handle_event_instance_add, False),
     event_tag.CALENDAR_ADD_EVENT_TAG_CALLBACK_ID: (event_tag.handle_event_tag_add, False),
     actions.HOME_ASSIGN_Q_CALLBACK_ID: (home.handle_assign_q_form, False),
+    actions.DB_ADMIN_CALLBACK_ID: (db_admin.handle_send_admin_announcement, False),
 }
 
 ACTION_MAPPER = {

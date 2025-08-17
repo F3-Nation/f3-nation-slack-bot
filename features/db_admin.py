@@ -1,5 +1,6 @@
 import copy
 import os
+import ssl
 from datetime import datetime
 from logging import Logger
 
@@ -16,6 +17,7 @@ from scripts.q_lineups import send_lineups
 from scripts.update_slack_users import update_slack_users
 from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
+from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import (
     current_date_cst,
     get_region_record,
@@ -47,7 +49,7 @@ def build_db_admin_form(
     update_view_id = update_view_id or safe_get(body, actions.LOADING_ID)
     if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD") or message:
         form = copy.deepcopy(DB_ADMIN_FORM)
-        form.blocks[-1].label = message or " "
+        # form.blocks[-1].label = message or " "
     else:
         form = copy.deepcopy(DB_WRONG_PASSWORD_FORM)
 
@@ -56,6 +58,7 @@ def build_db_admin_form(
         view_id=update_view_id,
         callback_id=actions.DB_ADMIN_CALLBACK_ID,
         title_text="DB Admin",
+        submit_button_text="Send Announcement",
     )
 
 
@@ -307,6 +310,44 @@ def handle_update_bot_token(
         )
 
 
+def handle_send_admin_announcement(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    announcement_text = safe_get(
+        body, "view", "state", "values", actions.DB_ADMIN_TEXT, actions.DB_ADMIN_TEXT, "rich_text_value"
+    )
+    if announcement_text:
+        records = DbManager.find_join_records2(
+            SlackSpace,
+            Org_x_SlackSpace,
+            filters=[True],
+        )
+        for record in records:
+            slack_space = record[0]
+            org_x_slack_space = record[1]
+            admin_users = get_admin_users(org_x_slack_space.org_id, slack_space.team_id)
+            for admin_user in admin_users:
+                slack_user = admin_user[1]
+                try:
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                    slack_client = WebClient(slack_space.bot_token, ssl=ssl_context)
+                    slack_client.chat_postMessage(
+                        channel=slack_user.slack_id,
+                        blocks=[announcement_text],
+                        text="Admin Announcement",
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Failed to send admin announcement to {slack_user.user_name} in {slack_space.workspace_name}: {e}"  # noqa: E501
+                    )
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -353,9 +394,12 @@ DB_ADMIN_FORM = orm.BlockView(
                 ),
             ],
         ),
-        orm.SectionBlock(
+        orm.InputBlock(
             action=actions.DB_ADMIN_TEXT,
-            label=" ",
+            label="Announcement Text",
+            element=orm.RichTextInputElement(
+                placeholder="Enter the announcement text here.",
+            ),
         ),
     ]
 )
