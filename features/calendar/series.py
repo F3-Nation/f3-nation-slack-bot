@@ -204,35 +204,37 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         event_type: EventType = DbManager.get(EventType, event_type_id)
         series_name = f"{org.name} {event_type.name if event_type else ''}"
 
-    series_records = []
     day_of_weeks = safe_get(form_data, actions.CALENDAR_ADD_SERIES_DOW)
 
     if safe_get(metadata, "series_id"):
+        DbManager.update_record(
+            Event,
+            metadata["series_id"],
+            fields={
+                Event.name: series_name,
+                Event.description: safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
+                Event.org_id: org_id,
+                Event.location_id: location_id,
+                Event.start_time: datetime.strptime(
+                    safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
+                ).strftime("%H%M"),
+                Event.end_time: end_time,
+                Event.highlight: safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
+                Event.event_x_event_types: [EventType_x_Event(event_type_id=event_type_id)],
+                Event.event_x_event_tags: [EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
+            },
+        )
         edit_series_record: Event = DbManager.get(
             Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
         )
-        update_event = Event(
-            name=series_name,
-            description=safe_get(form_data, actions.CALENDAR_ADD_SERIES_DESCRIPTION),
-            org_id=org_id,
-            location_id=location_id,
-            event_x_event_types=[EventType_x_Event(event_type_id=event_type_id)],
-            event_x_event_tags=[EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
-            start_time=datetime.strptime(safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M").strftime(
-                "%H%M"
-            ),
-            end_time=end_time,
+        update_events(edit_series_record)
+        body["actions"] = [{"action_id": actions.CALENDAR_MANAGE_SERIES}]
+        build_series_list_form(
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
-        print(update_event.to_update_dict())
-        # DbManager.update_record(Event, metadata["series_id"], fields=series_records[0].to_update_dict())
-        # update_events(edit_series_record)
-        # body["actions"] = [{"action_id": actions.CALENDAR_MANAGE_SERIES}]
-        # build_series_list_form(
-        #     body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
-        # )
 
     else:
-        # day_of_weeks will be None if this is a one-time event (EventInstance)
+        series_records = []
         for dow in day_of_weeks:
             series = Event(
                 name=series_name,
@@ -412,56 +414,34 @@ def update_events(
         },
     )
     # Update the event types for all future events
+    event_instance_ids = [
+        record.id
+        for record in DbManager.find_records(
+            EventInstance,
+            [
+                EventInstance.series_id == series.id,
+                EventInstance.start_date >= (start_date or current_date_cst()),
+            ],
+        )
+    ]
     DbManager.update_records(
         EventType_x_EventInstance,
-        filters=[
-            EventType_x_EventInstance.event_instance_id.in_(
-                DbManager.find_records(
-                    EventInstance,
-                    [
-                        EventInstance.series_id == series.id,
-                        EventInstance.start_date >= (start_date or current_date_cst()),
-                    ],
-                )
-            )
-        ],
+        filters=[EventType_x_EventInstance.event_instance_id.in_(event_instance_ids)],
         fields={
             EventType_x_EventInstance.event_type_id: series.event_types[0].id,  # TODO: handle multiple event types
         },
     )
     # Update the event tags for all future events
+    DbManager.delete_records(
+        EventTag_x_EventInstance,
+        filters=[EventTag_x_EventInstance.event_instance_id.in_(event_instance_ids)],
+    )
     if series.event_tags:
-        DbManager.update_records(
-            EventTag_x_EventInstance,
-            filters=[
-                EventTag_x_EventInstance.event_instance_id.in_(
-                    DbManager.find_records(
-                        EventInstance,
-                        [
-                            EventInstance.series_id == series.id,
-                            EventInstance.start_date >= (start_date or current_date_cst()),
-                        ],
-                    )
-                )
-            ],
-            fields={
-                EventTag_x_EventInstance.event_tag_id: series.event_tag_id,
-            },
-        )
-    else:
-        DbManager.delete_records(
-            EventTag_x_EventInstance,
-            filters=[
-                EventTag_x_EventInstance.event_instance_id.in_(
-                    DbManager.find_records(
-                        EventInstance,
-                        [
-                            EventInstance.series_id == series.id,
-                            EventInstance.start_date >= (start_date or current_date_cst()),
-                        ],
-                    )
-                )
-            ],
+        DbManager.create_records(
+            [
+                EventTag_x_EventInstance(event_tag_id=series.event_tags[0].id, event_instance_id=event_instance_id)
+                for event_instance_id in event_instance_ids
+            ]
         )
 
 
