@@ -124,7 +124,7 @@ def send_automated_preblasts():
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 7:00 PM and 8:00 PM, eventually configurable
-    if current_time.hour == 19:
+    if current_time.hour == 12:
         preblast_list = PreblastList()
         preblast_list.pull_data(
             filters=[
