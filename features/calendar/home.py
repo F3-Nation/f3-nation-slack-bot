@@ -424,13 +424,20 @@ def build_assign_q_form(
             slack_user_ids.append(safe_get(slack_user_id, 0))
         print(f"Existing Co-Q slack users: {slack_user_ids}")
         form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_CO_QS: slack_user_ids})
+
+    metadata = {
+        "event_instance_id": event_instance_id,
+        "update_view_id": update_view_id,
+        "event_instance_name": event_instance.name,
+        "event_instance_date": event_instance.start_date.strftime("%A, %B %d"),
+    }
     form.post_modal(
         client=client,
         trigger_id=safe_get(body, "trigger_id"),
         title_text="Assign Q",
         callback_id=actions.HOME_ASSIGN_Q_CALLBACK_ID,
         submit_button_text="Assign Q",
-        parent_metadata={"event_instance_id": event_instance_id, "update_view_id": update_view_id},
+        parent_metadata=metadata,
         new_or_add="add",
     )
 
@@ -442,15 +449,18 @@ def handle_assign_q_form(
     context: dict,
     region_record: SlackSettings,
 ):
+    user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     form_data = ASSIGN_Q_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
     event_instance_id = safe_convert(safe_get(metadata, "event_instance_id"), int)
+    event_instance_name = safe_get(metadata, "event_instance_name")
+    event_instance_date = safe_get(metadata, "event_instance_date")
 
     # Get the selected user and co-Qs
-    q_user = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER)
-    q_user = get_user(q_user, region_record, client, logger).user_id
-    co_qs = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
-    co_qs = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs]
+    q_slack_user_id = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER)
+    q_user_id = get_user(q_slack_user_id, region_record, client, logger).user_id
+    co_qs_slack_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
+    co_qs_user_ids = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs_slack_ids]
 
     # Replace existing Q and Co-Q assignments
     DbManager.delete_records(
@@ -471,14 +481,14 @@ def handle_assign_q_form(
     DbManager.create_record(
         Attendance(
             event_instance_id=event_instance_id,
-            user_id=q_user,
+            user_id=q_user_id,
             is_planned=True,
             attendance_x_attendance_types=[
                 Attendance_x_AttendanceType(attendance_type_id=2)  # Q
             ],
         )
     )
-    for co_q in co_qs:
+    for co_q in co_qs_user_ids:
         DbManager.create_record(
             Attendance(
                 event_instance_id=event_instance_id,
@@ -494,6 +504,34 @@ def handle_assign_q_form(
     update_view_id = safe_get(metadata, "update_view_id")
     if update_view_id:
         build_home_form(body, client, logger, context, region_record, update_view_id=update_view_id)
+
+    # Send messages to the assigned users
+    if q_slack_user_id and q_slack_user_id != user_id:
+        msg = f"<@{user_id}> has assigned you to Q {event_instance_name} on {event_instance_date}. Use the button below to set the preblast."  # noqa
+        blocks: List[orm.BaseBlock] = [
+            orm.SectionBlock(label=msg),
+            orm.ActionsBlock(
+                elements=[
+                    orm.ButtonElement(
+                        label="Fill Out Preblast",
+                        value=str(event_instance_id),
+                        style="primary",
+                        action=actions.MSG_EVENT_PREBLAST_BUTTON,
+                    ),
+                ],
+            ),
+        ]
+        client.chat_postMessage(
+            channel=q_slack_user_id,
+            text=msg,
+            blocks=[b.as_form_field() for b in blocks],
+        )
+    for co_q_slack_id in co_qs_slack_ids:
+        if co_q_slack_id != user_id:
+            client.chat_postMessage(
+                channel=co_q_slack_id,
+                text=f"<@{user_id}> has assigned you to Co-Q {event_instance_name} on {event_instance_date}.",  # noqa
+            )
 
 
 def handle_home_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
