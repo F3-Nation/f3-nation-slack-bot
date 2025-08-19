@@ -477,6 +477,16 @@ def handle_assign_q_form(
         joinedloads=[Attendance.attendance_types],
     )
 
+    # Replace existing non-Q assignments for q and co-qs
+    DbManager.delete_records(
+        cls=Attendance,
+        filters=[
+            Attendance.event_instance_id == event_instance_id,
+            Attendance.user_id.in_([q_user_id] + co_qs_user_ids),
+            Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),  # HC
+        ],
+    )
+
     # Create new Q and Co-Q records
     DbManager.create_record(
         Attendance(
