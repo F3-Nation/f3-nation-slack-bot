@@ -131,24 +131,25 @@ def send_q_lineup_message(
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         slack_client = WebClient(slack_bot_token, ssl=ssl_context)
-        if update and safe_get(org.meta, "q_lineup_ts"):
-            # Update the existing message
-            slack_client.chat_update(
-                channel=org.meta.get("slack_channel_id"),
-                ts=org.meta["q_lineup_ts"],
-                text="Q Lineup",
-                blocks=blocks,
-                metadata=metadata,
-            )
-        else:
-            resp = slack_client.chat_postMessage(
-                channel=org.meta.get("slack_channel_id"),
-                text="Q Lineup",
-                blocks=blocks,
-                metadata=metadata,
-            )
-            org.meta["q_lineup_ts"] = resp["ts"]
-            DbManager.update_record(Org, org.id, {Org.meta: org.meta})
+        if safe_get(org.meta, "slack_channel_id"):
+            if update and safe_get(org.meta, "q_lineup_ts"):
+                # Update the existing message
+                slack_client.chat_update(
+                    channel=org.meta.get("slack_channel_id"),
+                    ts=org.meta["q_lineup_ts"],
+                    text="Q Lineup",
+                    blocks=blocks,
+                    metadata=metadata,
+                )
+            else:
+                resp = slack_client.chat_postMessage(
+                    channel=org.meta.get("slack_channel_id"),
+                    text="Q Lineup",
+                    blocks=blocks,
+                    metadata=metadata,
+                )
+                org.meta["q_lineup_ts"] = resp["ts"]
+                DbManager.update_record(Org, org.id, {Org.meta: org.meta})
 
 
 def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

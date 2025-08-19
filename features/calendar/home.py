@@ -15,6 +15,7 @@ from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS, event_instance
 from features.calendar.event_preblast import (
     build_event_preblast_form,
     build_preblast_info,
+    get_preblast_channel,
 )
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
@@ -629,7 +630,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             }
             try:
                 client.chat_update(
-                    channel=preblast_info.event_record.org.meta.get("slack_channel_id"),
+                    channel=get_preblast_channel(region_record, preblast_info),
                     ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
                     blocks=blocks,
                     text="Event Preblast",
@@ -638,7 +639,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             except Exception as e:
                 logger.error(f"Error updating preblast post, posting a new one: {e}")
                 client.chat_postMessage(
-                    channel=preblast_info.event_record.org.meta.get("slack_channel_id"),
+                    channel=get_preblast_channel(region_record, preblast_info),
                     blocks=blocks,
                     text="Event Preblast",
                     metadata={"event_type": "preblast", "event_payload": metadata},
