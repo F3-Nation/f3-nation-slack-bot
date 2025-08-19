@@ -1,3 +1,4 @@
+import copy
 import datetime
 import json
 import time
@@ -403,7 +404,7 @@ def build_assign_q_form(
         joinedloads=[Attendance.slack_users, Attendance.attendance_types],
     )
 
-    form = ASSIGN_Q_FORM
+    form = copy.deepcopy(ASSIGN_Q_FORM)
     form.blocks[0].label = (
         f"*AO:* {event_instance.org.name}\n"
         + f"*Event:* {event_instance.name}\n"
