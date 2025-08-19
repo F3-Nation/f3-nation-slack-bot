@@ -116,7 +116,10 @@ def update_all_canvases():
             ssl_context.check_hostname = False
             ssl_context.verify_mode = ssl.CERT_NONE
             client = WebClient(token=slack_settings.bot_token, ssl=ssl_context)
-            update_canvas({}, client, Logger("logger"), {}, slack_settings)
+            try:
+                update_canvas({}, client, Logger("logger"), {}, slack_settings)
+            except Exception as e:
+                Logger("logger").error(f"Error updating canvas for region {region.name}: {e}")
 
 
 if __name__ == "__main__":
