@@ -243,7 +243,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
         if not org_record:
             if LOCAL_DEVELOPMENT:
                 region_record = SlackSettings(**settings_starters)
-            
+
                 org_record = DbManager.create_record(
                     Org(
                         name="My Region",
@@ -436,7 +436,7 @@ def parse_rich_block(
 
     msg = ""
 
-    for element in block["elements"]:
+    for element in safe_get(block, "elements") or []:
         if element["type"] in ["rich_text_section", "rich_text_preformatted", "rich_text_quote"]:
             for text in element["elements"]:
                 msg += process_text_element(text, element)
