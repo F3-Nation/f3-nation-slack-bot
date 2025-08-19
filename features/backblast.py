@@ -72,9 +72,10 @@ def add_custom_field_blocks(
             if initial_values and custom_field["name"] in initial_values:
                 output_form.set_initial_values(
                     {
-                        actions.CUSTOM_FIELD_PREFIX + custom_field["name"]: initial_values.get(
-                            custom_field["name"], ""
-                        ),
+                        actions.CUSTOM_FIELD_PREFIX + custom_field["name"]: safe_convert(
+                            safe_get(initial_values, custom_field["name"]), str
+                        )
+                        or ""
                     }
                 )
     return output_form
