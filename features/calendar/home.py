@@ -371,6 +371,7 @@ ASSIGN_Q_FORM = orm.BlockView(
             action=actions.CALENDAR_HOME_ASSIGN_Q_USER,
             element=orm.UsersSelectElement(
                 placeholder="Select a user to assign to the Q",
+                initial_value=None,
             ),
         ),
         orm.InputBlock(
@@ -378,6 +379,7 @@ ASSIGN_Q_FORM = orm.BlockView(
             action=actions.CALENDAR_HOME_ASSIGN_Q_CO_QS,
             element=orm.MultiUsersSelectElement(
                 placeholder="Select users to assign as Co-Qs",
+                initial_value=None,
             ),
             optional=True,
         ),
@@ -458,7 +460,7 @@ def handle_assign_q_form(
 
     # Get the selected user and co-Qs
     q_slack_user_id = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER)
-    q_user_id = get_user(q_slack_user_id, region_record, client, logger).user_id
+    q_user_id = get_user(q_slack_user_id, region_record, client, logger).user_id if q_slack_user_id else None
     co_qs_slack_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
     co_qs_user_ids = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs_slack_ids]
 
@@ -478,37 +480,47 @@ def handle_assign_q_form(
     )
 
     # Replace existing non-Q assignments for q and co-qs
-    DbManager.delete_records(
-        cls=Attendance,
-        filters=[
-            Attendance.event_instance_id == event_instance_id,
-            Attendance.user_id.in_([q_user_id] + co_qs_user_ids),
-            Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),  # HC
-        ],
-    )
-
-    # Create new Q and Co-Q records
-    DbManager.create_record(
-        Attendance(
-            event_instance_id=event_instance_id,
-            user_id=q_user_id,
-            is_planned=True,
-            attendance_x_attendance_types=[
-                Attendance_x_AttendanceType(attendance_type_id=2)  # Q
+    if q_user_id:
+        DbManager.delete_records(
+            cls=Attendance,
+            filters=[
+                Attendance.event_instance_id == event_instance_id,
+                Attendance.user_id == q_user_id,
+                Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),  # HC
             ],
         )
-    )
-    for co_q in co_qs_user_ids:
+        # Create new Q attendance record
         DbManager.create_record(
             Attendance(
                 event_instance_id=event_instance_id,
-                user_id=co_q,
+                user_id=q_user_id,
                 is_planned=True,
                 attendance_x_attendance_types=[
-                    Attendance_x_AttendanceType(attendance_type_id=3)  # Co-Q
+                    Attendance_x_AttendanceType(attendance_type_id=2)  # Q
                 ],
             )
         )
+    if co_qs_user_ids:
+        DbManager.delete_records(
+            cls=Attendance,
+            filters=[
+                Attendance.event_instance_id == event_instance_id,
+                Attendance.user_id.in_(co_qs_user_ids),
+                Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),  # HC
+            ],
+        )
+
+        for co_q in co_qs_user_ids:
+            DbManager.create_record(
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=co_q,
+                    is_planned=True,
+                    attendance_x_attendance_types=[
+                        Attendance_x_AttendanceType(attendance_type_id=3)  # Co-Q
+                    ],
+                )
+            )
 
     # Update the home view if needed
     update_view_id = safe_get(metadata, "update_view_id")
