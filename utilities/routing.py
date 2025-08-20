@@ -162,6 +162,7 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_UPDATE_BOT_TOKEN: (db_admin.handle_update_bot_token, False),
     connect.DENY_CONNECTION: (connect.handle_deny_connection, False),
     connect.APPROVE_CONNECTION: (connect.handle_approve_connection, False),
+    user.IGNORE_EVENT: (builders.ignore_event, False),
 }
 
 ACTION_PREFIXES = [

@@ -159,9 +159,10 @@ class ButtonElement(BaseAction):
         j = {
             "type": "button",
             "text": self.make_label_field(),
-            "action_id": action or self.action,
             "value": self.value or self.label,
         }
+        if action or self.action:
+            j["action_id"] = action or self.action
         if self.style:
             j["style"] = self.style
         if self.confirm:

@@ -1,4 +1,5 @@
 import copy
+import os
 from logging import Logger
 
 from f3_data_models.models import SlackUser, User
@@ -8,7 +9,9 @@ from slack_sdk import WebClient
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
 from utilities.slack.orm import (
+    ActionsBlock,
     BlockView,
+    ButtonElement,
     ContextBlock,
     ContextElement,
     DividerBlock,
@@ -27,6 +30,7 @@ USER_FORM_ID = "user_form_id"
 USER_FORM_EMERGENCY_CONTACT = "user_emergency_contact"
 USER_FORM_EMERGENCY_CONTACT_PHONE = "user_emergency_contact_phone"
 USER_FORM_EMERGENCY_CONTACT_NOTES = "user_emergency_contact_notes"
+IGNORE_EVENT = "user_ignore_event"
 
 
 def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -53,6 +57,8 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
     else:
         form.delete_block(USER_FORM_IMAGE)
     form.set_initial_values(initial_values)
+
+    form.blocks[2].elements[0].url = f"{os.getenv('STATS_URL')}/stats/pax/{user.id}"
 
     form.post_modal(
         client=client,
@@ -102,6 +108,15 @@ FORM = BlockView(
             element=ExternalSelectElement(placeholder="Select a new home region"),
             optional=False,
             hint="This is the region you will be associated with. You can change this at any time.",
+        ),
+        ActionsBlock(
+            elements=[
+                ButtonElement(
+                    label=":bar_chart: My Stats :link:",
+                    url=os.getenv("STATS_URL"),
+                    action=IGNORE_EVENT,
+                ),
+            ]
         ),
         ImageBlock(action=USER_FORM_IMAGE, image_url="https://example.com/image.png", alt_text="User Image"),
         ContextBlock(
