@@ -57,13 +57,25 @@ EventType (subset needed):
 }
 ```
 
+EventTag (subset needed):
+```
+{
+  "id": int,
+  "name": string,
+  "color": string,                 // hex or palette value (see EVENT_TAG_COLORS)
+  "specific_org_id": int|null,     // null => global (available to all); int => region-owned copy
+  "created": datetime,
+  "updated": datetime
+}
+```
+
 ---
 
 ## Endpoint Summary
 
 | Purpose | Method | Path |
 |---------|--------|------|
-| Get region with selectable data | GET | /regions/{region_id}?include=locations,event_types |
+| Get region with selectable data | GET | /regions/{region_id}?include=locations,event_types,event_tags |
 | List AOs for region | GET | /regions/{region_id}/aos |
 | Create AO | POST | /aos |
 | Get AO by id | GET | /aos/{ao_id} |
@@ -75,15 +87,21 @@ EventType (subset needed):
 | Trigger map revalidation | POST | /admin/map/revalidate |
 | List Locations (region) | GET | /regions/{region_id}/locations?is_active=true |
 | List Event Types (region) | GET | /regions/{region_id}/event-types?is_active=true |
+| List Event Tags (region) | GET | /regions/{region_id}/event-tags |
+| List Available Global Event Tags | GET | /regions/{region_id}/event-tags/available |
+| Import Global Event Tag into Region | POST | /regions/{region_id}/event-tags/import |
+| Create Region Event Tag | POST | /regions/{region_id}/event-tags |
+| Update Region Event Tag | PATCH | /event-tags/{event_tag_id} |
+| Delete Region Event Tag | DELETE | /event-tags/{event_tag_id} |
 
 ---
 
 ## 1. Get Region + Dependencies
 
-GET /regions/{region_id}?include=locations,event_types
+GET /regions/{region_id}?include=locations,event_types,event_tags
 
 Query Params:
-- include: CSV of relationships. Supported: locations,event_types
+- include: CSV of relationships. Supported: locations,event_types,event_tags
 
 Response 200:
 ```
@@ -91,7 +109,8 @@ Response 200:
   "id": 123,
   "name": "Region Name",
   "locations": [ {Location...} ],
-  "event_types": [ {EventType...} ]
+  "event_types": [ {EventType...} ],
+  "event_tags": [ {EventTag...} ]
 }
 ```
 
@@ -328,6 +347,165 @@ Response 200:
 
 ---
 
+## 13. List Event Tags (Region)
+
+Lists event tags visible to the region including:
+1. Region-owned tags (specific_org_id = region_id)
+2. Global tags (specific_org_id = null)
+
+By default both sets are returned. Use the optional `scope` query param to filter.
+
+GET /regions/{region_id}/event-tags?scope=all|region|global
+
+Query Params:
+- scope (optional, default = all):
+  - all: union of region + global
+  - region: only region-owned tags
+  - global: only global tags
+
+Response 200 (flat list; global tags have specific_org_id = null):
+```
+{
+  "results": [ {EventTag...} ]
+}
+```
+
+Errors:
+- 404 region_not_found
+
+---
+
+## 14. List Available Global Event Tags (Not Yet Imported)
+
+Returns global event tags (specific_org_id = null) that the region has not already imported (i.e., no region-owned tag with same name/color combination). Used to populate the select list in the Slack modal.
+
+GET /regions/{region_id}/event-tags/available
+
+Response 200:
+```
+{
+  "results": [ {EventTag...} ]
+}
+```
+
+Errors:
+- 404 region_not_found
+
+---
+
+## 15. Import (Add) Global Event Tag to Region
+
+Creates a region-owned copy of a global tag (duplicating name + color, setting specific_org_id = region_id). Mirrors current behavior in `EventTagService.add_global_tag_to_org`.
+
+POST /regions/{region_id}/event-tags/import
+
+Request JSON:
+```
+{
+  "global_tag_id": 42
+}
+```
+
+Behavior:
+- Validate region exists (org_type=region)
+- Validate the referenced tag exists and is global (specific_org_id = null)
+- Check for name conflict within region (case-insensitive)
+- Insert new EventTag row
+
+Response 201:
+```
+{EventTag...}
+```
+
+Errors:
+- 400 missing_field
+- 404 region_not_found
+- 404 event_tag_not_found
+- 409 duplicate_name
+
+---
+
+## 16. Create Region-Specific Event Tag
+
+POST /regions/{region_id}/event-tags
+
+Request JSON:
+```
+{
+  "name": "CSA Dropoff",
+  "color": "green" | "#32CD32"
+}
+```
+
+Behavior:
+- Verify region exists (org_type=region)
+- Enforce uniqueness of name within region
+- Validate color against allowed palette (optional — align with EVENT_TAG_COLORS)
+- Create tag (specific_org_id=region_id)
+
+Response 201:
+```
+{EventTag...}
+```
+
+Errors:
+- 400 missing_field
+- 400 invalid_color
+- 404 region_not_found
+- 409 duplicate_name
+
+---
+
+## 17. Update Region Event Tag
+
+PATCH /event-tags/{event_tag_id}
+
+Request JSON (any subset):
+```
+{
+  "name": "New Tag Name",
+  "color": "purple"
+}
+```
+
+Rules:
+- Only region-owned tags (specific_org_id != null) can be updated; global tags must be imported first
+- Maintain uniqueness of name within the same region
+
+Response 200:
+```
+{EventTag...}
+```
+
+Errors:
+- 400 invalid_color
+- 403 forbidden (attempt to modify a global tag directly)
+- 404 event_tag_not_found
+- 409 duplicate_name
+
+---
+
+## 18. Delete Region Event Tag
+
+DELETE /event-tags/{event_tag_id}
+
+Behavior:
+- Only region-owned tags deletable
+- Implementation choice: hard delete (current Slack flow) vs soft delete (add is_active column). If soft delete chosen, modify Data Model accordingly.
+
+Response 200:
+```
+{ "event_tag_id": 77, "status": "deleted" }
+```
+
+Errors:
+- 403 forbidden (attempt to delete a global tag)
+- 404 event_tag_not_found
+
+---
+
+---
+
 ## Error Schema (General)
 
 ```
@@ -340,7 +518,7 @@ Response 200:
 }
 ```
 
-Common codes: ao_not_found, region_not_found, invalid_location, unauthorized, forbidden, validation_error, duplicate_name.
+Common codes: ao_not_found, region_not_found, invalid_location, unauthorized, forbidden, validation_error, duplicate_name, event_tag_not_found, invalid_color.
 
 ---
 
@@ -362,20 +540,5 @@ Prefix with /v1 (recommended):
 - Events (cascade ops)
 - Files
 - Admin
-
----
-
-## Minimal Required Endpoints Set
-
-If constrained, the absolute minimum to replicate existing UI:
-1. GET /regions/{region_id}?include=locations,event_types
-2. GET /regions/{region_id}/aos
-3. POST /aos
-4. PATCH /aos/{ao_id}
-5. DELETE /aos/{ao_id}
-6. POST /files
-7. POST /admin/map/revalidate
-
-(The cascade deactivations could be server-side inside DELETE logic initially.)
 
 ---
