@@ -9,6 +9,7 @@ import boto3
 import pytz
 import requests
 from f3_data_models.models import (
+    Location,
     Org,
     Org_Type,
     Org_x_SlackSpace,
@@ -34,6 +35,17 @@ from utilities.database.orm.paxminer import PaxminerUser, get_pm_engine
 
 REGION_RECORDS: Dict[str, SlackSettings] = {}
 SLACK_USERS: Dict[str, SlackUser] = {}
+
+
+def get_location_display_name(location: Location) -> str:
+    if location.name != "":
+        return location.name
+    elif location.description or "" != "":
+        return location.description[:30]
+    elif location.address_street or "" != "":
+        return location.address_street[:30]
+    else:
+        return "Unnamed Location"
 
 
 def trigger_map_revalidation():

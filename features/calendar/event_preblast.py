@@ -26,6 +26,7 @@ from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import event_attendance_query, get_admin_users
 from utilities.helper_functions import (
     current_date_cst,
+    get_location_display_name,
     get_user,
     get_user_names,
     parse_rich_block,
@@ -177,7 +178,7 @@ def build_event_preblast_form(
         form.set_options(
             {
                 actions.EVENT_PREBLAST_LOCATION: orm.as_selector_options(
-                    names=[location.name for location in location_records],
+                    names=[get_location_display_name(location) for location in location_records],
                     values=[str(location.id) for location in location_records],
                 ),
                 actions.EVENT_PREBLAST_TAG: orm.as_selector_options(
@@ -487,10 +488,11 @@ def build_preblast_info(
     if safe_get(event_record.org.meta, "slack_channel_id"):
         location += f"<#{event_record.org.meta['slack_channel_id']}> - "
     if event_record.location:
+        name = get_location_display_name(event_record.location)
         if event_record.location.latitude and event_record.location.longitude:
-            location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{event_record.location.name}>"
+            location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{name}>"
         else:
-            location += event_record.location.name
+            location += name
 
     event_details = f"*Preblast: {event_record.name}*"
     event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"

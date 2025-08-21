@@ -9,7 +9,7 @@ from slack_sdk.web import WebClient
 
 from features.calendar import ao
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get, trigger_map_revalidation
+from utilities.helper_functions import get_location_display_name, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
 
 
@@ -148,7 +148,7 @@ def build_location_list_form(
 
     blocks = [
         orm.SectionBlock(
-            label=s.name,
+            label=get_location_display_name(s),
             action=f"{actions.LOCATION_EDIT_DELETE}_{s.id}",
             element=orm.StaticSelectElement(
                 placeholder="Edit or Delete",
