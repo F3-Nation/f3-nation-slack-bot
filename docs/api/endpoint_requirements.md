@@ -1,20 +1,4 @@
-# AO (Area of Operations) API Endpoints
-
-Source feature: `features/calendar/ao.py`  
-Core models: `Org` (AO + Region), `Location`, `EventType`, `Event`, `EventInstance`
-
-The UI flows in `features/calendar/ao.py` require the following capabilities:
-
-1. Retrieve a region org with its selectable dependencies (locations, event types)
-2. List active AOs under a region
-3. Create an AO (with optional logo upload)
-4. Update an AO (partial update; optional logo replacement)
-5. Soft delete (deactivate) an AO
-6. Cascade-deactivate future events / event instances when an AO is deleted
-7. Upload a file (logo) and receive a URL
-8. Trigger map revalidation (cache bust / downstream regeneration)
-
----
+# API Endpoint Documentation
 
 ## Authentication & Authorization
 
@@ -44,11 +28,9 @@ AO (Org where org_type = ao):
   "logo_url": string|null,
   "website": string|null,
   "email": string|null,
-  "social": {
-     "twitter": string|null,
-     "facebook": string|null,
-     "instagram": string|null
-  },
+  "twitter": string|null,
+  "facebook": string|null,
+  "instagram": string|null,
   "created": datetime,
   "updated": datetime
 }
@@ -359,37 +341,6 @@ Response 200:
 ```
 
 Common codes: ao_not_found, region_not_found, invalid_location, unauthorized, forbidden, validation_error, duplicate_name.
-
----
-
-## Suggested Internal Services
-
-- AOService
-  - create_ao(...)
-  - update_ao(...)
-  - deactivate_ao(...)
-  - list_aos(region_id, filters)
-- OrgLookupService (for region aggregates)
-- LocationService.list_by_region(region_id)
-- EventTypeService.list_by_region(region_id)
-- EventCascadeService.deactivate_events_for_ao(ao_id)
-- EventInstanceCascadeService.deactivate_future_instances(ao_id, from_date)
-- FileService.store_logo(file) -> (file_id, url)
-- MapValidationService.trigger(scope, region_id, ao_id)
-
----
-
-## Migration Path From Current Code
-
-Current direct calls in `features/calendar/ao.py`:
-- DbManager.get(Org, region_record.org_id, joinedloads="all") -> GET /regions/{id}?include=locations,event_types
-- DbManager.find_records(Org, [...]) -> GET /regions/{id}/aos
-- DbManager.create_record(ao) -> POST /aos
-- DbManager.update_record(Org, ao_id, ...) -> PATCH /aos/{ao_id}
-- DbManager.update_records(Event, [...], ...) -> POST /aos/{ao_id}/deactivate-events (or internal)
-- DbManager.update_records(EventInstance, [...], ...) -> POST /aos/{ao_id}/deactivate-future-event-instances
-- upload_files_to_storage(...) -> POST /files
-- trigger_map_revalidation() -> POST /admin/map/revalidate
 
 ---
 
