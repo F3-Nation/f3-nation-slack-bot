@@ -53,7 +53,11 @@ EventType (subset needed):
   "id": int,
   "name": string,
   "event_category": "first_f" | "second_f" | "third_f",
-  "is_active": boolean
+  "acronym": string,                // short (<=2 char) code used in calendar UI
+  "specific_org_id": int|null,      // null => global (available to all); int => region-owned copy
+  "is_active": boolean,
+  "created": datetime,
+  "updated": datetime
 }
 ```
 
@@ -87,6 +91,11 @@ EventTag (subset needed):
 | Trigger map revalidation | POST | /admin/map/revalidate |
 | List Locations (region) | GET | /regions/{region_id}/locations?is_active=true |
 | List Event Types (region) | GET | /regions/{region_id}/event-types?is_active=true |
+| List Available External Event Types | GET | /regions/{region_id}/event-types/available |
+| Import External Event Type | POST | /regions/{region_id}/event-types/import |
+| Create Region Event Type | POST | /regions/{region_id}/event-types |
+| Update Region Event Type | PATCH | /event-types/{event_type_id} |
+| Delete Region Event Type | DELETE | /event-types/{event_type_id} |
 | List Event Tags (region) | GET | /regions/{region_id}/event-tags |
 | List Available Global Event Tags | GET | /regions/{region_id}/event-tags/available |
 | Import Global Event Tag into Region | POST | /regions/{region_id}/event-tags/import |
@@ -336,7 +345,49 @@ Response 200:
 
 ## 12. List Event Types (Region)
 
-GET /regions/{region_id}/event-types?is_active=true
+Lists event types visible to a region. Visibility rules mirror current Slack workflow:
+1. Global event types (specific_org_id = null)
+2. Region-owned event types (specific_org_id = region_id)
+
+Optional filtering of scope (similar to Event Tags) and active flag.
+
+GET /regions/{region_id}/event-types?is_active=true&scope=all|region|global
+
+Query Params:
+- is_active (optional, default true) — filter by active status
+- scope (optional, default all):
+  - all: union of global + region
+  - region: only region-owned
+  - global: only global
+
+Response 200:
+```
+{
+  "results": [
+    {
+      "id": 7,
+      "name": "Bootcamp",
+      "event_category": "first_f",
+      "acronym": "BC",
+      "specific_org_id": null,
+      "is_active": true,
+      "created": "2025-01-02T12:34:56Z",
+      "updated": "2025-03-04T08:10:00Z"
+    }
+  ]
+}
+```
+
+Errors:
+- 404 region_not_found
+
+---
+
+## 19. List Available External Event Types (Not Yet Imported)
+
+Returns active event types that are owned by other regions (specific_org_id != region_id AND not null) that the region has not already copied. These are analogous to the "commonly used" list in the Slack modal (see `event_type.py`). Global types (specific_org_id = null) are excluded because they are already visible without import.
+
+GET /regions/{region_id}/event-types/available
 
 Response 200:
 ```
@@ -344,6 +395,126 @@ Response 200:
   "results": [ {EventType...} ]
 }
 ```
+
+Errors:
+- 404 region_not_found
+
+---
+
+## 20. Import (Copy) External Event Type Into Region
+
+Creates a region-owned copy of another region's event type. Copies name, event_category, acronym. Sets specific_org_id=region_id. Enforces uniqueness of name within region (case-insensitive). (Acronym uniqueness recommended but optional — enforce if desired.)
+
+POST /regions/{region_id}/event-types/import
+
+Request JSON:
+```
+{
+  "source_event_type_id": 42
+}
+```
+
+Behavior:
+- Validate region exists (org_type=region)
+- Validate source event type exists and has specific_org_id != region_id (and not null)
+- Check for name conflict within region
+- Insert new EventType row (specific_org_id=region_id, copying fields)
+
+Response 201:
+```
+{EventType...}
+```
+
+Errors:
+- 400 missing_field
+- 404 region_not_found
+- 404 event_type_not_found
+- 409 duplicate_name
+
+---
+
+## 21. Create Region-Specific Event Type
+
+POST /regions/{region_id}/event-types
+
+Request JSON:
+```
+{
+  "name": "Ruck Heavy",
+  "event_category": "first_f",
+  "acronym": "RH"   // optional; default = first two letters of name uppercased
+}
+```
+
+Behavior:
+- Verify region exists (org_type=region)
+- Require name and event_category
+- Enforce uniqueness of name (and optionally acronym) within region (case-insensitive)
+- Validate event_category in allowed enum values (first_f, second_f, third_f)
+- Insert with specific_org_id=region_id, is_active=true
+
+Response 201:
+```
+{EventType...}
+```
+
+Errors:
+- 400 missing_field
+- 400 invalid_event_category
+- 404 region_not_found
+- 409 duplicate_name
+
+---
+
+## 22. Update Region Event Type
+
+PATCH /event-types/{event_type_id}
+
+Request JSON (any subset):
+```
+{
+  "name": "New Name",
+  "event_category": "second_f",
+  "acronym": "NN",
+  "is_active": true   // optional; allow reactivation or soft deactivation toggle
+}
+```
+
+Rules:
+- Only region-owned event types (specific_org_id != null) can be updated; global types must be copied first
+- Cannot change specific_org_id directly
+- Maintain uniqueness constraints
+
+Response 200:
+```
+{EventType...}
+```
+
+Errors:
+- 400 invalid_event_category
+- 403 forbidden (attempt to modify a global event type)
+- 404 event_type_not_found
+- 409 duplicate_name
+
+---
+
+## 23. Delete (Deactivate) Region Event Type
+
+DELETE /event-types/{event_type_id}
+
+Behavior:
+- Soft delete by setting is_active=false (mirrors current Slack flow which toggles is_active)
+- Only region-owned types deletable; global types immutable
+- (Alternative extension: support hard delete if no events reference it — optional, not required now)
+
+Response 200:
+```
+{ "event_type_id": 55, "status": "deactivated" }
+```
+
+Errors:
+- 403 forbidden (attempt to delete a global event type)
+- 404 event_type_not_found
 
 ---
 
