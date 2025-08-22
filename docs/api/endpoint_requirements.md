@@ -10,6 +10,11 @@ Recommended scopes:
 - read:event-type
 - write:event
 - admin:maintenance (for map revalidation)
+- read:settings
+- write:settings
+- read:position
+- write:position
+- write:admins
 
 ---
 
@@ -142,6 +147,50 @@ EventInstance:
 }
 ```
 
+SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
+```
+{
+  "team_id": "T0123456",                 // Slack workspace id
+  "org_id": 123,                          // Region Org.id connected to this Slack workspace
+  "workspace_name": "F3 Metro",          // optional
+  // General
+  "editing_locked": 0 | 1,
+  "default_backblast_destination": "ao" | "region" | "specified_channel",
+  "backblast_destination_channel": "C0123" | null,
+  "default_preblast_destination": "ao" | "region" | "specified_channel",
+  "preblast_destination_channel": "C0456" | null,
+  "backblast_moleskin_template": "...",
+  "preblast_moleskin_template": "...",
+  "preblast_reminder_days": 0 | 1 | 2 | 3,
+  "backblast_reminder_days": 0 | 1 | 2 | 3,
+  // Email
+  "email_enabled": 0 | 1,
+  "email_option_show": 0 | 1,
+  "email_user": "example_sender@gmail.com" | null,
+  "email_to": "example_destination@gmail.com" | null,
+  "email_server": "smtp.gmail.com" | null,
+  "email_server_port": 587 | null,
+  "email_password": "***masked***" | null,   // server returns masked; accepts plain text on update
+  "postie_format": 0 | 1,
+  // Welcome bot
+  "welcome_dm_enable": 0 | 1,
+  "welcome_dm_template": "...",              // Slack rich text JSON or string
+  "welcome_channel_enable": 0 | 1,
+  "welcome_channel": "C0789" | null,
+  // Calendar + Canvas
+  "send_q_lineups": true | false,
+  "special_events_enabled": true | false,
+  "special_events_post_days": 7,
+  "calendar_image_current": "2025-08-01.png" | null,
+  "canvas_channel": "C0CANVAS" | null,
+  // Custom fields (for forms)
+  "custom_fields": {
+    "Event Type": { "name": "Event Type", "type": "Dropdown", "options": ["Bootcamp"], "enabled": true },
+    "…": { }
+  }
+}
+```
+
 ---
 
 ## Endpoint Summary
@@ -197,6 +246,22 @@ EventInstance:
 | [47. Remove Region Admin](#47-remove-region-admin) | DELETE | /regions/{region_id}/admins/{user_id} |
 | [48. List Positions and Assigned Users](#48-list-positions-and-assigned-users) | GET | /orgs/{org_id}/positions |
 | [49. Get User Permissions (By Org)](#49-get-user-permissions-by-org) | GET | /users/{user_id}/permissions |
+| [50. Update Region Profile](#50-update-region-profile) | PATCH | /regions/{region_id} |
+| [51. Get Region Settings](#51-get-region-settings) | GET | /regions/{region_id}/settings |
+| [52. Update Region Settings](#52-update-region-settings) | PATCH | /regions/{region_id}/settings |
+| [53. List Custom Fields](#53-list-custom-fields) | GET | /regions/{region_id}/custom-fields |
+| [54. Upsert Custom Field](#54-upsert-custom-field) | POST | /regions/{region_id}/custom-fields |
+| [55. Update Custom Field](#55-update-custom-field) | PATCH | /regions/{region_id}/custom-fields/{field_name} |
+| [56. Delete Custom Field](#56-delete-custom-field) | DELETE | /regions/{region_id}/custom-fields/{field_name} |
+| [57. Create Position](#57-create-position) | POST | /orgs/{org_id}/positions |
+| [58. Update Position](#58-update-position) | PATCH | /positions/{position_id} |
+| [59. Delete Position](#59-delete-position) | DELETE | /positions/{position_id} |
+| [60. Assign Position to User](#60-assign-position-to-user) | POST | /orgs/{org_id}/positions/{position_id}/assign |
+| [61. Unassign Position from User](#61-unassign-position-from-user) | DELETE | /orgs/{org_id}/positions/{position_id}/assign/{user_id} |
+| [62. Set Region Admins (Replace)](#62-set-region-admins-replace) | PUT | /regions/{region_id}/admins |
+| [63. Trigger Canvas Rebuild](#63-trigger-canvas-rebuild) | POST | /regions/{region_id}/canvas/rebuild |
+| [64. Get SlackSpace by Team](#64-get-slackspace-by-team) | GET | /slack-spaces/{team_id} |
+| [65. Update SlackSpace Settings by Team](#65-update-slackspace-settings-by-team) | PATCH | /slack-spaces/{team_id}/settings |
 
 ---
 
@@ -774,6 +839,361 @@ Response 200:
 
 Notes:
 - Mirrors utilities.database.special_queries.get_user_permission_list.
+
+---
+
+## 50. Update Region Profile
+
+PATCH /regions/{region_id}
+
+Purpose:
+- Backed by `features/region.py` edit flow. Updates general Region (Org) metadata and optionally logo.
+
+Request JSON (any subset):
+```
+{
+  "name": "F3 Metro",
+  "description": "The Queen City",
+  "website": "https://f3metro.com",
+  "email": "nantan@f3metro.com",
+  "twitter": "@F3Metro",
+  "facebook": "https://facebook.com/f3metro",
+  "instagram": "@f3metro",
+  "logo_file_id": "abc123"   // optional; resolves via /files to set Org.logo_url
+}
+```
+
+Behavior:
+- Validates URLs/emails format where provided.
+- If `logo_file_id` provided, server resolves to URL and updates `logo_url` on Org.
+- Does not change org_type or parent_id.
+
+Response 200:
+```
+{Org...}
+```
+
+Errors:
+- 404 region_not_found
+- 400 validation_error
+
+---
+
+## 51. Get Region Settings
+
+GET /regions/{region_id}/settings
+
+Purpose:
+- Returns the Slack-space settings blob used by config/welcome/custom fields/canvas.
+
+Response 200:
+```
+{SlackSpace Settings...}
+```
+
+Notes:
+- Sensitive fields like `email_password` MUST be masked (e.g., "***masked***").
+- Clients should treat unknown keys as forward-compatible.
+
+---
+
+## 52. Update Region Settings
+
+PATCH /regions/{region_id}/settings
+
+Purpose:
+- Partial update of settings. Used by `features/config.py` (general + email), `features/welcome.py`, `features/custom_fields.py`, and `features/calendar/config.py`.
+
+Request JSON (any subset of Settings projection):
+```
+{
+  "editing_locked": 1,
+  "default_backblast_destination": "ao",
+  "backblast_destination_channel": "C0123",
+  "preblast_reminder_days": 2,
+  "email_enabled": 1,
+  "email_user": "example@gmail.com",
+  "email_password": "plain-text-secret",   // server encrypts at rest; never returns plaintext on read
+  "welcome_dm_enable": 1,
+  "welcome_dm_template": "...",
+  "welcome_channel_enable": 1,
+  "welcome_channel": "C0WELCOME",
+  "send_q_lineups": true,
+  "special_events_enabled": true,
+  "special_events_post_days": 7,
+  "canvas_channel": "C0CANVAS"
+}
+```
+
+Behavior:
+- Only provided keys are updated within the JSONB settings object for the region’s SlackSpace.
+- `email_password` is stored encrypted. On read, return masked value.
+- Returns the merged settings document.
+
+Response 200:
+```
+{SlackSpace Settings...}
+```
+
+Errors:
+- 404 region_not_found
+- 400 validation_error
+
+---
+
+## 53. List Custom Fields
+
+GET /regions/{region_id}/custom-fields
+
+Response 200:
+```
+{
+  "results": [
+    { "name": "Event Type", "type": "Dropdown", "options": ["Bootcamp"], "enabled": true }
+  ]
+}
+```
+
+Notes:
+- Convenience wrapper over `GET /regions/{region_id}/settings` that returns only `custom_fields`.
+
+---
+
+## 54. Upsert Custom Field
+
+POST /regions/{region_id}/custom-fields
+
+Request JSON:
+```
+{
+  "name": "Event Type",
+  "type": "Dropdown" | "Text" | "Number",
+  "options": ["Bootcamp","QSource"],    // required if type=Dropdown; ignored otherwise
+  "enabled": true
+}
+```
+
+Behavior:
+- Inserts or replaces the named field in `settings.custom_fields`.
+- If `type=Dropdown` and `options` missing/empty, return validation error.
+
+Response 200:
+```
+{ "updated": 1 }
+```
+
+Errors:
+- 400 validation_error
+- 404 region_not_found
+
+---
+
+## 55. Update Custom Field
+
+PATCH /regions/{region_id}/custom-fields/{field_name}
+
+Request JSON (subset):
+```
+{ "name": "New Name", "type": "Text", "options": [], "enabled": false }
+```
+
+Response 200:
+```
+{ "updated": 1 }
+```
+
+Errors:
+- 404 custom_field_not_found
+
+---
+
+## 56. Delete Custom Field
+
+DELETE /regions/{region_id}/custom-fields/{field_name}
+
+Response 200:
+```
+{ "deleted": 1 }
+```
+
+Errors:
+- 404 custom_field_not_found
+
+---
+
+## 57. Create Position
+
+POST /orgs/{org_id}/positions
+
+Request JSON:
+```
+{ "name": "Nantan", "description": "Region lead" }
+```
+
+Behavior:
+- Creates a Position owned by the org (region or AO).
+
+Response 201:
+```
+{Position...}
+```
+
+Errors:
+- 404 org_not_found
+- 409 duplicate_name
+
+---
+
+## 58. Update Position
+
+PATCH /positions/{position_id}
+
+Request JSON (subset):
+```
+{ "name": "Weasel Shaker", "description": "Ops lead", "is_active": true }
+```
+
+Response 200:
+```
+{Position...}
+```
+
+Errors:
+- 404 position_not_found
+- 409 duplicate_name
+
+---
+
+## 59. Delete Position
+
+DELETE /positions/{position_id}
+
+Behavior:
+- Soft delete or hard delete (implementation choice). If soft, return status deactivated.
+
+Response 200:
+```
+{ "position_id": 77, "status": "deleted" }
+```
+
+Errors:
+- 404 position_not_found
+
+---
+
+## 60. Assign Position to User
+
+POST /orgs/{org_id}/positions/{position_id}/assign
+
+Request JSON:
+```
+{ "user_id": 123 }
+```
+
+Behavior:
+- Upserts a Position_x_Org_x_User record.
+
+Response 201:
+```
+{ "org_id": 999, "position_id": 77, "user_id": 123 }
+```
+
+Errors:
+- 404 org_not_found | position_not_found | user_not_found
+- 409 already_assigned
+
+---
+
+## 61. Unassign Position from User
+
+DELETE /orgs/{org_id}/positions/{position_id}/assign/{user_id}
+
+Response 200:
+```
+{ "deleted": 1 }
+```
+
+Errors:
+- 404 not_found
+
+---
+
+## 62. Set Region Admins (Replace)
+
+PUT /regions/{region_id}/admins
+
+Purpose:
+- Convenience endpoint used by the Region form to set the full admin list in one call.
+
+Request JSON:
+```
+{ "user_ids": [1,2,3] }
+```
+
+Behavior:
+- Replaces all existing admin Role_x_User_x_Org rows for the region with the provided set.
+
+Response 200:
+```
+{ "region_id": 111, "user_ids": [1,2,3] }
+```
+
+Errors:
+- 404 region_not_found | user_not_found (if any invalid)
+
+---
+
+## 63. Trigger Canvas Rebuild
+
+POST /regions/{region_id}/canvas/rebuild
+
+Purpose:
+- Triggers the server-side job that regenerates the Region Canvas content using the current settings and upcoming special events.
+
+Request JSON (optional):
+```
+{ "force": true }
+```
+
+Response 202:
+```
+{ "status": "queued", "job_id": "uuid" }
+```
+
+Notes:
+- Mirrors the `update_all_canvases` logic in `features/canvas.py` for a single region.
+
+---
+
+## 64. Get SlackSpace by Team
+
+GET /slack-spaces/{team_id}
+
+Purpose:
+- Directly fetch the SlackSpace record by Slack team id. Useful for Slack interactivity backends where `team_id` is the primary identifier.
+
+Response 200:
+```
+{ "team_id": "T0123", "org_id": 123, "settings": { … } }
+```
+
+Errors:
+- 404 slackspace_not_found
+
+---
+
+## 65. Update SlackSpace Settings by Team
+
+PATCH /slack-spaces/{team_id}/settings
+
+Purpose:
+- Alternative to region-scoped settings updates when the caller only has `team_id`.
+
+Request/Response:
+- Same as [52. Update Region Settings].
+
+Security:
+- Requires the same scopes as region settings and ownership verification for the Slack app installation.
 
 ---
 
