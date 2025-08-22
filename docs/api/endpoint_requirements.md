@@ -40,10 +40,20 @@ Location (subset needed):
 ```
 {
   "id": int,
+  "org_id": int,                 // owner org (region or AO)
   "name": string,
+  "description": string|null,
   "is_active": boolean,
   "latitude": float|null,
-  "longitude": float|null
+  "longitude": float|null,
+  "address_street": string|null,
+  "address_street2": string|null,
+  "address_city": string|null,
+  "address_state": string|null,
+  "address_zip": string|null,
+  "address_country": string|null,
+  "created": datetime,
+  "updated": datetime
 }
 ```
 
@@ -90,16 +100,20 @@ EventTag (subset needed):
 | File upload (logo) | POST | /files |
 | Trigger map revalidation | POST | /admin/map/revalidate |
 | List Locations (region) | GET | /regions/{region_id}/locations?is_active=true |
+| Create Location | POST | /locations |
+| Get Location by id | GET | /locations/{location_id} |
+| Update Location | PATCH | /locations/{location_id} |
+| Delete Location | DELETE | /locations/{location_id} |
 | List Event Types (region) | GET | /regions/{region_id}/event-types?is_active=true |
 | List Available External Event Types | GET | /regions/{region_id}/event-types/available |
 | Import External Event Type | POST | /regions/{region_id}/event-types/import |
-| Create Region Event Type | POST | /regions/{region_id}/event-types |
+| Create Event Type | POST | /event-types |
 | Update Region Event Type | PATCH | /event-types/{event_type_id} |
 | Delete Region Event Type | DELETE | /event-types/{event_type_id} |
 | List Event Tags (region) | GET | /regions/{region_id}/event-tags |
 | List Available Global Event Tags | GET | /regions/{region_id}/event-tags/available |
 | Import Global Event Tag into Region | POST | /regions/{region_id}/event-tags/import |
-| Create Region Event Tag | POST | /regions/{region_id}/event-tags |
+| Create Event Tag | POST | /event-tags |
 | Update Region Event Tag | PATCH | /event-tags/{event_tag_id} |
 | Delete Region Event Tag | DELETE | /event-tags/{event_tag_id} |
 
@@ -332,14 +346,138 @@ Response 202:
 
 ## 11. List Locations (Region)
 
-GET /regions/{region_id}/locations?is_active=true
+GET /regions/{region_id}/locations?is_active=true&scope=all|region|ao&limit=50&offset=0
+
+Query Params:
+- is_active (optional, default true) — filter by active status
+- scope (optional, default all):
+  - all: union of locations owned by the region AND by AOs under that region (matches current Slack UX)
+  - region: only locations whose org_id = region_id
+  - ao: only locations whose org_id is an AO with parent_id = region_id
+- limit, offset (optional) — pagination
 
 Response 200:
 ```
 {
-  "results": [ {Location...} ]
+  "results": [ {Location...} ],
+  "pagination": { "limit": 50, "offset": 0, "total": 123 }
 }
 ```
+
+Errors:
+- 404 region_not_found
+
+Notes:
+- This endpoint backs the “Edit/Delete a Location” list used in the Slack UI.
+- For map accuracy, clients SHOULD call /admin/map/revalidate after create/update/delete operations.
+
+---
+
+## 13. Create Location
+
+POST /locations
+
+Request JSON:
+```
+{
+  "region_id": 123,                   // required
+  "name": "Central Park - Main Entrance",
+  "description": "Meet at the flagpole near the entrance",
+  "latitude": 34.0522,
+  "longitude": -118.2437,
+  "address_street": "123 Main St.",
+  "address_street2": "Suite 200",
+  "address_city": "Los Angeles",
+  "address_state": "CA",
+  "address_zip": "90210",
+  "address_country": "USA"
+}
+```
+
+Behavior:
+- Validate region exists (org_type=region).
+- Create Location owned by the region (org_id=region_id), is_active=true.
+- On success, clients SHOULD trigger map revalidation (/admin/map/revalidate).
+
+Response 201:
+```
+{Location...}
+```
+
+Errors:
+- 400 missing_field (e.g., region_id, name, latitude, longitude)
+- 400 invalid_coordinates
+- 404 region_not_found
+
+---
+
+## 14. Get Location
+
+GET /locations/{location_id}
+
+Response 200:
+```
+{Location...}
+```
+
+Errors:
+- 404 location_not_found
+
+---
+
+## 15. Update Location (Partial)
+
+PATCH /locations/{location_id}
+
+Request JSON (any subset):
+```
+{
+  "name": "New Name",
+  "description": "Updated notes",
+  "latitude": 35.0000,
+  "longitude": -117.0000,
+  "address_street": "456 Elm St.",
+  "address_city": "Burbank",
+  "address_state": "CA",
+  "address_zip": "91502",
+  "address_country": "USA",
+  "is_active": true
+}
+```
+
+Rules:
+- Only provided fields change.
+- Ownership (org_id) is immutable via this endpoint.
+- On success, clients SHOULD trigger map revalidation (/admin/map/revalidate).
+
+Response 200:
+```
+{Location...}
+```
+
+Errors:
+- 400 invalid_coordinates
+- 404 location_not_found
+
+---
+
+## 16. Delete (Deactivate) Location
+
+DELETE /locations/{location_id}
+
+Behavior:
+- Soft delete by setting is_active=false.
+- If the location is referenced as an AO’s default_location_id or by active events, server MAY reject with conflict or accept and leave references (client responsibility). Initial behavior: accept and leave references.
+- On success, clients SHOULD trigger map revalidation (/admin/map/revalidate).
+
+Response 200:
+```
+{ "location_id": 789, "status": "deactivated" }
+```
+
+Errors:
+- 404 location_not_found
+- 409 conflict (optional, if enforcing reference checks)
 
 ---
 
@@ -433,16 +571,17 @@ Errors:
 
 ---
 
-## 21. Create Region-Specific Event Type
+## 21. Create Event Type
 
-POST /regions/{region_id}/event-types
+POST /event-types
 
 Request JSON:
 ```
 {
+  "region_id": 123,                 // required
   "name": "Ruck Heavy",
   "event_category": "first_f",
-  "acronym": "RH"   // optional; default = first two letters of name uppercased
+  "acronym": "RH"                  // optional; default = first two letters of name uppercased
 }
 ```
 
@@ -459,7 +598,7 @@ Response 201:
 ```
 
 Errors:
-- 400 missing_field
+- 400 missing_field (e.g., region_id, name, event_category)
 - 400 invalid_event_category
 - 404 region_not_found
 - 409 duplicate_name
@@ -596,13 +735,14 @@ Errors:
 
 ---
 
-## 16. Create Region-Specific Event Tag
+## 16. Create Event Tag
 
-POST /regions/{region_id}/event-tags
+POST /event-tags
 
 Request JSON:
 ```
 {
+  "region_id": 123,           // required
   "name": "CSA Dropoff",
   "color": "green" | "#32CD32"
 }
@@ -620,7 +760,7 @@ Response 201:
 ```
 
 Errors:
-- 400 missing_field
+- 400 missing_field (e.g., region_id, name)
 - 400 invalid_color
 - 404 region_not_found
 - 409 duplicate_name
