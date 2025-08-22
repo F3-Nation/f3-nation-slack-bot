@@ -15,6 +15,8 @@ Recommended scopes:
 - read:position
 - write:position
 - write:admins
+- read:user
+- write:user
 
 ---
 
@@ -147,6 +149,33 @@ EventInstance:
 }
 ```
 
+User:
+```
+{
+  "id": 9876,
+  "f3_name": "Short Circuit",
+  "home_region_id": 123 | null,
+  "emergency_contact": "Jane Doe" | null,
+  "emergency_phone": "+1 555-123-4567" | null,
+  "emergency_notes": "Allergy: peanuts" | null,
+  "avatar_url": "https://…" | null,
+  "created": "2025-01-01T12:00:00Z",
+  "updated": "2025-01-02T12:00:00Z"
+}
+```
+
+SlackUser:
+```
+{
+  "id": 555,
+  "user_id": 9876,
+  "slack_id": "U012345",
+  "slack_team_id": "T012345",
+  "created": "2025-01-01T12:00:00Z",
+  "updated": "2025-01-02T12:00:00Z"
+}
+```
+
 SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
 ```
 {
@@ -262,6 +291,11 @@ SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
 | [63. Trigger Canvas Rebuild](#63-trigger-canvas-rebuild) | POST | /regions/{region_id}/canvas/rebuild |
 | [64. Get SlackSpace by Team](#64-get-slackspace-by-team) | GET | /slack-spaces/{team_id} |
 | [65. Update SlackSpace Settings by Team](#65-update-slackspace-settings-by-team) | PATCH | /slack-spaces/{team_id}/settings |
+| [66. Resolve User From Slack](#66-resolve-user-from-slack) | POST | /users/resolve-from-slack |
+| [67. Get User](#67-get-user) | GET | /users/{user_id} |
+| [68. Update User](#68-update-user) | PATCH | /users/{user_id} |
+| [69. Search Regions (Typeahead)](#69-search-regions-typeahead) | GET | /regions/search |
+| [70. Get Slack User Mapping](#70-get-slack-user-mapping) | GET | /slack-users/by-slack |
 
 ---
 
@@ -1194,6 +1228,117 @@ Request/Response:
 
 Security:
 - Requires the same scopes as region settings and ownership verification for the Slack app installation.
+
+---
+
+## 66. Resolve User From Slack
+
+POST /users/resolve-from-slack
+
+Purpose:
+- Convert a Slack user identity into the platform User/SlackUser, creating SlackUser mapping if missing. Mirrors `get_user()` usage in `features/user.py`.
+
+Request JSON:
+```
+{ "slack_id": "U012345", "slack_team_id": "T012345" }
+```
+
+Behavior:
+- Find SlackUser by (slack_id, slack_team_id). If not found but a matching User can be inferred via email or prior mapping rules, create the SlackUser link.
+
+Response 200:
+```
+{ "user": {User...}, "slack_user": {SlackUser...} }
+```
+
+Errors:
+- 404 not_found (if resolution is strictly required and cannot be inferred)
+
+---
+
+## 67. Get User
+
+GET /users/{user_id}
+
+Query Params:
+- include=home_region (optional): expands `home_region_org` needed by the form initial values.
+
+Response 200:
+```
+{User...}
+```
+
+Errors:
+- 404 user_not_found
+
+---
+
+## 68. Update User
+
+PATCH /users/{user_id}
+
+Purpose:
+- Backed by `handle_user_form` in `features/user.py` to update profile details and avatar.
+
+Request JSON (any subset):
+```
+{
+  "f3_name": "Short Circuit",
+  "home_region_id": 123,
+  "emergency_contact": "Jane Doe",
+  "emergency_phone": "+1 555-123-4567",
+  "emergency_notes": "…",
+  "avatar_file_id": "abc123"   // optional; resolved to avatar_url via /files
+}
+```
+
+Behavior:
+- If `avatar_file_id` provided, server resolves to URL and updates `avatar_url`.
+- Validates that `home_region_id` references an Org with org_type=region.
+
+Response 200:
+```
+{User...}
+```
+
+Errors:
+- 404 user_not_found | region_not_found
+- 400 validation_error
+
+---
+
+## 69. Search Regions (Typeahead)
+
+GET /regions/search?q=metro&limit=10
+
+Purpose:
+- Supports the ExternalSelectElement for "Home Region" in the user form.
+
+Query Params:
+- q (required): search string (name prefix/ILIKE match)
+- limit (optional, default 10, max 25)
+
+Response 200:
+```
+{ "results": [ { "id": 123, "name": "F3 Metro" } ] }
+```
+
+---
+
+## 70. Get Slack User Mapping
+
+GET /slack-users/by-slack?slack_id=U012345&slack_team_id=T012345
+
+Purpose:
+- Lightweight fetch for an existing SlackUser mapping when you already know the Slack ids.
+
+Response 200:
+```
+{SlackUser...}
+```
+
+Errors:
+- 404 slack_user_not_found
 
 ---
 
