@@ -142,6 +142,12 @@ EventInstance:
   "preblast_rich": { … } | null,
   "preblast": "…" | null,
   "preblast_ts": "2025-02-09T12:34:56Z" | null,
+  "backblast_rich": { … } | null,
+  "backblast": "…" | null,
+  "backblast_ts": "2025-02-10T12:34:56Z" | null,
+  "pax_count": 17 | null,
+  "fng_count": 2 | null,
+  "meta": { … } | {},                    // free-form, used for custom fields
   "event_types": [ {EventType...} ],
   "event_tags": [ {EventTag...} ],
   "created": "2025-01-01T12:00:00Z",
@@ -192,6 +198,7 @@ SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
   "preblast_moleskin_template": "...",
   "preblast_reminder_days": 0 | 1 | 2 | 3,
   "backblast_reminder_days": 0 | 1 | 2 | 3,
+  "migration_date": "2025-06-01" | null,     // used by middleware to route legacy vs API
   // Email
   "email_enabled": 0 | 1,
   "email_option_show": 0 | 1,
@@ -212,6 +219,8 @@ SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
   "special_events_post_days": 7,
   "calendar_image_current": "2025-08-01.png" | null,
   "canvas_channel": "C0CANVAS" | null,
+  // Integrations
+  "strava_enabled": 0 | 1,
   // Custom fields (for forms)
   "custom_fields": {
     "Event Type": { "name": "Event Type", "type": "Dropdown", "options": ["Bootcamp"], "enabled": true },
@@ -296,6 +305,16 @@ SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
 | [68. Update User](#68-update-user) | PATCH | /users/{user_id} |
 | [69. Search Regions (Typeahead)](#69-search-regions-typeahead) | GET | /regions/search |
 | [70. Get Slack User Mapping](#70-get-slack-user-mapping) | GET | /slack-users/by-slack |
+| [71. List My Preblast Candidates](#71-list-my-preblast-candidates) | GET | /regions/{region_id}/preblast/candidates |
+| [72. Update Preblast Draft](#72-update-preblast-draft) | PATCH | /event-instances/{event_instance_id}/preblast |
+| [73. Mark Preblast Posted](#73-mark-preblast-posted) | POST | /event-instances/{event_instance_id}/preblast/posted |
+| [74. Submit Backblast](#74-submit-backblast) | POST | /event-instances/{event_instance_id}/backblast |
+| [75. Search Users (Typeahead)](#75-search-users-typeahead) | GET | /users/search |
+| [71. List My Preblast Candidates](#71-list-my-preblast-candidates) | GET | /regions/{region_id}/preblast/candidates |
+| [72. Update Preblast Draft](#72-update-preblast-draft) | PATCH | /event-instances/{event_instance_id}/preblast |
+| [73. Mark Preblast Posted](#73-mark-preblast-posted) | POST | /event-instances/{event_instance_id}/preblast/posted |
+| [74. Submit Backblast](#74-submit-backblast) | POST | /event-instances/{event_instance_id}/backblast |
+| [75. Search Users (Typeahead)](#75-search-users-typeahead) | GET | /users/search |
 
 ---
 
@@ -1755,7 +1774,13 @@ Request JSON (any subset):
   "highlight": true,
   "preblast_rich": { ... },
   "preblast": "<formatted text>",
-  "preblast_ts": "2025-01-19T20:15:00Z" // optional; set when posted
+  "preblast_ts": "2025-01-19T20:15:00Z", // optional; set when posted
+  "backblast_rich": { ... },
+  "backblast": "<formatted text>",
+  "backblast_ts": "2025-02-10T12:34:56Z",
+  "pax_count": 17,
+  "fng_count": 2,
+  "meta": { "Weather": "Humid" }
 }
 ```
 
@@ -2277,6 +2302,156 @@ Errors:
 - 404 event_tag_not_found
 
 ---
+
+---
+
+## 71. List My Preblast Candidates
+
+GET /regions/{region_id}/preblast/candidates?start_date=YYYY-MM-DD
+
+Purpose:
+- Mirrors the selection list in `build_event_preblast_select_form` used by `features/calendar/event_preblast.py`. Returns upcoming EventInstances where the caller is planned (Attendance.is_planned) and has type Q/Co-Q, and that have not yet been preblasted.
+
+Query Params:
+- start_date (optional; default = today in region TZ)
+
+Response 200:
+```
+{
+  "results": [ {EventInstance...} ]
+}
+```
+
+Notes:
+- Server infers the caller from auth context and filters Attendance for that user with AttendanceType in [2,3] and EventInstance.preblast_ts IS NULL, EventInstance.is_active = true, and within the region or its AOs.
+
+---
+
+## 72. Update Preblast Draft
+
+PATCH /event-instances/{event_instance_id}/preblast
+
+Purpose:
+- Backed by `handle_event_preblast_edit`. Updates preblast fields, location, optional tag, and Q/Co-Q co-leads for the event instance.
+
+Request JSON (subset):
+```
+{
+  "name": "Title",
+  "location_id": 456,
+  "preblast_rich": { ... },
+  "preblast": "<plain text>",
+  "event_tag_id": 1011 | null,   // optional single tag
+  "co_q_user_ids": [2,3]         // optional, replaces existing co-Qs as planned (is_planned=true)
+}
+```
+
+Behavior:
+- Updates EventInstance basic fields.
+- If `event_tag_id` provided, replaces the single tag on the instance (deletes existing from EventTag_x_EventInstance and inserts new one). If null, clears tag.
+- If `co_q_user_ids` provided, replaces existing co-Q attendance for this instance with the provided list (attendance_type_id=3, is_planned=true). Does not change the primary Q here; use Assign Q (#44) or include caller as Q in attendance upsert (#42).
+
+Response 200:
+```
+{EventInstance...}
+```
+
+Errors:
+- 404 event_instance_not_found
+- 400 validation_error
+
+---
+
+## 73. Mark Preblast Posted
+
+POST /event-instances/{event_instance_id}/preblast/posted
+
+Purpose:
+- Called when the preblast is posted to Slack. Persists the message ts and optionally the channel.
+
+Request JSON:
+```
+{
+  "preblast_ts": "2025-01-19T20:15:00Z" | "1737301234.567800",  // supports RFC3339 or Slack ts string
+  "channel": "C0123" | null
+}
+```
+
+Behavior:
+- Sets EventInstance.preblast_ts and may store `meta.preblast_channel`.
+
+Response 200:
+```
+{ "event_instance_id": 222, "preblast_ts": "1737301234.567800" }
+```
+
+Errors:
+- 404 event_instance_not_found
+
+---
+
+## 74. Submit Backblast
+
+POST /event-instances/{event_instance_id}/backblast
+
+Purpose:
+- Replaces the DbManager + Slack flow in `features/backblast.py::handle_backblast_post`. Creates or updates the EventInstance backblast content, attendance, counts, custom fields, and uploaded files metadata.
+
+Request JSON:
+```
+{
+  "title": "Workout Name",
+  "date": "2025-02-10",
+  "ao_id": 123,
+  "event_type_id": 789,             // single event type id for now
+  "q_user_id": 111,
+  "co_q_user_ids": [222,333],
+  "attendee_user_ids": [444,555],   // regular pax
+  "down_range_user_ids": [666],     // optional DR pax
+  "non_slack_pax": ["John Doe"],   // optional non-slack attendees
+  "fng_names": ["Blue Steel"],     // optional
+  "count": 12,                      // optional; if omitted, server may auto-calc
+  "moleskin_rich": { ... },         // Slack rich text JSON
+  "files": [                        // optional; uploaded/processed separately
+    { "url": "https://...", "width": 1024, "height": 768, "mime_type": "image/jpeg" }
+  ],
+  "custom_fields": { "Weather": "Humid" }
+}
+```
+
+Behavior:
+- Updates EventInstance fields: name/title, start_date, org_id (ao), backblast_rich, backblast (plain), backblast_ts (now), pax_count, fng_count, meta (merge custom_fields), is_active=true.
+- Upserts EventType_x_EventInstance to set the selected event type (single for now).
+- Replaces Attendance with Q (type=2), Co-Qs (type=3), and Attending (type=1) according to lists, marking `is_planned=false`.
+- Stores file metadata in `meta.files` or a related storage, depending on implementation; returns normalized file URLs.
+
+Response 200:
+```
+{EventInstance...}
+```
+
+Errors:
+- 400 validation_error
+- 404 event_instance_not_found | ao_not_found | event_type_not_found | user_not_found
+
+---
+
+## 75. Search Users (Typeahead)
+
+GET /users/search?q=short&region_id=123&limit=20
+
+Purpose:
+- Supports Slack multi-user selects for Q/Co-Q/PAX. Filters users by relevance to the region (e.g., Slack team membership or home_region).
+
+Query Params:
+- q (required)
+- region_id (optional but recommended)
+- limit (optional; default 20, max 50)
+
+Response 200:
+```
+{ "results": [ { "id": 1, "f3_name": "Short Circuit", "avatar_url": "…" } ] }
+```
 
 ---
 
