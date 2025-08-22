@@ -1,23 +1,5 @@
 # API Endpoint Documentation
 
-## Authentication & Authorization
-
-All endpoints require an authenticated user/session.  
-Recommended scopes:
-- read:org
-- write:org
-- read:location
-- read:event-type
-- write:event
-- admin:maintenance (for map revalidation)
-- read:settings
-- write:settings
-- read:position
-- write:position
-- write:admins
-- read:user
-- write:user
-
 ---
 
 ## Data Model (API Projection)
@@ -233,88 +215,133 @@ SlackSpace Settings (projection used by config, welcome, custom fields, canvas):
 
 ## Endpoint Summary
 
+### Regions
 | Purpose | Method | Path |
 |---------|--------|------|
 | [1. Get region with selectable data](#1-get-region--dependencies) | GET | /regions/{region_id}?include=locations,event_types,event_tags |
 | [2. List AOs for region](#2-list-aos-under-region) | GET | /regions/{region_id}/aos |
+| [11. List Locations (region)](#11-list-locations-region) | GET | /regions/{region_id}/locations?is_active=true |
+| [16. List Event Types (region)](#16-list-event-types-region) | GET | /regions/{region_id}/event-types?is_active=true |
+| [17. List Available External Event Types](#17-list-available-external-event-types-not-yet-imported) | GET | /regions/{region_id}/event-types/available |
+| [18. Import External Event Type](#18-import-external-event-type) | POST | /regions/{region_id}/event-types/import |
+| [22. List Event Tags (region)](#22-list-event-tags-region) | GET | /regions/{region_id}/event-tags |
+| [23. List Available Global Event Tags](#23-list-available-global-event-tags) | GET | /regions/{region_id}/event-tags/available |
+| [24. Import Global Event Tag into Region](#24-import-global-event-tag-into-region) | POST | /regions/{region_id}/event-tags/import |
+| [28. List Event Instances (region)](#28-list-event-instances-region) | GET | /regions/{region_id}/event-instances |
+| [33. List Series (Events) for Region](#33-list-series-events-region) | GET | /regions/{region_id}/events |
+| [40. Calendar Home Schedule (Aggregated)](#40-calendar-home-schedule-aggregated) | GET | /regions/{region_id}/calendar/home |
+| [45. List Region Admins](#45-list-region-admins) | GET | /regions/{region_id}/admins |
+| [46. Add Region Admin](#46-add-region-admin) | POST | /regions/{region_id}/admins |
+| [47. Remove Region Admin](#47-remove-region-admin) | DELETE | /regions/{region_id}/admins/{user_id} |
+| [50. Update Region Profile](#50-update-region-profile) | PATCH | /regions/{region_id} |
+| [51. Get Region Settings](#51-get-region-settings) | GET | /regions/{region_id}/settings |
+| [52. Update Region Settings](#52-update-region-settings) | PATCH | /regions/{region_id}/settings |
+| [62. Set Region Admins (Replace)](#62-set-region-admins-replace) | PUT | /regions/{region_id}/admins |
+| [63. Trigger Canvas Rebuild](#63-trigger-canvas-rebuild) | POST | /regions/{region_id}/canvas/rebuild |
+| [69. Search Regions (Typeahead)](#69-search-regions-typeahead) | GET | /regions/search |
+| [71. List My Preblast Candidates](#71-list-my-preblast-candidates) | GET | /regions/{region_id}/preblast/candidates |
+
+### AOs
+| Purpose | Method | Path |
+|---------|--------|------|
 | [3. Create AO](#3-create-ao) | POST | /aos |
 | [4. Get AO by id](#4-get-ao) | GET | /aos/{ao_id} |
 | [5. Update AO (partial)](#5-update-ao-partial) | PATCH | /aos/{ao_id} |
 | [6. Deactivate AO](#6-deactivate-soft-delete-ao) | DELETE | /aos/{ao_id} |
 | [7. Batch deactivate events for AO](#7-batch-deactivate-events-explicit) | POST | /aos/{ao_id}/deactivate-events |
 | [8. Batch deactivate future event instances](#8-batch-deactivate-future-event-instances) | POST | /aos/{ao_id}/deactivate-future-event-instances |
-| [9. File upload (logo)](#9-file-upload-logo) | POST | /files |
-| [10. Trigger map revalidation](#10-trigger-map-revalidation) | POST | /admin/map/revalidate |
-| [11. List Locations (region)](#11-list-locations-region) | GET | /regions/{region_id}/locations?is_active=true |
+
+### Locations
+| Purpose | Method | Path |
+|---------|--------|------|
 | [12. Create Location](#12-create-location) | POST | /locations |
 | [13. Get Location](#13-get-location) | GET | /locations/{location_id} |
 | [14. Update Location](#14-update-location-partial) | PATCH | /locations/{location_id} |
 | [15. Delete Location](#15-delete-deactivate-location) | DELETE | /locations/{location_id} |
-| [16. List Event Types (region)](#16-list-event-types-region) | GET | /regions/{region_id}/event-types?is_active=true |
-| [17. List Available External Event Types](#17-list-available-external-event-types-not-yet-imported) | GET | /regions/{region_id}/event-types/available |
-| [18. Import External Event Type](#18-import-external-event-type) | POST | /regions/{region_id}/event-types/import |
+
+### Event Types
+| Purpose | Method | Path |
+|---------|--------|------|
 | [19. Create Event Type](#19-create-event-type) | POST | /event-types |
 | [20. Update Region Event Type](#20-update-region-event-type) | PATCH | /event-types/{event_type_id} |
 | [21. Delete Region Event Type](#21-delete-region-event-type) | DELETE | /event-types/{event_type_id} |
-| [22. List Event Tags (region)](#22-list-event-tags-region) | GET | /regions/{region_id}/event-tags |
-| [23. List Available Global Event Tags](#23-list-available-global-event-tags) | GET | /regions/{region_id}/event-tags/available |
-| [24. Import Global Event Tag into Region](#24-import-global-event-tag-into-region) | POST | /regions/{region_id}/event-tags/import |
+
+### Event Tags
+| Purpose | Method | Path |
+|---------|--------|------|
 | [25. Create Event Tag](#25-create-event-tag) | POST | /event-tags |
 | [26. Update Region Event Tag](#26-update-region-event-tag) | PATCH | /event-tags/{event_tag_id} |
 | [27. Delete Region Event Tag](#27-delete-region-event-tag) | DELETE | /event-tags/{event_tag_id} |
-| [28. List Event Instances (region)](#28-list-event-instances-region) | GET | /regions/{region_id}/event-instances |
-| [29. Create Event Instance](#29-create-event-instance) | POST | /event-instances |
-| [30. Get Event Instance](#30-get-event-instance) | GET | /event-instances/{event_instance_id} |
-| [31. Update Event Instance](#31-update-event-instance) | PATCH | /event-instances/{event_instance_id} |
-| [32. Delete (Deactivate) Event Instance](#32-delete-deactivate-event-instance) | DELETE | /event-instances/{event_instance_id} |
-| [33. List Series (Events) for Region](#33-list-series-events-region) | GET | /regions/{region_id}/events |
+
+### Series (Events)
+| Purpose | Method | Path |
+|---------|--------|------|
 | [34. Create Series (Event)](#34-create-series-event) | POST | /events |
 | [35. Get Series (Event)](#35-get-series-event) | GET | /events/{event_id} |
 | [36. Update Series (Event)](#36-update-series-event) | PATCH | /events/{event_id} |
 | [37. Delete Series (Event)](#37-delete-series-event) | DELETE | /events/{event_id} |
 | [38. Refresh/Generate Instances for Series](#38-refreshgenerate-instances-for-series) | POST | /events/{event_id}/refresh-instances |
-| [39. Map Update Webhook](#39-map-update-webhook) | POST | /admin/map/updates |
-| [40. Calendar Home Schedule (Aggregated)](#40-calendar-home-schedule-aggregated) | GET | /regions/{region_id}/calendar/home |
+
+### Event Instances
+| Purpose | Method | Path |
+|---------|--------|------|
+| [29. Create Event Instance](#29-create-event-instance) | POST | /event-instances |
+| [30. Get Event Instance](#30-get-event-instance) | GET | /event-instances/{event_instance_id} |
+| [31. Update Event Instance](#31-update-event-instance) | PATCH | /event-instances/{event_instance_id} |
+| [32. Delete (Deactivate) Event Instance](#32-delete-deactivate-event-instance) | DELETE | /event-instances/{event_instance_id} |
+| [72. Update Preblast Draft](#72-update-preblast-draft) | PATCH | /event-instances/{event_instance_id}/preblast |
+| [73. Mark Preblast Posted](#73-mark-preblast-posted) | POST | /event-instances/{event_instance_id}/preblast/posted |
+| [74. Submit Backblast](#74-submit-backblast) | POST | /event-instances/{event_instance_id}/backblast |
+
+### Attendance
+| Purpose | Method | Path |
+|---------|--------|------|
 | [41. List Attendance (Event Instance)](#41-list-attendance-event-instance) | GET | /event-instances/{event_instance_id}/attendance |
 | [42. Upsert Attendance (Event Instance)](#42-upsert-attendance-event-instance) | POST | /event-instances/{event_instance_id}/attendance |
 | [43. Remove Attendance (Event Instance)](#43-remove-attendance-event-instance) | DELETE | /event-instances/{event_instance_id}/attendance |
 | [44. Assign Q / Co-Q (Convenience)](#44-assign-q--co-q-convenience) | PUT | /event-instances/{event_instance_id}/q |
-| [45. List Region Admins](#45-list-region-admins) | GET | /regions/{region_id}/admins |
-| [46. Add Region Admin](#46-add-region-admin) | POST | /regions/{region_id}/admins |
-| [47. Remove Region Admin](#47-remove-region-admin) | DELETE | /regions/{region_id}/admins/{user_id} |
+
+### Positions
+| Purpose | Method | Path |
+|---------|--------|------|
 | [48. List Positions and Assigned Users](#48-list-positions-and-assigned-users) | GET | /orgs/{org_id}/positions |
-| [49. Get User Permissions (By Org)](#49-get-user-permissions-by-org) | GET | /users/{user_id}/permissions |
-| [50. Update Region Profile](#50-update-region-profile) | PATCH | /regions/{region_id} |
-| [51. Get Region Settings](#51-get-region-settings) | GET | /regions/{region_id}/settings |
-| [52. Update Region Settings](#52-update-region-settings) | PATCH | /regions/{region_id}/settings |
-| [53. List Custom Fields](#53-list-custom-fields) | GET | /regions/{region_id}/custom-fields |
-| [54. Upsert Custom Field](#54-upsert-custom-field) | POST | /regions/{region_id}/custom-fields |
-| [55. Update Custom Field](#55-update-custom-field) | PATCH | /regions/{region_id}/custom-fields/{field_name} |
-| [56. Delete Custom Field](#56-delete-custom-field) | DELETE | /regions/{region_id}/custom-fields/{field_name} |
 | [57. Create Position](#57-create-position) | POST | /orgs/{org_id}/positions |
 | [58. Update Position](#58-update-position) | PATCH | /positions/{position_id} |
 | [59. Delete Position](#59-delete-position) | DELETE | /positions/{position_id} |
 | [60. Assign Position to User](#60-assign-position-to-user) | POST | /orgs/{org_id}/positions/{position_id}/assign |
 | [61. Unassign Position from User](#61-unassign-position-from-user) | DELETE | /orgs/{org_id}/positions/{position_id}/assign/{user_id} |
-| [62. Set Region Admins (Replace)](#62-set-region-admins-replace) | PUT | /regions/{region_id}/admins |
-| [63. Trigger Canvas Rebuild](#63-trigger-canvas-rebuild) | POST | /regions/{region_id}/canvas/rebuild |
-| [64. Get SlackSpace by Team](#64-get-slackspace-by-team) | GET | /slack-spaces/{team_id} |
-| [65. Update SlackSpace Settings by Team](#65-update-slackspace-settings-by-team) | PATCH | /slack-spaces/{team_id}/settings |
+
+### Users
+| Purpose | Method | Path |
+|---------|--------|------|
 | [66. Resolve User From Slack](#66-resolve-user-from-slack) | POST | /users/resolve-from-slack |
 | [67. Get User](#67-get-user) | GET | /users/{user_id} |
 | [68. Update User](#68-update-user) | PATCH | /users/{user_id} |
-| [69. Search Regions (Typeahead)](#69-search-regions-typeahead) | GET | /regions/search |
+| [49. Get User Permissions (By Org)](#49-get-user-permissions-by-org) | GET | /users/{user_id}/permissions |
+| [75. Search Users (Typeahead)](#75-search-users-typeahead) | GET | /users/search |
+
+### Slack / SlackSpace
+| Purpose | Method | Path |
+|---------|--------|------|
+| [64. Get SlackSpace by Team](#64-get-slackspace-by-team) | GET | /slack-spaces/{team_id} |
+| [65. Update SlackSpace Settings by Team](#65-update-slackspace-settings-by-team) | PATCH | /slack-spaces/{team_id}/settings |
+| [76. Create SlackSpace](#76-create-slackspace) | POST | /slack-spaces |
+| [77. Connect SlackSpace to Org](#77-connect-slackspace-to-org) | POST | /slack-spaces/{team_id}/connect-org |
+| [78. Sync Slack Users](#78-sync-slack-users) | POST | /slack-spaces/{team_id}/users/sync |
+| [79. List Slack Users (Team)](#79-list-slack-users-team) | GET | /slack-spaces/{team_id}/slack-users |
 | [70. Get Slack User Mapping](#70-get-slack-user-mapping) | GET | /slack-users/by-slack |
-| [71. List My Preblast Candidates](#71-list-my-preblast-candidates) | GET | /regions/{region_id}/preblast/candidates |
-| [72. Update Preblast Draft](#72-update-preblast-draft) | PATCH | /event-instances/{event_instance_id}/preblast |
-| [73. Mark Preblast Posted](#73-mark-preblast-posted) | POST | /event-instances/{event_instance_id}/preblast/posted |
-| [74. Submit Backblast](#74-submit-backblast) | POST | /event-instances/{event_instance_id}/backblast |
-| [75. Search Users (Typeahead)](#75-search-users-typeahead) | GET | /users/search |
-| [71. List My Preblast Candidates](#71-list-my-preblast-candidates) | GET | /regions/{region_id}/preblast/candidates |
-| [72. Update Preblast Draft](#72-update-preblast-draft) | PATCH | /event-instances/{event_instance_id}/preblast |
-| [73. Mark Preblast Posted](#73-mark-preblast-posted) | POST | /event-instances/{event_instance_id}/preblast/posted |
-| [74. Submit Backblast](#74-submit-backblast) | POST | /event-instances/{event_instance_id}/backblast |
-| [75. Search Users (Typeahead)](#75-search-users-typeahead) | GET | /users/search |
+| [80. Migrate Slackblast Settings](#80-migrate-slackblast-settings) | POST | /admin/migrate/slackblast-settings |
+
+### Files
+| Purpose | Method | Path |
+|---------|--------|------|
+| [9. File upload (logo)](#9-file-upload-logo) | POST | /files |
+
+### Admin
+| Purpose | Method | Path |
+|---------|--------|------|
+| [10. Trigger map revalidation](#10-trigger-map-revalidation) | POST | /admin/map/revalidate |
+| [39. Map Update Webhook](#39-map-update-webhook) | POST | /admin/map/updates |
 
 ---
 
@@ -570,7 +597,6 @@ Notes:
 - This endpoint backs the “Edit/Delete a Location” list used in the Slack UI.
 - For map accuracy, clients SHOULD call /admin/map/revalidate after create/update/delete operations.
 
----
 ---
 
 ## 12. Create Location
@@ -2455,6 +2481,134 @@ Response 200:
 
 ---
 
+## 76. Create SlackSpace
+
+POST /slack-spaces
+
+Purpose:
+- Creates a SlackSpace record and seeds baseline settings. Mirrors `get_region_record` where a SlackSpace may be created on first contact.
+
+Request JSON:
+```
+{
+  "team_id": "T012345",
+  "workspace_name": "F3 Example",
+  "bot_token": "xoxb-...",         // optional; stored securely
+  "settings": {                      // optional initial settings
+    "team_id": "T012345",
+    "workspace_name": "F3 Example"
+  }
+}
+```
+
+Response 201:
+```
+{ "team_id": "T012345", "settings": { … } }
+```
+
+Errors:
+- 409 slackspace_exists
+
+---
+
+## 77. Connect SlackSpace to Org
+
+POST /slack-spaces/{team_id}/connect-org
+
+Purpose:
+- Connects an existing SlackSpace to an Org via the `orgs_x_slack_spaces` table. Mirrors the local dev behavior in `get_region_record` and Org linkage.
+
+Request JSON:
+```
+{ "org_id": 123 }
+```
+
+Response 200:
+```
+{ "team_id": "T012345", "org_id": 123 }
+```
+
+Errors:
+- 404 slackspace_not_found | org_not_found
+- 409 already_connected
+
+---
+
+## 78. Sync Slack Users
+
+POST /slack-spaces/{team_id}/users/sync
+
+Purpose:
+- Imports Slack users into the platform, creating `User` and `SlackUser` records as needed. Mirrors `populate_users` and parts of `get_user`.
+
+Request JSON (optional):
+```
+{ "org_id": 123 }   // optional: set home_region_id for created users
+```
+
+Behavior:
+- Fetches users from Slack via the app installation for team_id.
+- Upserts Users by email (or slack_id fallback) and SlackUsers by (slack_id, team_id).
+
+Response 202:
+```
+{ "team_id": "T012345", "users_created": 42, "slack_users_created": 57 }
+```
+
+Errors:
+- 404 slackspace_not_found
+- 502 slack_api_error
+
+---
+
+## 79. List Slack Users (Team)
+
+GET /slack-spaces/{team_id}/slack-users?q=short&limit=50
+
+Purpose:
+- Lists SlackUser records for a team, optional search by name/email. Mirrors cached usage in `update_local_slack_users` and selection flows.
+
+Query Params:
+- q (optional; search name/email)
+- limit (optional; default 50, max 200)
+
+Response 200:
+```
+{ "results": [ {SlackUser...} ] }
+```
+
+Errors:
+- 404 slackspace_not_found
+
+---
+
+## 80. Migrate Slackblast Settings
+
+POST /admin/migrate/slackblast-settings
+
+Purpose:
+- One-time migration to seed SlackSpace.settings from legacy Slackblast or Paxminer sources. Mirrors `migrate_slackblast_settings` behavior.
+
+Request JSON:
+```
+{ "team_id": "T012345" }
+```
+
+Behavior:
+- Attempts to load settings from the legacy Slackblast DB by team_id; falls back to Paxminer if needed.
+- Converts/normalizes known JSON fields: backblast_moleskin_template, preblast_moleskin_template, welcome_dm_template, custom_fields.
+- Stores merged settings into SlackSpace.settings.
+
+Response 200:
+```
+{ "team_id": "T012345", "settings": { … } }
+```
+
+Errors:
+- 404 slackspace_not_found
+- 404 legacy_not_found
+
+---
 ## Error Schema (General)
 
 ```
