@@ -187,6 +187,16 @@ EventInstance:
 | [37. Delete Series (Event)](#37-delete-series-event) | DELETE | /events/{event_id} |
 | [38. Refresh/Generate Instances for Series](#38-refreshgenerate-instances-for-series) | POST | /events/{event_id}/refresh-instances |
 | [39. Map Update Webhook](#39-map-update-webhook) | POST | /admin/map/updates |
+| [40. Calendar Home Schedule (Aggregated)](#40-calendar-home-schedule-aggregated) | GET | /regions/{region_id}/calendar/home |
+| [41. List Attendance (Event Instance)](#41-list-attendance-event-instance) | GET | /event-instances/{event_instance_id}/attendance |
+| [42. Upsert Attendance (Event Instance)](#42-upsert-attendance-event-instance) | POST | /event-instances/{event_instance_id}/attendance |
+| [43. Remove Attendance (Event Instance)](#43-remove-attendance-event-instance) | DELETE | /event-instances/{event_instance_id}/attendance |
+| [44. Assign Q / Co-Q (Convenience)](#44-assign-q--co-q-convenience) | PUT | /event-instances/{event_instance_id}/q |
+| [45. List Region Admins](#45-list-region-admins) | GET | /regions/{region_id}/admins |
+| [46. Add Region Admin](#46-add-region-admin) | POST | /regions/{region_id}/admins |
+| [47. Remove Region Admin](#47-remove-region-admin) | DELETE | /regions/{region_id}/admins/{user_id} |
+| [48. List Positions and Assigned Users](#48-list-positions-and-assigned-users) | GET | /orgs/{org_id}/positions |
+| [49. Get User Permissions (By Org)](#49-get-user-permissions-by-org) | GET | /users/{user_id}/permissions |
 
 ---
 
@@ -480,6 +490,290 @@ Errors:
 - 400 missing_field (e.g., region_id, name, latitude, longitude)
 - 400 invalid_coordinates
 - 404 region_not_found
+
+---
+
+## 16. List Event Types (Region)
+
+GET /regions/{region_id}/event-types?is_active=true&include_global=true
+
+Notes/Changes:
+- include_global (optional, default true): if true, returns both event types owned by the region AND globally-available types (EventType.specific_org_id IS NULL). Mirrors current Slack UI behavior that queries region-specific or None.
+- is_active (optional, default true).
+
+Response 200:
+```
+{
+  "results": [ {EventType...} ],
+  "pagination": { "limit": 50, "offset": 0, "total": 37 }
+}
+```
+
+---
+
+## 28. List Event Instances (Region)
+
+GET /regions/{region_id}/event-instances?ao_ids=1,2&event_type_ids=3,4&start_date=2025-01-01&end_date=2025-01-31&is_active=true&limit=100&offset=0
+
+Notes/Changes:
+- Supports filtering by one or more AO ids (orgs where org_type=ao and parent_id=region_id) or by the region org itself.
+- Supports filtering by event type ids.
+- Supports date window via start_date (required for large result sets; defaults to today UTC) and optional end_date.
+- Results are ordered by start_date, id, org.name, start_time to match Slack home ordering.
+- For aggregated “planned_qs” and per-user flags, prefer the specialized Calendar Home endpoint (#40).
+
+Response 200:
+```
+{
+  "results": [ {EventInstance...} ],
+  "pagination": { "limit": 100, "offset": 0, "total": 123 }
+}
+```
+
+---
+
+## 40. Calendar Home Schedule (Aggregated)
+
+GET /regions/{region_id}/calendar/home?ao_ids=1,2&event_type_ids=3,4&start_date=2025-01-01&open_q_only=false&my_events=false&limit=100&include=org,event_types,series
+
+Purpose:
+- Backs the Slack Home “Upcoming Schedule” view. Mirrors the SQL in special_queries.home_schedule_query and the filters built in features/calendar/home.py.
+
+Query Params:
+- ao_ids (CSV, optional): Filter to specific AO org_ids. If omitted and include_nearby=false, default is all AOs for the region.
+- event_type_ids (CSV, optional)
+- start_date (required for big lists; default = today UTC)
+- open_q_only (bool, optional, default false): Only events with no Q/Co-Q planned.
+- my_events (bool, optional, default false): Restrict to events where the caller is attending or Q (see per-user flags below). Requires auth user context.
+- limit (int, optional, default 100, max 200)
+- include (CSV, optional): org,event_types,series to expand related data.
+- include_nearby (bool, optional, default false): include events from nearby regions (future; server may ignore initially).
+
+Response 200:
+```
+{
+  "results": [
+    {
+      "event": {EventInstance...},
+      "org": {Org...},
+      "event_types": [ {EventType...} ],
+      "series": {Event...} | null,
+      "planned_qs": "Name1,Name2" | null,
+      "user_attending": 0 | 1,
+      "user_q": 0 | 1
+    }
+  ],
+  "pagination": { "limit": 100, "offset": 0, "total": 97 }
+}
+```
+
+Notes:
+- planned_qs aggregates Attendance where Attendance_x_AttendanceType.attendance_type_id IN [2,3] (Q/Co-Q) into a comma-separated list of User.f3_name.
+- user_attending is 1 if the auth user has any Attendance for the event instance, else 0.
+- user_q is 1 if the auth user is Q/Co-Q for the event instance, else 0.
+- Server SHOULD efficiently implement with one pass aggregation like the current SQL.
+
+Errors:
+- 400 invalid_filter
+
+---
+
+## 41. List Attendance (Event Instance)
+
+GET /event-instances/{event_instance_id}/attendance?types=q,co_q,attending
+
+Purpose:
+- Retrieve attendance records for an event instance, optionally filtered by type. Used by Slack UI to render current Q/Co-Q, attending, etc.
+
+Query Params:
+- types (CSV, optional): one or more of attending,q,co_q. If omitted, returns all.
+
+Response 200:
+```
+{
+  "event_instance_id": 222,
+  "attendance": [
+    {
+      "user": { "id": 1, "f3_name": "Example" },
+      "type": "q" | "co_q" | "attending"
+    }
+  ]
+}
+```
+
+---
+
+## 42. Upsert Attendance (Event Instance)
+
+POST /event-instances/{event_instance_id}/attendance
+
+Request JSON:
+```
+{
+  "items": [
+    { "user_id": 1, "type": "q" },
+    { "user_id": 2, "type": "co_q" },
+    { "user_id": 3, "type": "attending" }
+  ],
+  "replace_types": ["q","co_q"]   // optional; if provided, server replaces existing entries for these types
+}
+```
+
+Behavior:
+- Creates or updates Attendance rows and their Attendance_x_AttendanceType join based on type.
+- Recommended server-side mapping:
+  - q -> attendance_type_id = 2
+  - co_q -> attendance_type_id = 3
+  - attending -> attendance_type_id = 1 (example)
+- If replace_types provided, server should remove any existing attendance entries of those types before inserting new ones.
+
+Response 200:
+```
+{
+  "event_instance_id": 222,
+  "updated": 3
+}
+```
+
+Errors:
+- 400 invalid_type
+- 404 event_instance_not_found
+
+---
+
+## 43. Remove Attendance (Event Instance)
+
+DELETE /event-instances/{event_instance_id}/attendance
+
+Request JSON:
+```
+{
+  "user_id": 1,
+  "type": "q" | "co_q" | "attending"
+}
+```
+
+Response 200:
+```
+{ "deleted": 1 }
+```
+
+---
+
+## 44. Assign Q / Co-Q (Convenience)
+
+PUT /event-instances/{event_instance_id}/q
+
+Purpose:
+- Convenience wrapper over attendance upsert to match Slack “Assign Q” modal in home.py.
+
+Request JSON:
+```
+{
+  "q_user_id": 123,
+  "co_q_user_ids": [456,789]
+}
+```
+
+Response 200:
+```
+{
+  "event_instance_id": 222,
+  "q_user_id": 123,
+  "co_q_user_ids": [456,789]
+}
+```
+
+---
+
+## 45. List Region Admins
+
+GET /regions/{region_id}/admins
+
+Purpose:
+- Used by Slack to determine admin capabilities in the Home view.
+
+Response 200:
+```
+{
+  "results": [ { "user": {User...}, "slack_user": {SlackUser...} | null } ]
+}
+```
+
+---
+
+## 46. Add Region Admin
+
+POST /regions/{region_id}/admins
+
+Request JSON:
+```
+{ "user_id": 123 }
+```
+
+Behavior:
+- Grants the user an admin Role for the region (Role_x_User_x_Org with Role.name = "admin").
+
+Response 201:
+```
+{ "region_id": 111, "user_id": 123, "role": "admin" }
+```
+
+Errors:
+- 404 region_not_found
+- 404 user_not_found
+- 409 already_admin
+
+---
+
+## 47. Remove Region Admin
+
+DELETE /regions/{region_id}/admins/{user_id}
+
+Behavior:
+- Revokes the admin role assignment for the user in the region.
+
+Response 200:
+```
+{ "region_id": 111, "user_id": 123, "removed": true }
+```
+
+---
+
+## 48. List Positions and Assigned Users
+
+GET /orgs/{org_id}/positions
+
+Query Params:
+- org_type_scope=auto|region|ao (optional, default auto): controls which positions are eligible based on Org_Type.
+
+Response 200:
+```
+{
+  "org_id": 999,
+  "results": [
+    {
+      "position": {Position...},
+      "users": [ {User...} ],
+      "slack_users": [ {SlackUser...} ]
+    }
+  ]
+}
+```
+
+---
+
+## 49. Get User Permissions (By Org)
+
+GET /users/{user_id}/permissions?org_id=123
+
+Response 200:
+```
+{ "user_id": 1, "org_id": 123, "permissions": [ {Permission...} ] }
+```
+
+Notes:
+- Mirrors utilities.database.special_queries.get_user_permission_list.
 
 ---
 
