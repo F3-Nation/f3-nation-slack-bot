@@ -26,7 +26,13 @@ from sqlalchemy import or_
 
 from utilities import constants
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst, safe_convert, safe_get, trigger_map_revalidation
+from utilities.helper_functions import (
+    current_date_cst,
+    get_location_display_name,
+    safe_convert,
+    safe_get,
+    trigger_map_revalidation,
+)
 from utilities.slack import actions, orm
 
 
@@ -87,7 +93,7 @@ def build_series_add_form(
                 values=[str(ao.id) for ao in aos],
             ),
             actions.CALENDAR_ADD_SERIES_LOCATION: orm.as_selector_options(
-                names=[location.name for location in locations],
+                names=[get_location_display_name(location) for location in locations],
                 values=[str(location.id) for location in locations],
             ),
             actions.CALENDAR_ADD_SERIES_TYPE: orm.as_selector_options(

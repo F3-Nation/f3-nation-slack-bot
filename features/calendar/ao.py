@@ -10,7 +10,13 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get, trigger_map_revalidation, upload_files_to_storage
+from utilities.helper_functions import (
+    get_location_display_name,
+    safe_convert,
+    safe_get,
+    trigger_map_revalidation,
+    upload_files_to_storage,
+)
 from utilities.slack import actions, orm
 
 
@@ -43,7 +49,7 @@ def build_ao_add_form(
     form.set_options(
         {
             actions.CALENDAR_ADD_AO_LOCATION: orm.as_selector_options(
-                names=[location.name for location in locations],
+                names=[get_location_display_name(location) for location in locations],
                 values=[str(location.id) for location in locations],
                 # descriptions=[location.description for location in locations],
             ),
@@ -141,7 +147,8 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     ao_records: List[Org] = DbManager.find_records(
-        Org, [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)],
+        Org,
+        [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)],
     )
 
     blocks = [

@@ -23,6 +23,7 @@ from features.calendar import event_preblast
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     current_date_cst,
+    get_location_display_name,
     get_user,
     parse_rich_block,
     replace_user_channel_ids,
@@ -109,7 +110,7 @@ def build_event_instance_add_form(
                 values=[str(ao.id) for ao in aos],
             ),
             CALENDAR_ADD_EVENT_INSTANCE_LOCATION: orm.as_selector_options(
-                names=[location.name for location in locations],
+                names=[get_location_display_name(location) for location in locations],
                 values=[str(location.id) for location in locations],
             ),
             CALENDAR_ADD_EVENT_INSTANCE_TYPE: orm.as_selector_options(

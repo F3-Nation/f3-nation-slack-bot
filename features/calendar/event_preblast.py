@@ -189,10 +189,11 @@ def build_event_preblast_form(
         )
         initial_values = {
             actions.EVENT_PREBLAST_TITLE: record.name,
-            actions.EVENT_PREBLAST_LOCATION: str(record.location.id),
             actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich or region_record.preblast_moleskin_template,
             # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
+        if record.location:
+            initial_values[actions.EVENT_PREBLAST_LOCATION] = str(record.location.id)
         if record.event_tags:
             initial_values[actions.EVENT_PREBLAST_TAG] = [
                 str(record.event_tags[0].id)
