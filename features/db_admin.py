@@ -16,7 +16,7 @@ from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from scripts.update_slack_users import update_slack_users
 from utilities.database.orm import SlackSettings
-from utilities.database.paxminer_migration_bulk import run_paxminer_migration as run_paxminer_migration_bulk
+from utilities.database.paxminer_migration import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import (
     current_date_cst,
