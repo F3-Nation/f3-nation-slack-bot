@@ -173,8 +173,9 @@ def generate_calendar_images(force: bool = False):
                 color_dict = {
                     t.name: t.color for t in event_tags if t.specific_org_id == region_id or t.specific_org_id is None
                 }
-                if "Open" in color_dict:
-                    color_dict["OPEN!"] = color_dict.pop("Open")
+                # if "Open" in color_dict:
+                #     color_dict["OPEN!"] = color_dict.pop("Open")
+                color_dict["OPEN!"] = "Green"
 
                 for week in ["current", "next"]:
                     if week == "current":
@@ -200,7 +201,12 @@ def generate_calendar_images(force: bool = False):
                     max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
                     first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
 
-                    if (max_changed > datetime.now() - timedelta(hours=1)) or first_sunday_run or LOCAL_DEVELOPMENT or force:
+                    if (
+                        (max_changed > datetime.now() - timedelta(hours=1))
+                        or first_sunday_run
+                        or LOCAL_DEVELOPMENT
+                        or force
+                    ):
                         # convert start_date from date to string
                         df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
                         df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
@@ -213,7 +219,9 @@ def generate_calendar_images(force: bool = False):
                             df["q_name"] + "\n" + df["event_tag"] + "\n" + df["event_time"]
                         )
                         df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
-                        df.loc[df["ao_description"].notnull(), "AO\nLocation"] = df["ao_name"] + "\n" + df["ao_description"]
+                        df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
+                            df["ao_name"] + "\n" + df["ao_description"]
+                        )
                         df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
                         df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
 
@@ -331,9 +339,9 @@ def generate_calendar_images(force: bool = False):
 
                             # update org record with new filename
                             slack_app_settings[f"calendar_image_{week}"] = filename
-                            session.query(SlackSpace).filter(SlackSpace.team_id == slack_app_settings["team_id"]).update(
-                                {"settings": slack_app_settings}
-                            )
+                            session.query(SlackSpace).filter(
+                                SlackSpace.team_id == slack_app_settings["team_id"]
+                            ).update({"settings": slack_app_settings})
                             session.commit()
                         else:
                             print(f"No Slack settings found for region {region_id}. Skipping upload.")
