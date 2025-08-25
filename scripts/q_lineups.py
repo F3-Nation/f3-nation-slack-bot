@@ -37,9 +37,10 @@ def send_lineups(force: bool = False):
     if (current_time.hour == 17 and current_time.weekday() == 6) or force:
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
-        tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
-        this_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week)
-        this_week_end = current_date_cst() + timedelta(days=7 - tomorrow_day_of_week)
+        current_date = current_date_cst()
+        tomorrow_day_of_week = (current_date + timedelta(days=1)).weekday()
+        this_week_start = current_date + timedelta(days=1 - tomorrow_day_of_week)
+        this_week_end = current_date + timedelta(days=7 - tomorrow_day_of_week)
         event_list = PreblastList()
         event_list.pull_data(
             filters=[
