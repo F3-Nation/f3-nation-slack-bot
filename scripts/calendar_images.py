@@ -117,6 +117,7 @@ def generate_calendar_images(force: bool = False):
                 EventInstance.start_date,
                 EventInstance.start_time,
                 EventInstance.updated.label("event_updated"),
+                EventInstance.pax_count,
                 EventTag.name.label("event_tag"),
                 EventTag.color.label("event_tag_color"),
                 EventType.name.label("event_type"),
@@ -214,7 +215,12 @@ def generate_calendar_images(force: bool = False):
                         df.loc[df["q_name"].isna(), "q_name"] = "OPEN!"
                         df.loc[:, "q_name"] = df["q_name"].str.replace(r"\s\(([\s\S]*?\))", "", regex=True)
 
+                        # if pax_count is not null then second line is pax_count otherwise event_acronym + event_time
                         df.loc[:, "label"] = df["q_name"] + "\n" + df["event_acronym"] + " " + df["event_time"]
+                        df.loc[df["pax_count"].notna(), "label"] = (
+                            df["q_name"] + "\nPAX: " + df["pax_count"].astype(str).str.replace(".0", "")
+                        )
+
                         df.loc[(df["event_tag"].notnull()), ("label")] = (
                             df["q_name"] + "\n" + df["event_tag"] + "\n" + df["event_time"]
                         )
