@@ -26,7 +26,14 @@ from sqlalchemy import or_
 
 from features.calendar.series import create_events
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get, update_local_region_records
+from utilities.helper_functions import (
+    current_date_cst,
+    get_region_record,
+    get_user,
+    safe_convert,
+    safe_get,
+    update_local_region_records,
+)
 
 CONNECT_EXISTING_REGION = "connect_existing_region"
 CREATE_NEW_REGION = "create_new_region"
@@ -154,7 +161,8 @@ def handle_existing_region_selection(
     date_select = state.values.get(MIGRATION_DATE).get(MIGRATION_DATE)
     user_info = client.users_info(user=safe_get(body, "user", "id"))
     user_name = safe_get(user_info, "user", "profile", "display_name") or safe_get(user_info, "user", "name")
-    print(region_select)
+    team_id = safe_get(body, "team", "id")
+    region_record = region_record or get_region_record(team_id, body, context, client, logger)
     blocks = [
         HeaderBlock(text="Region Connection Request"),
         RichTextBlock(
@@ -232,7 +240,7 @@ def handle_existing_region_selection(
             "region_id": region_select.selected_option.get("value"),
             "region_name": region_select.selected_option.get("text").get("text"),
             "migration_date": date_select.selected_date,
-            "team_id": safe_get(body, "team", "id"),
+            "team_id": team_id,
         },
     }  # noqa
     ssl_context = ssl.create_default_context()
@@ -270,7 +278,7 @@ def handle_approve_connection(
     # Connect the slack space to the new org
     if team_id:
         slack_space_record = DbManager.find_first_record(SlackSpace, [SlackSpace.team_id == team_id])
-        region_record = SlackSettings(**slack_space_record.settings or {})
+        region_record = get_region_record(team_id, body, context, client, logger)
         if slack_space_record:
             connect_record = Org_x_SlackSpace(
                 org_id=org_record.id,
