@@ -187,10 +187,11 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
             text=f"Sorry, {event_info.q_name} already signed up for this event.",
         )
     else:
-        if attendance_record and 2 not in attendance_record[0].attendance_x_attendance_types:
-            DbManager.create_record(
-                Attendance_x_AttendanceType(attendance_id=attendance_record[0].id, attendance_type_id=2)
-            )
+        if attendance_record:
+            if 2 not in attendance_record[0].attendance_x_attendance_types:
+                DbManager.create_record(
+                    Attendance_x_AttendanceType(attendance_id=attendance_record[0].id, attendance_type_id=2)
+                )
         else:
             DbManager.create_record(
                 Attendance(
