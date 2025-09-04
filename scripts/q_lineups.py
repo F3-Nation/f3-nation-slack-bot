@@ -175,6 +175,11 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
     preblast_info.pull_data(filters=[EventInstance.id == event_instance_id])
     event_info: PreblastItem = safe_get(preblast_info.items, 0)
     # Check if a user is already signed up for the event
+    attendance_record = DbManager.find_records(
+        Attendance,
+        filters=[Attendance.event_instance_id == event_instance_id, Attendance.user_id == user_id],
+        joinedloads=[Attendance.attendance_x_attendance_types],
+    )
     if event_info.q_name:
         client.chat_postEphemeral(
             user=slack_user_id,
@@ -182,14 +187,19 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
             text=f"Sorry, {event_info.q_name} already signed up for this event.",
         )
     else:
-        DbManager.create_record(
-            Attendance(
-                event_instance_id=event_instance_id,
-                user_id=user_id,
-                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
-                is_planned=True,
+        if attendance_record and 2 not in attendance_record[0].attendance_x_attendance_types:
+            DbManager.create_record(
+                Attendance_x_AttendanceType(attendance_id=attendance_record[0].id, attendance_type_id=2)
             )
-        )
+        else:
+            DbManager.create_record(
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=user_id,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],
+                    is_planned=True,
+                )
+            )
     # Update the Q Lineup
     org_info = PreblastList()
     org_info.pull_data(
