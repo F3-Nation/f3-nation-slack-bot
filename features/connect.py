@@ -342,6 +342,36 @@ def handle_approve_connection(
         except Exception as e:
             logger.error(f"Error sending region connection approval: {e}")
 
+    # Update the original admin message to remove action buttons and indicate completion
+    try:
+        channel_id = (
+            safe_get(body, "container", "channel_id")
+            or safe_get(body, "channel", "id")
+            or safe_get(body, "channel", "channel_id")
+        )
+        message_ts = safe_get(body, "container", "message_ts") or safe_get(body, "message", "ts")
+
+        if channel_id and message_ts and os.environ.get("ADMIN_BOT_TOKEN"):
+            admin_blocks = [
+                HeaderBlock(text="Region Connection Request - Approved"),
+                SectionBlock(
+                    text=(
+                        f"Approved by <@{safe_get(body, 'user', 'id')}>. "
+                        f"This request is complete. Region: {metadata.get('region_name')} | "
+                        f"Migration Date: {metadata.get('migration_date')}"
+                    )
+                ),
+            ]
+            admin_client = WebClient(token=os.environ.get("ADMIN_BOT_TOKEN"), ssl=ssl_context)
+            admin_client.chat_update(
+                channel=channel_id,
+                ts=message_ts,
+                text="Region Connection Request - Approved",
+                blocks=admin_blocks,
+            )
+    except Exception as e:
+        logger.error(f"Error updating original admin message: {e}")
+
     update_local_region_records()
 
 
