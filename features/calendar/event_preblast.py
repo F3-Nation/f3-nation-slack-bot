@@ -47,13 +47,13 @@ class PreblastInfo:
     attendance_slack_dict: dict[Attendance, str] = None
 
 
-def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastInfo) -> str:
+def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastInfo) -> str | None:
     if (
         region_record.default_preblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
         and region_record.preblast_destination_channel
     ):
         return region_record.preblast_destination_channel
-    return preblast_info.event_record.org.meta.get("slack_channel_id")
+    return safe_get(preblast_info.event_record.org.meta, "slack_channel_id")
 
 
 def preblast_middleware(
@@ -207,9 +207,16 @@ def build_event_preblast_form(
         form.set_initial_values(initial_values)
         title_text = "Edit Event Preblast"
         submit_button_text = "Update"
-        # TODO: take out the send block if AO not associated with a channel
         if not preblast_channel or not view_id or preblast_info.event_record.preblast_ts:
             form.blocks = form.blocks[:-1]
+            if not preblast_channel:
+                form.blocks.append(
+                    orm.SectionBlock(
+                        label="A slack channel has not been set for this AO or region, so this will not be posted. "
+                        "An admin can set the channel for the AO through Calendar Settings -> Manage AOs or for "
+                        "the region through Backblast & Preblast Settings."
+                    )
+                )
         else:
             form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
         form.blocks.append(orm.ActionsBlock(elements=preblast_info.action_blocks))

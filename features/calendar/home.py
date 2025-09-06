@@ -62,7 +62,7 @@ def build_home_form(
     )
     event_type_records: List[EventType] = DbManager.find_records(
         EventType,
-        filters=[EventType.specific_org_id == region_record.org_id or EventType.specific_org_id.is_(None)],
+        filters=[or_(EventType.specific_org_id == region_record.org_id, EventType.specific_org_id.is_(None))],
     )
     split_time = time.time()
     print(f"AO and Event Type time: {split_time - start_time}")
@@ -186,7 +186,7 @@ def build_home_form(
         or datetime.datetime.now()
     )
 
-    if safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER):
+    if safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or ["Default"] != ["Default"]:
         filter_org_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER)]
     else:
         filter_org_ids = [region_record.org_id]
