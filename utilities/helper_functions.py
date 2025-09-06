@@ -93,19 +93,40 @@ def get_oauth_settings():
 
 
 def safe_get(data, *keys):
-    if not data:
+    if data is None:
         return None
     try:
         result = data
         for k in keys:
+            # List index access
             if isinstance(k, int) and isinstance(result, list):
-                result = result[k]
-            elif result.get(k):
-                result = result[k]
+                if 0 <= k < len(result):
+                    result = result[k]
+                else:
+                    return None
+                continue
+            # Dict access
+            if isinstance(result, dict):
+                if k in result:
+                    result = result[k]
+                else:
+                    return None
+                continue
+            # SQLAlchemy Row (mapping interface)
+            if hasattr(result, "_mapping"):
+                mapping = result._mapping
+                if k in mapping:
+                    result = mapping[k]
+                else:
+                    return None
+                continue
+            # Fallback: attribute access
+            if hasattr(result, k):
+                result = getattr(result, k)
             else:
                 return None
         return result
-    except KeyError:
+    except (KeyError, IndexError, TypeError):
         return None
 
 
@@ -327,7 +348,7 @@ def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackS
     else:
         engine = get_pm_engine("paxminer", echo=False)
         with engine.connect() as conn:
-            paxminer_region = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).fetchone()
+            paxminer_region = conn.execute(text(f"SELECT * FROM regions WHERE team_id = '{team_id}'")).first()
         engine.dispose()
         settings_starters.update({"paxminer_schema": safe_get(paxminer_region, "schema_name")})
     return SlackSettings(**settings_starters)
