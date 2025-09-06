@@ -582,12 +582,20 @@ def remove_keys_from_dict(d, keys_to_remove):
         return d
 
 
-def safe_convert(value: str | None, conversion, args: list = None) -> Any | None:
+def safe_convert(value: str | None, conversion, args: list = None, default=None):
+    """
+    Safely apply conversion to value.
+    Returns default (None unless specified) when:
+      - value is None or empty string
+      - conversion raises TypeError or ValueError (e.g., int(""), json.loads(""))
+    """
+    if value is None or value == "":
+        return default
     args = args or []
     try:
         return conversion(value, *args)
-    except TypeError:
-        return None
+    except (TypeError, ValueError):
+        return default
 
 
 def time_int_to_str(time: int) -> str:

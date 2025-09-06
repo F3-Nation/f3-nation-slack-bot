@@ -81,9 +81,9 @@ def update_canvas(body: dict, client: WebClient, logger: Logger, context: dict, 
     # post to canvas
     if region_record.canvas_channel:
         channel_info = client.conversations_info(channel=region_record.canvas_channel)
-        canvas_id = safe_get(channel_info, "channel", "properties", "canvas", "file_id") or safe_get(
-            channel_info, "channel", "properties", "tabs", 0, "data", "file_id"
-        )
+        channel_tabs = safe_get(channel_info, "channel", "properties", "tabs") or []
+        canvas_tab = next((tab for tab in channel_tabs if tab.get("type") == "canvas"), None)
+        canvas_id = safe_get(canvas_tab, "data", "file_id")
 
         if canvas_id:
             client.canvases_edit(
