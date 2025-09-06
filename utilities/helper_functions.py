@@ -25,7 +25,7 @@ from slack_bolt.adapter.aws_lambda.lambda_s3_oauth_flow import LambdaS3OAuthFlow
 from slack_bolt.oauth.oauth_settings import OAuthSettings
 from slack_sdk.oauth.installation_store import FileInstallationStore
 from slack_sdk.oauth.state_store import FileOAuthStateStore
-from slack_sdk.web import WebClient
+from slack_sdk.web import SlackResponse, WebClient
 from sqlalchemy import Row, text
 
 from utilities import constants
@@ -106,14 +106,14 @@ def safe_get(data, *keys):
                     return None
                 continue
             # Dict access
-            if isinstance(result, dict):
+            elif isinstance(result, dict) or isinstance(result, SlackResponse):
                 if k in result:
                     result = result[k]
                 else:
                     return None
                 continue
             # SQLAlchemy Row (mapping interface)
-            if hasattr(result, "_mapping"):
+            elif hasattr(result, "_mapping"):
                 mapping = result._mapping
                 if k in mapping:
                     result = mapping[k]
@@ -121,7 +121,7 @@ def safe_get(data, *keys):
                     return None
                 continue
             # Fallback: attribute access
-            if hasattr(result, k):
+            elif hasattr(result, k):
                 result = getattr(result, k)
             else:
                 return None
