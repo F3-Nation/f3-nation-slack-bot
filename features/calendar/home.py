@@ -466,63 +466,51 @@ def handle_assign_q_form(
     co_qs_slack_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
     co_qs_user_ids = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs_slack_ids]
 
-    # Replace existing Q and Co-Q assignments
-    DbManager.delete_records(
-        cls=Attendance,
-        filters=[
-            Attendance.event_instance_id == event_instance_id,
-            Attendance.attendance_types.any(
-                or_(
-                    Attendance_x_AttendanceType.attendance_type_id == 2,  # Q
-                    Attendance_x_AttendanceType.attendance_type_id == 3,  # Co-Q
-                )
-            ),
-        ],
-        joinedloads=[Attendance.attendance_types],
+    # Existing attendance records
+    existing_attendance_records = DbManager.find_records(
+        Attendance,
+        filters=[Attendance.event_instance_id == event_instance_id],
+        joinedloads=[Attendance.slack_users, Attendance.attendance_types],
     )
 
-    # Replace existing non-Q assignments for q and co-qs
     if q_user_id:
-        DbManager.delete_records(
-            cls=Attendance,
-            filters=[
-                Attendance.event_instance_id == event_instance_id,
-                Attendance.user_id == q_user_id,
-                Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),  # HC
-            ],
-        )
-        # Create new Q attendance record
-        DbManager.create_record(
-            Attendance(
-                event_instance_id=event_instance_id,
-                user_id=q_user_id,
-                is_planned=True,
-                attendance_x_attendance_types=[
-                    Attendance_x_AttendanceType(attendance_type_id=2)  # Q
-                ],
-            )
-        )
-    if co_qs_user_ids:
-        DbManager.delete_records(
-            cls=Attendance,
-            filters=[
-                Attendance.event_instance_id == event_instance_id,
-                Attendance.user_id.in_(co_qs_user_ids),
-                Attendance.attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 1),  # HC
-            ],
-        )
-
-        for co_q in co_qs_user_ids:
+        if q_user_id in [ea.user_id for ea in existing_attendance_records]:
+            attendance_record = next((ea for ea in existing_attendance_records if ea.user_id == q_user_id), None)
+            if attendance_record and 2 not in [at.attendance_type_id for at in attendance_record.attendance_types]:
+                DbManager.create_record(
+                    Attendance_x_AttendanceType(attendance_id=attendance_record.id, attendance_type_id=2)
+                )
+        else:
             DbManager.create_record(
                 Attendance(
                     event_instance_id=event_instance_id,
-                    user_id=co_q,
+                    user_id=q_user_id,
                     is_planned=True,
                     attendance_x_attendance_types=[
-                        Attendance_x_AttendanceType(attendance_type_id=3)  # Co-Q
+                        Attendance_x_AttendanceType(attendance_type_id=2)  # Q
                     ],
                 )
             )
+
+    if co_qs_user_ids:
+        for co_q_user_id in co_qs_user_ids:
+            if co_q_user_id in [ea.user_id for ea in existing_attendance_records]:
+                attendance_record = next((ea for ea in existing_attendance_records if ea.user_id == co_q_user_id), None)
+                if attendance_record and 3 not in [at.attendance_type_id for at in attendance_record.attendance_types]:
+                    DbManager.create_record(
+                        Attendance_x_AttendanceType(attendance_id=attendance_record.id, attendance_type_id=3)
+                    )
+            else:
+                DbManager.create_record(
+                    Attendance(
+                        event_instance_id=event_instance_id,
+                        user_id=co_q_user_id,
+                        is_planned=True,
+                        attendance_x_attendance_types=[
+                            Attendance_x_AttendanceType(attendance_type_id=3)  # Co-Q
+                        ],
+                    )
+                )
 
     # Update the home view if needed
     update_view_id = safe_get(metadata, "update_view_id")
