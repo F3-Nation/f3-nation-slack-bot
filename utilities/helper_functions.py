@@ -180,8 +180,12 @@ def get_user_names(
 
     for user_id in array_of_user_ids:
         user: SlackUser = safe_get(SLACK_USERS, user_id)
-        names.append(user.user_name)
-        urls.append(user.avatar_url)
+        if user:
+            names.append(user.user_name)
+            urls.append(user.avatar_url)
+        else:
+            names.append(user_id)
+            urls.append(None)
 
     if return_urls:
         return names, urls
