@@ -27,7 +27,7 @@ def create_special_events_blocks(events: List[EventInstance], slack_settings: Sl
                 channel_id = event.org.meta.get("slack_channel_id")
 
             if channel_id:
-                text += f"\n<slack://channel?team={slack_settings.team_id}&id={channel_id}&ts={event.preblast_ts}|Click here to go to the preblast thread!>"  # noqa
+                text += f"<slack://channel?team={slack_settings.team_id}&id={channel_id}&ts={event.preblast_ts}|Click here to go to the preblast thread!>\n"  # noqa
 
     return text
 
