@@ -2,14 +2,12 @@ import argparse
 import json
 import os
 import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
+
 import uuid
 from datetime import date
 from typing import Dict, List
-
-from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_get
-
-sys.path.append(os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from f3_data_models.models import (
     Attendance,
@@ -24,8 +22,10 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from sqlalchemy import text
 
+from utilities.database.orm import SlackSettings
 from utilities.database.orm.paxminer import Attendance as PaxminerAttendance
 from utilities.database.orm.paxminer import Backblast, PaxminerRegion, PaxminerUser, get_pm_engine
+from utilities.helper_functions import safe_get
 
 
 def extract_name(backblast: str = "No title") -> str:
@@ -196,6 +196,9 @@ def run_paxminer_migration(region_org_id: int):
     # import past attendance
     attendance = convert_attendance(paxminer_attendance, slack_user_dict, event_lookup_dict)
     attendance = DbManager.create_records(attendance)
+
+    print(f"Imported {len(events)} events and {len(attendance)} attendance records.")
+    print(f"Original {len(paxminer_backblasts)} backblasts and {len(paxminer_attendance)} attendance records.")
 
 
 if __name__ == "__main__":

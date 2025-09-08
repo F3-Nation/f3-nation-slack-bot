@@ -58,7 +58,9 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
         form.delete_block(USER_FORM_IMAGE)
     form.set_initial_values(initial_values)
 
-    form.blocks[2].elements[0].url = f"{os.getenv('STATS_URL')}/stats/pax/{user.id}"
+    stats_url = f"{os.getenv('STATS_URL')}/stats/pax/{user.id}"
+    form.blocks[2].elements[0].url = stats_url
+    print(f"User stats URL: {stats_url}")
 
     form.post_modal(
         client=client,
