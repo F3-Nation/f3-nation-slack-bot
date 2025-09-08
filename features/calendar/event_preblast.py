@@ -391,16 +391,25 @@ def send_preblast(
             icon_url=icon_url,
         )
     else:
-        res = client.chat_postMessage(
-            channel=preblast_channel,
-            blocks=blocks,
-            text="Event Preblast",
-            metadata={"event_type": "preblast", "event_payload": metadata},
-            unfurl_links=False,
-            username=username,
-            icon_url=icon_url,
-        )
-        DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+        if not preblast_channel:
+            preblast_channel = client.chat_postMessage(
+                channel=slack_user_id,
+                text="Your preblast was saved. However, in order to post it to Slack, you will need to set a preblast "
+                "channel. This can be done by region "
+                "admins; either at the AO level by going to Settings -> Calendar Settings -> Manage AOs, "
+                "or at the region level by going to Settings -> Preblast and Backblast Settings.",
+            )
+        else:
+            res = client.chat_postMessage(
+                channel=preblast_channel,
+                blocks=blocks,
+                text="Event Preblast",
+                metadata={"event_type": "preblast", "event_payload": metadata},
+                unfurl_links=False,
+                username=username,
+                icon_url=icon_url,
+            )
+            DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
 
 
 def build_preblast_info(
