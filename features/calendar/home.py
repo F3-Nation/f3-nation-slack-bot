@@ -476,7 +476,7 @@ def handle_assign_q_form(
     if q_user_id:
         if q_user_id in [ea.user_id for ea in existing_attendance_records]:
             attendance_record = next((ea for ea in existing_attendance_records if ea.user_id == q_user_id), None)
-            if attendance_record and 2 not in [at.attendance_type_id for at in attendance_record.attendance_types]:
+            if attendance_record and 2 not in [at.id for at in attendance_record.attendance_types]:
                 DbManager.create_record(
                     Attendance_x_AttendanceType(attendance_id=attendance_record.id, attendance_type_id=2)
                 )
@@ -496,7 +496,7 @@ def handle_assign_q_form(
         for co_q_user_id in co_qs_user_ids:
             if co_q_user_id in [ea.user_id for ea in existing_attendance_records]:
                 attendance_record = next((ea for ea in existing_attendance_records if ea.user_id == co_q_user_id), None)
-                if attendance_record and 3 not in [at.attendance_type_id for at in attendance_record.attendance_types]:
+                if attendance_record and 3 not in [at.id for at in attendance_record.attendance_types]:
                     DbManager.create_record(
                         Attendance_x_AttendanceType(attendance_id=attendance_record.id, attendance_type_id=3)
                     )
