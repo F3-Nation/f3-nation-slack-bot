@@ -402,8 +402,8 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     elif safe_get(metadata, actions.BACKBLAST_FILE, 0):
         file_list = safe_get(metadata, actions.BACKBLAST_FILE)
         file_send_list = []
-        file_ids = []
-        low_rez_file_list = safe_get(metadata, actions.BACKBLAST_FILE)
+        file_ids = safe_get(metadata, "file_ids")
+        low_rez_file_list = safe_get(metadata, actions.BACKBLAST_FILE + "_low_rez")
     else:
         file_list = []
         file_send_list = []
@@ -506,6 +506,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     backblast_data.pop(actions.BACKBLAST_MOLESKIN, None)
     backblast_data[actions.BACKBLAST_FILE] = file_list
+    backblast_data[actions.BACKBLAST_FILE + "_low_rez"] = low_rez_file_list
     backblast_data["file_ids"] = file_ids
     backblast_data[actions.BACKBLAST_OP] = user_id
     backblast_data["event_instance_id"] = event_instance_id
@@ -671,12 +672,6 @@ COUNT: {count}
         for user, attendance_type in zip(db_users, attendance_types)
     ]
     DbManager.create_records(attendance_records)
-
-    for file in file_send_list:
-        try:
-            os.remove(file["filepath"])
-        except Exception as e:
-            logger.error(f"Error removing file: {e}")
 
     forms.SUBMIT_FORM_SUCCESS.update_modal(
         client=client,
