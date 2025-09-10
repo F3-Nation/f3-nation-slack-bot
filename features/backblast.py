@@ -78,6 +78,8 @@ def add_custom_field_blocks(
                         or ""
                     }
                 )
+            else:
+                output_form.set_initial_values({actions.CUSTOM_FIELD_PREFIX + custom_field["name"]: None})
     return output_form
 
 
