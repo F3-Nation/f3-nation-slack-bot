@@ -29,6 +29,12 @@ class SqlAlchemyOrgRepository(OrgRepository):
             type=sa_org.org_type.name if getattr(sa_org, "org_type", None) else "region",
             name=sa_org.name,
             description=sa_org.description,
+            website=getattr(sa_org, "website", None),
+            email=getattr(sa_org, "email", None),
+            twitter=getattr(sa_org, "twitter", None),
+            facebook=getattr(sa_org, "facebook", None),
+            instagram=getattr(sa_org, "instagram", None),
+            logo_url=getattr(sa_org, "logo_url", None),
             version=getattr(sa_org, "version", 0) or 0,
         )
         # load custom event types for this org
@@ -50,7 +56,11 @@ class SqlAlchemyOrgRepository(OrgRepository):
 
     def save(self, org: Org) -> None:
         # persist simple scalar changes for org
-        DbManager.update_record(SAOrg, org.id, {SAOrg.name: org.name, SAOrg.description: org.description})
+        base_fields = {SAOrg.name: org.name, SAOrg.description: org.description}
+        for attr in ["website", "email", "twitter", "facebook", "instagram", "logo_url"]:
+            if hasattr(SAOrg, attr):
+                base_fields[getattr(SAOrg, attr)] = getattr(org, attr)
+        DbManager.update_record(SAOrg, org.id, base_fields)
         # event type changes (only handle additions + soft deletes for now)
         # existing set from DB
         existing = {rec.id for rec in DbManager.find_records(SAEventType, [SAEventType.specific_org_id == org.id])}

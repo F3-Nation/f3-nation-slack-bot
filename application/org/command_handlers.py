@@ -18,10 +18,19 @@ class OrgCommandHandler:
         org = self.repo.get(cmd.org_id)
         if not org:
             raise ValueError("Org not found")
-        if cmd.name:
-            org.name = cmd.name
-        if cmd.description is not None:
-            org.description = cmd.description
+
+        # Sentinel value for unset fields
+        SENTINEL = getattr(cmd, "SENTINEL", object())
+
+        # Update fields only if not SENTINEL
+        for attr in ["name", "description", "website", "email", "twitter", "facebook", "instagram", "logo_url"]:
+            val = getattr(cmd, attr, SENTINEL)
+            if val is not SENTINEL:
+                setattr(org, attr, val)
+
+        if getattr(cmd, "admin_user_ids", SENTINEL) is not SENTINEL:
+            org.replace_admins([int(u) for u in cmd.admin_user_ids] if cmd.admin_user_ids is not None else [])
+
         org.version += 1
         self.repo.save(org)
         return org

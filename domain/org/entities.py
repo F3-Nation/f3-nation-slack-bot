@@ -64,6 +64,12 @@ class Org:
     type: str  # region, ao, etc.
     name: str
     description: Optional[str] = None
+    website: Optional[str] = None
+    email: Optional[str] = None
+    twitter: Optional[str] = None
+    facebook: Optional[str] = None
+    instagram: Optional[str] = None
+    logo_url: Optional[str] = None
     version: int = 0
     # collections
     event_types: Dict[EventTypeId, EventType] = field(default_factory=dict)
@@ -156,6 +162,11 @@ class Org:
             if len(self.admin_user_ids) == 1:
                 raise ValueError("Cannot remove last admin")
             self.admin_user_ids.remove(user_id)
+
+    def replace_admins(self, new_admin_user_ids: List[UserId]):
+        if not new_admin_user_ids:
+            raise ValueError("At least one admin required")
+        self.admin_user_ids = list(dict.fromkeys(new_admin_user_ids))  # preserve order, remove dups
 
     # bootstrap indexes (for reconstitution from persistence)
     def rebuild_indexes(self):

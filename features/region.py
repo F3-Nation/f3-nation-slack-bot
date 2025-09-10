@@ -1,4 +1,5 @@
 import copy
+import os
 import re
 from logging import Logger
 
@@ -7,7 +8,10 @@ from f3_data_models.models import Org, Role, Role_x_User_x_Org, SlackUser
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from application.org.command_handlers import OrgCommandHandler
+from application.org.commands import UpdateRegionProfile
 from features import connect
+from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
@@ -82,19 +86,35 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     ):
         website = None
 
-    fields = {
-        Org.name: safe_get(form_data, actions.REGION_NAME),
-        Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
-        Org.website: website,
-        Org.email: email,
-        Org.twitter: safe_get(form_data, actions.REGION_TWITTER),
-        Org.facebook: safe_get(form_data, actions.REGION_FACEBOOK),
-        Org.instagram: safe_get(form_data, actions.REGION_INSTAGRAM),
-    }
-    if logo_url:
-        fields[Org.logo_url] = logo_url
-
-    DbManager.update_record(Org, region_record.org_id, fields)
+    use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
+    if use_ddd:
+        repo = SqlAlchemyOrgRepository()
+        handler = OrgCommandHandler(repo)
+        cmd = UpdateRegionProfile(
+            org_id=region_record.org_id,
+            name=safe_get(form_data, actions.REGION_NAME),
+            description=safe_get(form_data, actions.REGION_DESCRIPTION),
+            website=website,
+            email=email,
+            twitter=safe_get(form_data, actions.REGION_TWITTER),
+            facebook=safe_get(form_data, actions.REGION_FACEBOOK),
+            instagram=safe_get(form_data, actions.REGION_INSTAGRAM),
+            logo_url=logo_url,
+        )
+        # admins handled after we collect user ids below
+    else:
+        fields = {
+            Org.name: safe_get(form_data, actions.REGION_NAME),
+            Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
+            Org.website: website,
+            Org.email: email,
+            Org.twitter: safe_get(form_data, actions.REGION_TWITTER),
+            Org.facebook: safe_get(form_data, actions.REGION_FACEBOOK),
+            Org.instagram: safe_get(form_data, actions.REGION_INSTAGRAM),
+        }
+        if logo_url:
+            fields[Org.logo_url] = logo_url
+        DbManager.update_record(Org, region_record.org_id, fields)
 
     admin_users_slack = safe_get(form_data, actions.REGION_ADMINS)
     admin_users: list[SlackUser] = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
@@ -109,14 +129,18 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
         for user_id in admin_user_ids
     ]
 
-    DbManager.delete_records(
-        Role_x_User_x_Org,
-        filters=[
-            Role_x_User_x_Org.org_id == region_record.org_id,
-            Role_x_User_x_Org.role_id == admin_role_id,
-        ],
-    )
-    DbManager.create_records(admin_records)
+    if use_ddd:
+        cmd.admin_user_ids = admin_user_ids
+        handler.handle(cmd)
+    else:
+        DbManager.delete_records(
+            Role_x_User_x_Org,
+            filters=[
+                Role_x_User_x_Org.org_id == region_record.org_id,
+                Role_x_User_x_Org.role_id == admin_role_id,
+            ],
+        )
+        DbManager.create_records(admin_records)
 
 
 REGION_FORM = orm.BlockView(
