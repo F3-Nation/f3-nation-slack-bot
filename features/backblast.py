@@ -242,6 +242,8 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             actions.BACKBLAST_COQ: coq_list,
             actions.BACKBLAST_PAX: slack_pax_list,
             actions.BACKBLAST_MOLESKIN: moleskin_block or region_record.backblast_moleskin_template,
+            actions.BACKBLAST_FNGS: safe_get(backblast_metadata, actions.BACKBLAST_FNGS) or "",
+            actions.BACKBLAST_NONSLACK_PAX: safe_get(backblast_metadata, actions.BACKBLAST_NONSLACK_PAX) or "",
             # actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
             # TODO: non-slack pax
         }
