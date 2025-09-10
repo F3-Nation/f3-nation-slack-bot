@@ -292,6 +292,15 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_form.set_initial_values(initial_backblast_data)
     backblast_form = add_custom_field_blocks(backblast_form, region_record, initial_values=event_metadata)
 
+    if safe_get(backblast_metadata, actions.BACKBLAST_FILE, 0):
+        backblast_form.blocks.insert(
+            1,
+            slack_orm.ImageBlock(
+                image_url=backblast_metadata[actions.BACKBLAST_FILE][0],
+                alt_text="Existing Boyband",
+            ),
+        )
+
     if attendance_non_slack_users:
         update_list = [
             {
@@ -384,9 +393,20 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     file_ids = safe_get(backblast_data, "file_ids") or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
-        files=files, logger=logger, client=client
-    )
+    if files:
+        file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
+            files=files, logger=logger, client=client
+        )
+    elif safe_get(metadata, actions.BACKBLAST_FILE, 0):
+        file_list = safe_get(metadata, actions.BACKBLAST_FILE)
+        file_send_list = []
+        file_ids = []
+        low_rez_file_list = safe_get(metadata, actions.BACKBLAST_FILE)
+    else:
+        file_list = []
+        file_send_list = []
+        file_ids = []
+        low_rez_file_list = []
 
     if (
         region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
