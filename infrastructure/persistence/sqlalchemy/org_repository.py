@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from typing import Optional
 
+from f3_data_models.models import EventTag as SAEventTag  # type: ignore
 from f3_data_models.models import EventType as SAEventType  # type: ignore
 from f3_data_models.models import Org as SAOrg  # type: ignore
 from f3_data_models.utils import DbManager
 
-from domain.org.entities import EventType, Org
+from domain.org.entities import EventTag, EventType, Org
 from domain.org.repository import OrgRepository
-from domain.org.value_objects import Acronym, EventTypeId, EventTypeName, OrgId
+from domain.org.value_objects import Acronym, EventTagId, EventTagName, EventTypeId, EventTypeName, OrgId
 
 """SQLAlchemy implementation of OrgRepository.
 
@@ -51,6 +52,19 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 is_active=rec.is_active,
             )
             org.event_types[et.id] = et
+        # load custom event tags for this org
+        event_tag_records = DbManager.find_records(
+            SAEventTag,
+            [SAEventTag.specific_org_id == sa_org.id, SAEventTag.is_active],
+        )
+        for rec in event_tag_records:
+            tag = EventTag(
+                id=EventTagId(rec.id),
+                name=EventTagName(rec.name),
+                color=rec.color,
+                is_active=rec.is_active,
+            )
+            org.event_tags[tag.id] = tag
         org.rebuild_indexes()
         return org
 
@@ -61,11 +75,12 @@ class SqlAlchemyOrgRepository(OrgRepository):
             if hasattr(SAOrg, attr):
                 base_fields[getattr(SAOrg, attr)] = getattr(org, attr)
         DbManager.update_record(SAOrg, org.id, base_fields)
-        # event type changes (only handle additions + soft deletes for now)
-        # existing set from DB
-        existing = {rec.id for rec in DbManager.find_records(SAEventType, [SAEventType.specific_org_id == org.id])}
+        # event type changes
+        existing_types = {
+            rec.id: rec for rec in DbManager.find_records(SAEventType, [SAEventType.specific_org_id == org.id])
+        }
         for et in org.event_types.values():
-            if et.id not in existing:
+            if et.id not in existing_types:
                 DbManager.create_record(
                     SAEventType(
                         name=et.name.value,
@@ -76,7 +91,6 @@ class SqlAlchemyOrgRepository(OrgRepository):
                     )
                 )
             else:
-                # update active flag / fields
                 DbManager.update_record(
                     SAEventType,
                     et.id,
@@ -87,4 +101,28 @@ class SqlAlchemyOrgRepository(OrgRepository):
                         SAEventType.is_active: et.is_active,
                     },
                 )
-        # NOTE: not handling deletions explicitly (soft delete only)
+
+        # event tag changes
+        existing_tags = {
+            rec.id: rec for rec in DbManager.find_records(SAEventTag, [SAEventTag.specific_org_id == org.id])
+        }
+        for tag in org.event_tags.values():
+            if tag.id not in existing_tags:
+                DbManager.create_record(
+                    SAEventTag(
+                        name=tag.name.value,
+                        color=tag.color,
+                        specific_org_id=org.id,
+                        is_active=tag.is_active,
+                    )
+                )
+            else:
+                DbManager.update_record(
+                    SAEventTag,
+                    tag.id,
+                    {
+                        SAEventTag.name: tag.name.value,
+                        SAEventTag.color: tag.color,
+                        SAEventTag.is_active: tag.is_active,
+                    },
+                )

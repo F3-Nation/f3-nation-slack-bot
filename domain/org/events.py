@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from .value_objects import EventTypeId, OrgId, UserId
+from .value_objects import EventTagId, EventTypeId, OrgId, UserId
 
 
 def _ts() -> datetime:
@@ -57,4 +57,43 @@ class EventTypeDeleted(DomainEvent):
             triggered_by=triggered_by,
             name="EventTypeDeleted",
             payload={"event_type_id": event_type_id},
+        )
+
+
+@dataclass
+class EventTagCreated(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, event_tag_id: EventTagId, name: str, color: str, triggered_by: Optional[UserId]):
+        return EventTagCreated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="EventTagCreated",
+            payload={"event_tag_id": event_tag_id, "name": name, "color": color},
+        )
+
+
+@dataclass
+class EventTagUpdated(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, event_tag_id: EventTagId, fields: Dict[str, Any], triggered_by: Optional[UserId]):
+        return EventTagUpdated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="EventTagUpdated",
+            payload={"event_tag_id": event_tag_id, "fields": fields},
+        )
+
+
+@dataclass
+class EventTagDeleted(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, event_tag_id: EventTagId, triggered_by: Optional[UserId]):
+        return EventTagDeleted(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="EventTagDeleted",
+            payload={"event_tag_id": event_tag_id},
         )

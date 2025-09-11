@@ -3,7 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from .events import EventTypeCreated, EventTypeDeleted, EventTypeUpdated
+from .events import (
+    EventTagCreated,
+    EventTagDeleted,
+    EventTagUpdated,
+    EventTypeCreated,
+    EventTypeDeleted,
+    EventTypeUpdated,
+)
 from .value_objects import (
     Acronym,
     EventTagId,
@@ -151,6 +158,52 @@ class Org:
         # additional rule: we could check references count via domain service before allowing
         et.is_active = False
         self.record(EventTypeDeleted.create(self.id, event_type_id, triggered_by))
+
+    # Event Tags
+    def add_event_tag(self, name: str, color: str, triggered_by: Optional[UserId]):
+        norm_name = name.strip().lower()
+        if norm_name in self._event_tag_names:
+            raise ValueError("Duplicate event tag name")
+        tag_id = EventTagId(_event_tag_seq.next())
+        tag = EventTag(id=tag_id, name=EventTagName(name), color=color)
+        self.event_tags[tag_id] = tag
+        self._event_tag_names.add(norm_name)
+        self.record(EventTagCreated.create(self.id, tag_id, tag.name.value, tag.color, triggered_by))
+        return tag
+
+    def update_event_tag(
+        self,
+        event_tag_id: EventTagId,
+        *,
+        name: Optional[str] = None,
+        color: Optional[str] = None,
+        triggered_by: Optional[UserId] = None,
+    ):
+        tag = self.event_tags.get(event_tag_id)
+        if not tag or not tag.is_active:
+            raise ValueError("Event tag not found")
+        changes = {}
+        if name:
+            norm_name = name.strip().lower()
+            if norm_name != tag.name.value.lower() and norm_name in self._event_tag_names:
+                raise ValueError("Duplicate event tag name")
+            self._event_tag_names.discard(tag.name.value.lower())
+            tag.name = EventTagName(name)
+            self._event_tag_names.add(norm_name)
+            changes["name"] = tag.name.value
+        if color:
+            tag.color = color
+            changes["color"] = color
+        if changes:
+            self.record(EventTagUpdated.create(self.id, event_tag_id, changes, triggered_by))
+        return tag
+
+    def soft_delete_event_tag(self, event_tag_id: EventTagId, triggered_by: Optional[UserId]):
+        tag = self.event_tags.get(event_tag_id)
+        if not tag or not tag.is_active:
+            raise ValueError("Event tag not found")
+        tag.is_active = False
+        self.record(EventTagDeleted.create(self.id, event_tag_id, triggered_by))
 
     # Admin management
     def assign_admin(self, user_id: UserId):

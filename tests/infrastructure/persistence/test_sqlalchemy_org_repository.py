@@ -8,7 +8,7 @@ REQUIRED_DB_VARS = [
     "DATABASE_PORT",
     "DATABASE_USER",
     "DATABASE_PASSWORD",
-    "DATABASE_DB",
+    # "DATABASE_DB",
 ]
 
 
