@@ -78,6 +78,8 @@ def add_custom_field_blocks(
                         or ""
                     }
                 )
+            else:
+                output_form.set_initial_values({actions.CUSTOM_FIELD_PREFIX + custom_field["name"]: None})
     return output_form
 
 
@@ -242,6 +244,8 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
             actions.BACKBLAST_COQ: coq_list,
             actions.BACKBLAST_PAX: slack_pax_list,
             actions.BACKBLAST_MOLESKIN: moleskin_block or region_record.backblast_moleskin_template,
+            actions.BACKBLAST_FNGS: safe_get(backblast_metadata, actions.BACKBLAST_FNGS) or "",
+            actions.BACKBLAST_NONSLACK_PAX: safe_get(backblast_metadata, actions.BACKBLAST_NONSLACK_PAX) or "",
             # actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
             # TODO: non-slack pax
         }
@@ -289,6 +293,15 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
     backblast_form.set_initial_values(initial_backblast_data)
     backblast_form = add_custom_field_blocks(backblast_form, region_record, initial_values=event_metadata)
+
+    if safe_get(backblast_metadata, actions.BACKBLAST_FILE, 0):
+        backblast_form.blocks.insert(
+            1,
+            slack_orm.ImageBlock(
+                image_url=backblast_metadata[actions.BACKBLAST_FILE][0],
+                alt_text="Existing Boyband",
+            ),
+        )
 
     if attendance_non_slack_users:
         update_list = [
@@ -382,9 +395,20 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     file_ids = safe_get(backblast_data, "file_ids") or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
-    file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
-        files=files, logger=logger, client=client
-    )
+    if files:
+        file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
+            files=files, logger=logger, client=client
+        )
+    elif safe_get(metadata, actions.BACKBLAST_FILE, 0):
+        file_list = safe_get(metadata, actions.BACKBLAST_FILE)
+        file_send_list = []
+        file_ids = safe_get(metadata, "file_ids")
+        low_rez_file_list = safe_get(metadata, actions.BACKBLAST_FILE + "_low_rez")
+    else:
+        file_list = []
+        file_send_list = []
+        file_ids = []
+        low_rez_file_list = []
 
     if (
         region_record.default_backblast_destination == constants.CONFIG_DESTINATION_SPECIFIED["value"]
@@ -482,6 +506,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     backblast_data.pop(actions.BACKBLAST_MOLESKIN, None)
     backblast_data[actions.BACKBLAST_FILE] = file_list
+    backblast_data[actions.BACKBLAST_FILE + "_low_rez"] = low_rez_file_list
     backblast_data["file_ids"] = file_ids
     backblast_data[actions.BACKBLAST_OP] = user_id
     backblast_data["event_instance_id"] = event_instance_id
@@ -647,12 +672,6 @@ COUNT: {count}
         for user, attendance_type in zip(db_users, attendance_types)
     ]
     DbManager.create_records(attendance_records)
-
-    for file in file_send_list:
-        try:
-            os.remove(file["filepath"])
-        except Exception as e:
-            logger.error(f"Error removing file: {e}")
 
     forms.SUBMIT_FORM_SUCCESS.update_modal(
         client=client,
