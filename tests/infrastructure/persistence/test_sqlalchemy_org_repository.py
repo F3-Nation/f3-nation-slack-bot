@@ -62,3 +62,40 @@ def test_repository_add_event_type(org_id):
     reloaded = repo.get(org_id)
     assert len(reloaded.event_types) == before_count + 1
     assert any(et.name.value == et_name for et in reloaded.event_types.values())
+
+
+def test_repository_add_event_tag(org_id):
+    if not _db_available():
+        pytest.skip("Database env vars not set; skipping integration test")
+    repo = SqlAlchemyOrgRepository()  # type: ignore
+    org = repo.get(org_id)
+    assert org is not None
+    before_count = len(org.event_tags)
+    tag_name = f"Tag{uuid.uuid4().hex[:4]}"
+    org.add_event_tag(name=tag_name, color="blue", triggered_by=None)
+    repo.save(org)
+    reloaded = repo.get(org_id)
+    assert len(reloaded.event_tags) == before_count + 1
+    assert any(t.name.value == tag_name for t in reloaded.event_tags.values())
+
+
+def test_repository_update_and_soft_delete_event_tag(org_id):
+    if not _db_available():
+        pytest.skip("Database env vars not set; skipping integration test")
+    repo = SqlAlchemyOrgRepository()  # type: ignore
+    org = repo.get(org_id)
+    assert org is not None
+    # add tag
+    tag_name = f"TmpTag{uuid.uuid4().hex[:4]}"
+    tag = org.add_event_tag(name=tag_name, color="green", triggered_by=None)
+    repo.save(org)
+    # update
+    org.update_event_tag(tag.id, name=tag_name + "X", color="red", triggered_by=None)
+    repo.save(org)
+    # soft delete
+    org.soft_delete_event_tag(tag.id, triggered_by=None)
+    repo.save(org)
+    reloaded = repo.get(org_id)
+    stored_tag = next(t for t in reloaded.event_tags.values() if t.name.value.startswith(tag_name))
+    # After soft delete we keep record but inactive
+    assert not stored_tag.is_active

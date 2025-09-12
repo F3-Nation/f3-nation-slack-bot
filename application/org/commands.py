@@ -3,12 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional
 
-from domain.org.value_objects import OrgId
-
 
 @dataclass
 class UpdateRegionProfile:
-    org_id: OrgId
+    org_id: int
     name: Optional[str] = None
     description: Optional[str] = None
     website: Optional[str] = None
@@ -18,3 +16,38 @@ class UpdateRegionProfile:
     instagram: Optional[str] = None
     logo_url: Optional[str] = None
     admin_user_ids: Optional[list[int]] = None
+    SENTINEL = object()
+
+
+# --- Event Tag Commands ---
+
+
+@dataclass
+class AddEventTag:
+    org_id: int
+    name: str
+    color: str
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class UpdateEventTag:
+    org_id: int
+    tag_id: int
+    name: Optional[str] = None
+    color: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class SoftDeleteEventTag:
+    org_id: int
+    tag_id: int
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class CloneGlobalEventTag:
+    org_id: int
+    global_tag_id: int
+    triggered_by: Optional[int] = None

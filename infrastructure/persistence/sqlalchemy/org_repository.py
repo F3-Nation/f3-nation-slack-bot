@@ -53,9 +53,10 @@ class SqlAlchemyOrgRepository(OrgRepository):
             )
             org.event_types[et.id] = et
         # load custom event tags for this org
+        # include both active and inactive to preserve soft-deleted items in aggregate
         event_tag_records = DbManager.find_records(
             SAEventTag,
-            [SAEventTag.specific_org_id == sa_org.id, SAEventTag.is_active],
+            [SAEventTag.specific_org_id == sa_org.id],
         )
         for rec in event_tag_records:
             tag = EventTag(
@@ -79,9 +80,9 @@ class SqlAlchemyOrgRepository(OrgRepository):
         existing_types = {
             rec.id: rec for rec in DbManager.find_records(SAEventType, [SAEventType.specific_org_id == org.id])
         }
-        for et in org.event_types.values():
+        for et in list(org.event_types.values()):
             if et.id not in existing_types:
-                DbManager.create_record(
+                sa_obj = DbManager.create_record(
                     SAEventType(
                         name=et.name.value,
                         event_category=et.category,
@@ -90,6 +91,12 @@ class SqlAlchemyOrgRepository(OrgRepository):
                         is_active=et.is_active,
                     )
                 )
+                # remap domain id to persistence id if different
+                if sa_obj.id != et.id:
+                    old_id = et.id
+                    et.id = EventTypeId(sa_obj.id)
+                    org.event_types[et.id] = et
+                    org.event_types.pop(old_id, None)
             else:
                 DbManager.update_record(
                     SAEventType,
@@ -106,9 +113,9 @@ class SqlAlchemyOrgRepository(OrgRepository):
         existing_tags = {
             rec.id: rec for rec in DbManager.find_records(SAEventTag, [SAEventTag.specific_org_id == org.id])
         }
-        for tag in org.event_tags.values():
+        for tag in list(org.event_tags.values()):
             if tag.id not in existing_tags:
-                DbManager.create_record(
+                sa_obj = DbManager.create_record(
                     SAEventTag(
                         name=tag.name.value,
                         color=tag.color,
@@ -116,6 +123,11 @@ class SqlAlchemyOrgRepository(OrgRepository):
                         is_active=tag.is_active,
                     )
                 )
+                if sa_obj.id != tag.id:
+                    old_id = tag.id
+                    tag.id = EventTagId(sa_obj.id)
+                    org.event_tags[tag.id] = tag
+                    org.event_tags.pop(old_id, None)
             else:
                 DbManager.update_record(
                     SAEventTag,

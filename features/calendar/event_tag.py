@@ -5,15 +5,20 @@ from typing import List
 
 from f3_data_models.models import EventTag, Org
 from f3_data_models.utils import DbManager
-from slack_sdk.models.blocks import (
-    DividerBlock,
-    InputBlock,
-    SectionBlock,
-)
+from slack_sdk.models.blocks import DividerBlock, InputBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import ConfirmObject, PlainTextObject
 from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.web import WebClient
 
+from application.org.command_handlers import OrgCommandHandler
+from application.org.commands import (
+    AddEventTag,
+    CloneGlobalEventTag,
+    SoftDeleteEventTag,
+    UpdateEventTag,
+)
+from features.config import ORG_DDD_ENABLED
+from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
@@ -183,6 +188,7 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
     service = EventTagService()
     views = EventTagViews()
 
+    # Data retrieval identical for legacy/domain (read model not yet split)
     if action == "add":
         available_tags = service.get_available_global_tags(region_record.org_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
@@ -217,13 +223,40 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
 
     service = EventTagService()
 
-    if event_tag_id:
-        service.add_global_tag_to_org(event_tag_id, region_record.org_id)
-    elif event_tag_name and event_color:
-        if edit_event_tag_id:
-            service.update_org_specific_tag(edit_event_tag_id, event_tag_name, event_color)
-        else:
-            service.create_org_specific_tag(event_tag_name, event_color, region_record.org_id)
+    if not ORG_DDD_ENABLED:
+        # Legacy path
+        if event_tag_id:
+            service.add_global_tag_to_org(event_tag_id, region_record.org_id)
+        elif event_tag_name and event_color:
+            if edit_event_tag_id:
+                service.update_org_specific_tag(edit_event_tag_id, event_tag_name, event_color)
+            else:
+                service.create_org_specific_tag(event_tag_name, event_color, region_record.org_id)
+        return
+
+    # DDD path
+    repo = SqlAlchemyOrgRepository()
+    handler = OrgCommandHandler(repo)
+    org_id_int = int(region_record.org_id)
+    try:
+        if event_tag_id:
+            # Clone global tag
+            handler.handle(CloneGlobalEventTag(org_id=org_id_int, global_tag_id=int(event_tag_id)))
+        elif event_tag_name and event_color:
+            if edit_event_tag_id:
+                handler.handle(
+                    UpdateEventTag(
+                        org_id=org_id_int,
+                        tag_id=int(edit_event_tag_id),
+                        name=event_tag_name,
+                        color=event_color,
+                    )
+                )
+            else:
+                handler.handle(AddEventTag(org_id=org_id_int, name=event_tag_name, color=event_color))
+    except ValueError as e:
+        logger.error(f"Event tag operation failed: {e}")
+        # TODO: optionally send ephemeral error to user
 
 
 def handle_event_tag_edit_delete(
@@ -247,7 +280,16 @@ def handle_event_tag_edit_delete(
             parent_metadata={"edit_event_tag_id": event_tag.id},
         )
     elif action == "Delete":
-        service.delete_org_specific_tag(event_tag_id)
+        if not ORG_DDD_ENABLED:
+            service.delete_org_specific_tag(event_tag_id)
+        else:
+            repo = SqlAlchemyOrgRepository()
+            handler = OrgCommandHandler(repo)
+            org_id_int = int(region_record.org_id)
+            try:
+                handler.handle(SoftDeleteEventTag(org_id=org_id_int, tag_id=int(event_tag_id)))
+            except ValueError as e:
+                logger.error(f"Failed to delete event tag: {e}")
 
 
 EVENT_TAG_FORM = SdkBlockView(
