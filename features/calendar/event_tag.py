@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from logging import Logger
 from typing import List
 
@@ -17,12 +18,13 @@ from application.org.commands import (
     SoftDeleteEventTag,
     UpdateEventTag,
 )
-from features.config import ORG_DDD_ENABLED
 from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
+
+use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
 
 # Action IDs
 CALENDAR_MANAGE_EVENT_TAGS = "calendar-manage-event-tags"
@@ -179,6 +181,7 @@ class EventTagViews:
                 ),
             )
             for s in org_tags
+            if s.is_active
         ]
         return SdkBlockView(blocks=blocks)
 
@@ -223,7 +226,7 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
 
     service = EventTagService()
 
-    if not ORG_DDD_ENABLED:
+    if not use_ddd:
         # Legacy path
         if event_tag_id:
             service.add_global_tag_to_org(event_tag_id, region_record.org_id)
@@ -280,7 +283,7 @@ def handle_event_tag_edit_delete(
             parent_metadata={"edit_event_tag_id": event_tag.id},
         )
     elif action == "Delete":
-        if not ORG_DDD_ENABLED:
+        if not use_ddd:
             service.delete_org_specific_tag(event_tag_id)
         else:
             repo = SqlAlchemyOrgRepository()
