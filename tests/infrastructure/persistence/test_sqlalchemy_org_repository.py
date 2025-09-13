@@ -132,3 +132,24 @@ def test_repository_add_update_soft_delete_location(org_id):
     assert len(reloaded.locations) == before_count + 1
     stored = next(loc for loc in reloaded.locations.values() if loc.name.value.startswith(name))
     assert not stored.is_active
+
+
+def test_list_children_and_create_deactivate_ao(org_id):
+    if not _db_available():
+        pytest.skip("Database env vars not set; skipping integration test")
+    # list children before
+    repo = SqlAlchemyOrgRepository()  # type: ignore
+    before = repo.list_children(org_id)
+    from application.org.command_handlers import OrgCommandHandler
+    from application.org.commands import CreateAo, DeactivateAo
+
+    handler = OrgCommandHandler(repo)
+    base = f"AO-{uuid.uuid4().hex[:6]}"
+    ao_id = handler.handle(CreateAo(region_id=org_id, name=base))
+    after = repo.list_children(org_id)
+    assert len(after) == len(before) + 1
+    # deactivate newly created
+    handler.handle(DeactivateAo(ao_id=int(ao_id)))
+    # list_children filters to active only, so count should return to previous value
+    after2 = repo.list_children(org_id)
+    assert len(after2) == len(before)

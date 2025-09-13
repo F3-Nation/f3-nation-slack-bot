@@ -9,9 +9,12 @@ from .commands import (
     AddLocation,
     CloneGlobalEventTag,
     CloneGlobalEventType,
+    CreateAo,
+    DeactivateAo,
     SoftDeleteEventTag,
     SoftDeleteEventType,
     SoftDeleteLocation,
+    UpdateAoProfile,
     UpdateEventTag,
     UpdateEventType,
     UpdateLocation,
@@ -48,6 +51,12 @@ class OrgCommandHandler:
             return self._handle_update_location(command)
         if isinstance(command, SoftDeleteLocation):
             return self._handle_soft_delete_location(command)
+        if isinstance(command, CreateAo):
+            return self._handle_create_ao(command)
+        if isinstance(command, UpdateAoProfile):
+            return self._handle_update_ao_profile(command)
+        if isinstance(command, DeactivateAo):
+            return self._handle_deactivate_ao(command)
         raise ValueError(f"Unhandled command type: {type(command)}")
 
     def _handle_update_region_profile(self, cmd: UpdateRegionProfile):
@@ -233,3 +242,84 @@ class OrgCommandHandler:
         org.version += 1
         self.repo.save(org)
         return org
+
+    # --- AO (child org) handlers ---
+    def _handle_create_ao(self, cmd: CreateAo):
+        # Validate parent region exists
+        region = self.repo.get(cmd.region_id)
+        if not region or region.type != "region":
+            raise ValueError("Region not found")
+        # Name uniqueness within region: query children
+        children = self.repo.list_children(cmd.region_id, include_inactive=False)
+        if any(c.name.strip().lower() == cmd.name.strip().lower() for c in children):
+            raise ValueError("Duplicate AO name in region")
+        # Persist AO via underlying ORM for now
+        from f3_data_models.models import Org as SAOrg  # type: ignore
+        from f3_data_models.models import Org_Type
+        from f3_data_models.utils import DbManager  # type: ignore
+
+        meta = {"slack_channel_id": cmd.slack_channel_id} if cmd.slack_channel_id else {}
+        sa = SAOrg(
+            parent_id=int(region.id),
+            org_type=Org_Type.ao,
+            is_active=True,
+            name=cmd.name,
+            description=cmd.description,
+            meta=meta or None,
+            default_location_id=cmd.default_location_id,
+            logo_url=cmd.logo_url,
+        )
+        DbManager.create_record(sa)
+        # No change to region aggregate needed
+        return sa.id
+
+    def _handle_update_ao_profile(self, cmd: UpdateAoProfile):
+        from f3_data_models.models import Org as SAOrg  # type: ignore
+        from f3_data_models.utils import DbManager  # type: ignore
+
+        # Minimal update; name uniqueness validation requires parent lookup
+        sa_ao = DbManager.get(SAOrg, cmd.ao_id)
+        if not sa_ao:
+            raise ValueError("AO not found")
+        fields = {}
+        if cmd.name is not None:
+            # enforce uniqueness within parent if present
+            parent_id = sa_ao.parent_id
+            if parent_id and cmd.name.strip():
+                siblings = self.repo.list_children(parent_id, include_inactive=False)
+                if any(c.id != cmd.ao_id and c.name.strip().lower() == cmd.name.strip().lower() for c in siblings):
+                    raise ValueError("Duplicate AO name in region")
+            fields[SAOrg.name] = cmd.name
+        if cmd.description is not None:
+            fields[SAOrg.description] = cmd.description
+        if cmd.default_location_id is not None:
+            fields[SAOrg.default_location_id] = cmd.default_location_id
+        if cmd.slack_channel_id is not None:
+            meta = dict(getattr(sa_ao, "meta", {}) or {})
+            if cmd.slack_channel_id:
+                meta["slack_channel_id"] = cmd.slack_channel_id
+            fields[SAOrg.meta] = meta
+        if cmd.logo_url is not None:
+            fields[SAOrg.logo_url] = cmd.logo_url
+        if fields:
+            DbManager.update_record(SAOrg, cmd.ao_id, fields=fields)
+        return True
+
+    def _handle_deactivate_ao(self, cmd: DeactivateAo):
+        import datetime as _dt
+
+        from f3_data_models.models import Event, EventInstance  # type: ignore
+        from f3_data_models.models import Org as SAOrg
+        from f3_data_models.utils import DbManager  # type: ignore
+
+        sa_ao = DbManager.get(SAOrg, cmd.ao_id)
+        if not sa_ao:
+            raise ValueError("AO not found")
+        DbManager.update_record(SAOrg, cmd.ao_id, fields={SAOrg.is_active: False})
+        DbManager.update_records(Event, [Event.org_id == cmd.ao_id], fields={Event.is_active: False})
+        DbManager.update_records(
+            EventInstance,
+            [EventInstance.org_id == cmd.ao_id, EventInstance.start_date >= _dt.datetime.now()],
+            fields={EventInstance.is_active: False},
+        )
+        return True

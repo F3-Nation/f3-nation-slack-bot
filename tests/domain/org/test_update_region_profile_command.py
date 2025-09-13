@@ -15,6 +15,9 @@ class InMemoryOrgRepo(OrgRepository):
     def save(self, org: Org):
         self.store[org.id] = org
 
+    def list_children(self, parent_id, include_inactive: bool = False):  # type: ignore[override]
+        return []
+
 
 def test_update_region_profile():
     repo = InMemoryOrgRepo()

@@ -130,3 +130,34 @@ class SoftDeleteLocation:
     org_id: int
     location_id: int
     triggered_by: Optional[int] = None
+
+
+# --- AO (child Org) Commands ---
+
+
+@dataclass
+class CreateAo:
+    region_id: int
+    name: str
+    description: Optional[str] = None
+    default_location_id: Optional[int] = None
+    slack_channel_id: Optional[str] = None
+    logo_url: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class UpdateAoProfile:
+    ao_id: int
+    name: Optional[str] = None
+    description: Optional[str] = None
+    default_location_id: Optional[int] = None
+    slack_channel_id: Optional[str] = None
+    logo_url: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class DeactivateAo:
+    ao_id: int
+    triggered_by: Optional[int] = None

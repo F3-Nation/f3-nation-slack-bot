@@ -19,6 +19,9 @@ class FakeOrgRepo(OrgRepository):
         self._orgs[int(org.id)] = org
         self.saved += 1
 
+    def list_children(self, parent_id, include_inactive: bool = False):  # type: ignore[override]
+        return []
+
 
 @pytest.fixture()
 def handler_and_repo():

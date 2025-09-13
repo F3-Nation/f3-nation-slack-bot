@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import List, Optional
 
 from f3_data_models.models import EventTag as SAEventTag  # type: ignore
 from f3_data_models.models import EventType as SAEventType  # type: ignore
@@ -116,6 +116,33 @@ class SqlAlchemyOrgRepository(OrgRepository):
         except Exception:  # pragma: no cover - best-effort safety
             pass
         return org
+
+    def list_children(self, parent_id: OrgId, include_inactive: bool = False) -> List[Org]:
+        # fetch child orgs (AOs) with this parent
+        filters = [SAOrg.parent_id == int(parent_id)]
+        if not include_inactive and hasattr(SAOrg, "is_active"):
+            filters.append(SAOrg.is_active.is_(True))
+        sa_children = DbManager.find_records(SAOrg, filters)
+        results: List[Org] = []
+        for sa_org in sa_children:
+            child = Org(
+                id=OrgId(sa_org.id),
+                parent_id=OrgId(sa_org.parent_id) if sa_org.parent_id else None,
+                type=sa_org.org_type.name if getattr(sa_org, "org_type", None) else "region",
+                name=sa_org.name,
+                description=sa_org.description,
+                website=getattr(sa_org, "website", None),
+                email=getattr(sa_org, "email", None),
+                twitter=getattr(sa_org, "twitter", None),
+                facebook=getattr(sa_org, "facebook", None),
+                instagram=getattr(sa_org, "instagram", None),
+                logo_url=getattr(sa_org, "logo_url", None),
+                version=getattr(sa_org, "version", 0) or 0,
+            )
+            # children are returned without loading collections for performance
+            child.rebuild_indexes()
+            results.append(child)
+        return results
 
     def save(self, org: Org) -> None:
         # persist simple scalar changes for org

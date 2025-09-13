@@ -17,6 +17,9 @@ class FakeOrgRepo(OrgRepository):
     def save(self, org):  # type: ignore[override]
         self._orgs[int(org.id)] = org
 
+    def list_children(self, parent_id, include_inactive: bool = False):  # type: ignore[override]
+        return []
+
 
 def test_update_some_fields_only():
     org = Org(id=OrgId(50), parent_id=None, type="region", name="Initial")

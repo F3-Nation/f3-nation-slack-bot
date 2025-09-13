@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
+from typing import List, Optional
 
 from .entities import Org
 from .value_objects import OrgId
@@ -15,3 +15,6 @@ class OrgRepository(ABC):
 
     @abstractmethod
     def save(self, org: Org) -> None: ...
+
+    @abstractmethod
+    def list_children(self, parent_id: OrgId, include_inactive: bool = False) -> List[Org]: ...

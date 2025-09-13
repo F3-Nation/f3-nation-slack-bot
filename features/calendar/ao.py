@@ -1,6 +1,7 @@
 import copy
 import datetime
 import json
+import os
 from logging import Logger
 from typing import List
 
@@ -9,6 +10,9 @@ from f3_data_models.models import Event, EventInstance, EventType, Location, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from application.org.command_handlers import OrgCommandHandler
+from application.org.commands import CreateAo, DeactivateAo, UpdateAoProfile
+from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     get_location_display_name,
@@ -18,6 +22,8 @@ from utilities.helper_functions import (
     upload_files_to_storage,
 )
 from utilities.slack import actions, orm
+
+use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
 
 
 def manage_aos(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -123,25 +129,62 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         logo_url = None
 
     slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
-    ao: Org = Org(
-        parent_id=region_org_id,
-        org_type=Org_Type.ao,
-        is_active=True,
-        name=safe_get(form_data, actions.CALENDAR_ADD_AO_NAME),
-        description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
-        meta={"slack_channel_id": slack_id},
-        default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
-        logo_url=logo_url,
-    )
 
-    if safe_get(metatdata, "ao_id"):
-        update_dict = ao.__dict__
-        update_dict.pop("_sa_instance_state")
-        if not logo_url:
-            update_dict.pop("logo_url", None)
-        DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
+    if not use_ddd:
+        # Legacy ORM path
+        ao: Org = Org(
+            parent_id=region_org_id,
+            org_type=Org_Type.ao,
+            is_active=True,
+            name=safe_get(form_data, actions.CALENDAR_ADD_AO_NAME),
+            description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
+            meta={"slack_channel_id": slack_id},
+            default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
+            logo_url=logo_url,
+        )
+
+        if safe_get(metatdata, "ao_id"):
+            update_dict = ao.__dict__
+            update_dict.pop("_sa_instance_state")
+            if not logo_url:
+                update_dict.pop("logo_url", None)
+            DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
+        else:
+            DbManager.create_record(ao)
     else:
-        DbManager.create_record(ao)
+        # DDD command path
+        repo = SqlAlchemyOrgRepository()
+        handler = OrgCommandHandler(repo)
+        region_id_int = int(region_org_id)
+        name = safe_get(form_data, actions.CALENDAR_ADD_AO_NAME)
+        description = safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION)
+        default_location_id = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION), int)
+        try:
+            if safe_get(metatdata, "ao_id"):
+                handler.handle(
+                    UpdateAoProfile(
+                        ao_id=int(safe_get(metatdata, "ao_id")),
+                        name=name,
+                        description=description,
+                        default_location_id=default_location_id,
+                        slack_channel_id=slack_id,
+                        logo_url=logo_url,
+                    )
+                )
+            else:
+                handler.handle(
+                    CreateAo(
+                        region_id=region_id_int,
+                        name=name,
+                        description=description,
+                        default_location_id=default_location_id,
+                        slack_channel_id=slack_id,
+                        logo_url=logo_url,
+                    )
+                )
+        except ValueError as e:
+            logger.error(f"AO operation failed: {e}")
+            return
     trigger_map_revalidation()
 
 
@@ -188,13 +231,21 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
         ao: Org = DbManager.get(Org, ao_id, joinedloads="all")
         build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao)
     elif action == "Delete":
-        DbManager.update_record(Org, ao_id, fields={"is_active": False})
-        DbManager.update_records(Event, [Event.org_id == ao_id], fields={"is_active": False})
-        DbManager.update_records(
-            EventInstance,
-            [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.datetime.now()],
-            fields={"is_active": False},
-        )
+        if not use_ddd:
+            DbManager.update_record(Org, ao_id, fields={"is_active": False})
+            DbManager.update_records(Event, [Event.org_id == ao_id], fields={"is_active": False})
+            DbManager.update_records(
+                EventInstance,
+                [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.datetime.now()],
+                fields={"is_active": False},
+            )
+        else:
+            repo = SqlAlchemyOrgRepository()
+            handler = OrgCommandHandler(repo)
+            try:
+                handler.handle(DeactivateAo(ao_id=ao_id))
+            except ValueError as e:
+                logger.error(f"Failed to deactivate AO: {e}")
         trigger_map_revalidation()
 
 
