@@ -7,6 +7,7 @@ from f3_data_models.models import EventType as SAEventType  # type: ignore
 from f3_data_models.models import Org as SAOrg  # type: ignore
 from f3_data_models.utils import DbManager
 
+from domain.org import entities as domain_entities
 from domain.org.entities import EventTag, EventType, Org
 from domain.org.repository import OrgRepository
 from domain.org.value_objects import Acronym, EventTagId, EventTagName, EventTypeId, EventTypeName, OrgId
@@ -43,6 +44,7 @@ class SqlAlchemyOrgRepository(OrgRepository):
             SAEventType,
             [SAEventType.specific_org_id == sa_org.id],  # include inactive for soft delete visibility
         )
+        max_type_id = 0
         for rec in event_type_records:
             et = EventType(
                 id=EventTypeId(rec.id),
@@ -52,12 +54,15 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 is_active=rec.is_active,
             )
             org.event_types[et.id] = et
+            if rec.id and rec.id > max_type_id:
+                max_type_id = rec.id
         # load custom event tags for this org
         # include both active and inactive to preserve soft-deleted items in aggregate
         event_tag_records = DbManager.find_records(
             SAEventTag,
             [SAEventTag.specific_org_id == sa_org.id],
         )
+        max_tag_id = 0
         for rec in event_tag_records:
             tag = EventTag(
                 id=EventTagId(rec.id),
@@ -66,7 +71,17 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 is_active=rec.is_active,
             )
             org.event_tags[tag.id] = tag
+            if rec.id and rec.id > max_tag_id:
+                max_tag_id = rec.id
         org.rebuild_indexes()
+        # advance in-memory id sequences to avoid collisions for new domain-created entities
+        try:
+            if getattr(domain_entities, "_event_type_seq", None) is not None:
+                domain_entities._event_type_seq._v = max(domain_entities._event_type_seq._v, int(max_type_id))
+            if getattr(domain_entities, "_event_tag_seq", None) is not None:
+                domain_entities._event_tag_seq._v = max(domain_entities._event_tag_seq._v, int(max_tag_id))
+        except Exception:  # pragma: no cover - best-effort safety
+            pass
         return org
 
     def save(self, org: Org) -> None:

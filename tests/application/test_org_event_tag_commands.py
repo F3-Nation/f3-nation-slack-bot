@@ -55,9 +55,20 @@ def test_clone_global_event_tag_command(org_id):
     from f3_data_models.models import EventTag as ORMEventTag
     from f3_data_models.utils import DbManager
 
-    global_tag = next((t for t in DbManager.find_records(ORMEventTag, [True]) if t.specific_org_id is None), None)
+    # choose a global tag name not already present in org
+    repo = SqlAlchemyOrgRepository()
+    org = repo.get(org_id)
+    existing_names = {t.name.value for t in org.event_tags.values()}
+    global_tag = next(
+        (
+            t
+            for t in DbManager.find_records(ORMEventTag, [True])
+            if t.specific_org_id is None and t.name not in existing_names
+        ),
+        None,
+    )
     if not global_tag:
-        pytest.skip("No global event tags available to clone")
+        pytest.skip("No suitable global event tag available to clone")
     handler.handle(CloneGlobalEventTag(org_id=org_id, global_tag_id=global_tag.id))
     # verify tag with same name now exists for org
     repo = SqlAlchemyOrgRepository()

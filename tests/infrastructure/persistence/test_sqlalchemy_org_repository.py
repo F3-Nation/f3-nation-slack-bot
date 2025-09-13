@@ -57,7 +57,18 @@ def test_repository_add_event_type(org_id):
     assert org is not None
     before_count = len(org.event_types)
     et_name = f"TestType{uuid.uuid4().hex[:4]}"
-    org.add_event_type(name=et_name, category="first_f", acronym=None, triggered_by=None)
+    # ensure acronym won't collide with existing ones
+    existing_acros = {et.acronym.value for et in org.event_types.values()}
+    base = uuid.uuid4().hex.upper()
+    acro = None
+    for i in range(0, len(base) - 1, 2):
+        cand = base[i : i + 2]
+        if cand not in existing_acros:
+            acro = cand
+            break
+    if acro is None:
+        acro = "ZX"
+    org.add_event_type(name=et_name, category="first_f", acronym=acro, triggered_by=None)
     repo.save(org)
     reloaded = repo.get(org_id)
     assert len(reloaded.event_types) == before_count + 1
