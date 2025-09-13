@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from logging import Logger
 from typing import List
 
@@ -7,10 +8,15 @@ from f3_data_models.models import Location, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from application.org.command_handlers import OrgCommandHandler
+from application.org.commands import AddLocation, SoftDeleteLocation, UpdateLocation
 from features.calendar import ao
+from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import get_location_display_name, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
+
+use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
 
 
 def manage_locations(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -82,33 +88,93 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
     form_data = LOCATION_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
 
+    name = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_NAME)
+    description = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_DESCRIPTION)
     latitude = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LAT), float)
     longitude = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LON), float)
+    address_street = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET)
+    address_street2 = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET2)
+    address_city = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_CITY)
+    address_state = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STATE)
+    address_zip = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_ZIP)
+    address_country = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_COUNTRY)
 
-    # TODO: some kind of validation of either lat/long or address?
-
-    location: Location = Location(
-        name=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_NAME),
-        description=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_DESCRIPTION),
-        is_active=True,
-        latitude=latitude,
-        longitude=longitude,
-        address_street=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET),
-        address_street2=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET2),
-        address_city=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_CITY),
-        address_state=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STATE),
-        address_zip=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_ZIP),
-        address_country=safe_get(form_data, actions.CALENDAR_ADD_LOCATION_COUNTRY),
-        org_id=region_record.org_id,
-    )
-
-    if safe_get(metadata, "location_id"):
-        # location_id is passed in the metadata if this is an edit
-        update_dict = location.__dict__
-        update_dict.pop("_sa_instance_state")
-        DbManager.update_record(Location, metadata["location_id"], fields=update_dict)
+    if not use_ddd:
+        # Legacy path using ORM directly
+        location: Location = Location(
+            name=name,
+            description=description,
+            is_active=True,
+            latitude=latitude,
+            longitude=longitude,
+            address_street=address_street,
+            address_street2=address_street2,
+            address_city=address_city,
+            address_state=address_state,
+            address_zip=address_zip,
+            address_country=address_country,
+            org_id=region_record.org_id,
+        )
+        if safe_get(metadata, "location_id"):
+            update_dict = location.__dict__
+            update_dict.pop("_sa_instance_state")
+            DbManager.update_record(Location, metadata["location_id"], fields=update_dict)
+            new_location_id = safe_get(metadata, "location_id")
+        else:
+            location = DbManager.create_record(location)
+            new_location_id = location.id
     else:
-        location = DbManager.create_record(location)
+        # DDD path via application commands
+        repo = SqlAlchemyOrgRepository()
+        handler = OrgCommandHandler(repo)
+        org_id_int = int(region_record.org_id)
+        try:
+            if safe_get(metadata, "location_id"):
+                handler.handle(
+                    UpdateLocation(
+                        org_id=org_id_int,
+                        location_id=int(safe_get(metadata, "location_id")),
+                        name=name,
+                        description=description,
+                        latitude=latitude,
+                        longitude=longitude,
+                        address_street=address_street,
+                        address_street2=address_street2,
+                        address_city=address_city,
+                        address_state=address_state,
+                        address_zip=address_zip,
+                        address_country=address_country,
+                    )
+                )
+                new_location_id = safe_get(metadata, "location_id")
+            else:
+                handler.handle(
+                    AddLocation(
+                        org_id=org_id_int,
+                        name=name,
+                        description=description,
+                        latitude=latitude,
+                        longitude=longitude,
+                        address_street=address_street,
+                        address_street2=address_street2,
+                        address_city=address_city,
+                        address_state=address_state,
+                        address_zip=address_zip,
+                        address_country=address_country,
+                    )
+                )
+                # retrieve created id by name from aggregate (names are unique by domain rule)
+                org = repo.get(org_id_int)
+                new_location_id = None
+                if org:
+                    for loc in org.locations.values():
+                        if getattr(loc.name, "value", None) == name:
+                            new_location_id = int(loc.id)
+                            break
+        except ValueError as e:
+            logger.error(f"Location operation failed: {e}")
+            return
+
     trigger_map_revalidation()
 
     if safe_get(metadata, "update_view_id"):
@@ -116,7 +182,7 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
             actions.CALENDAR_ADD_AO_NAME: safe_get(metadata, actions.CALENDAR_ADD_AO_NAME),
             actions.CALENDAR_ADD_AO_DESCRIPTION: safe_get(metadata, actions.CALENDAR_ADD_AO_DESCRIPTION),
             actions.CALENDAR_ADD_AO_CHANNEL: safe_get(metadata, actions.CALENDAR_ADD_AO_CHANNEL),
-            actions.CALENDAR_ADD_AO_LOCATION: str(location.id),
+            actions.CALENDAR_ADD_AO_LOCATION: str(new_location_id) if new_location_id is not None else None,
             actions.CALENDAR_ADD_AO_TYPE: safe_get(metadata, actions.CALENDAR_ADD_AO_TYPE),
         }
         ao.build_ao_add_form(
@@ -187,7 +253,16 @@ def handle_location_edit_delete(
         location = DbManager.get(Location, location_id)
         build_location_add_form(body, client, logger, context, region_record, location)
     elif action == "Delete":
-        DbManager.update_record(Location, location_id, fields={"is_active": False})
+        if not use_ddd:
+            DbManager.update_record(Location, location_id, fields={"is_active": False})
+        else:
+            repo = SqlAlchemyOrgRepository()
+            handler = OrgCommandHandler(repo)
+            org_id_int = int(region_record.org_id)
+            try:
+                handler.handle(SoftDeleteLocation(org_id=org_id_int, location_id=int(location_id)))
+            except ValueError as e:
+                logger.error(f"Failed to delete location: {e}")
         trigger_map_revalidation()
 
 

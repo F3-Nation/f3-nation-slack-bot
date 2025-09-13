@@ -25,23 +25,26 @@ def _db_available() -> bool:
 
 
 def _list_org_specific_ids(org_id: int):
-    """Return (event_type_ids, event_tag_ids) for org-specific rows."""
+    """Return (event_type_ids, event_tag_ids, location_ids) for org rows."""
     try:
         from f3_data_models.models import EventTag as ORMEventTag  # type: ignore
         from f3_data_models.models import EventType as ORMEventType
+        from f3_data_models.models import Location as ORMLocation  # type: ignore
         from f3_data_models.utils import DbManager  # type: ignore
     except Exception:
-        return set(), set()
+        return set(), set(), set()
 
     try:
         et_records = DbManager.find_records(ORMEventType, [ORMEventType.specific_org_id == org_id])
         tag_records = DbManager.find_records(ORMEventTag, [ORMEventTag.specific_org_id == org_id])
+        loc_records = DbManager.find_records(ORMLocation, [ORMLocation.org_id == org_id])
     except Exception:
-        return set(), set()
+        return set(), set(), set()
 
     et_ids = {r.id for r in et_records}
     tag_ids = {r.id for r in tag_records}
-    return et_ids, tag_ids
+    loc_ids = {r.id for r in loc_records}
+    return et_ids, tag_ids, loc_ids
 
 
 @pytest.fixture(autouse=True)
@@ -64,17 +67,19 @@ def cleanup_test_org_function():
         yield
         return
 
-    before_types, before_tags = _list_org_specific_ids(org_id)
+    before_types, before_tags, before_locs = _list_org_specific_ids(org_id)
     yield
-    after_types, after_tags = _list_org_specific_ids(org_id)
+    after_types, after_tags, after_locs = _list_org_specific_ids(org_id)
 
     new_type_ids = after_types - before_types
     new_tag_ids = after_tags - before_tags
+    new_loc_ids = after_locs - before_locs
 
     # Best-effort deletion of newly created rows
     try:
         from f3_data_models.models import EventTag as ORMEventTag  # type: ignore
         from f3_data_models.models import EventType as ORMEventType
+        from f3_data_models.models import Location as ORMLocation  # type: ignore
         from f3_data_models.utils import DbManager  # type: ignore
     except Exception:
         return
@@ -88,5 +93,10 @@ def cleanup_test_org_function():
     for tag_id in new_tag_ids:
         try:
             DbManager.delete_record(ORMEventTag, tag_id)
+        except Exception:
+            pass
+    for loc_id in new_loc_ids:
+        try:
+            DbManager.delete_record(ORMLocation, loc_id)
         except Exception:
             pass

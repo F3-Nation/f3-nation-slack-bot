@@ -110,3 +110,25 @@ def test_repository_update_and_soft_delete_event_tag(org_id):
     stored_tag = next(t for t in reloaded.event_tags.values() if t.name.value.startswith(tag_name))
     # After soft delete we keep record but inactive
     assert not stored_tag.is_active
+
+
+def test_repository_add_update_soft_delete_location(org_id):
+    if not _db_available():
+        pytest.skip("Database env vars not set; skipping integration test")
+    repo = SqlAlchemyOrgRepository()  # type: ignore
+    org = repo.get(org_id)
+    assert org is not None
+    before_count = len(org.locations)
+    name = f"Loc{uuid.uuid4().hex[:4]}"
+    loc = org.add_location(name=name, description="desc", latitude=1.23, longitude=4.56, triggered_by=None)
+    repo.save(org)
+    # update
+    org.update_location(loc.id, name=name + "X", triggered_by=None)
+    repo.save(org)
+    # soft delete
+    org.soft_delete_location(loc.id, triggered_by=None)
+    repo.save(org)
+    reloaded = repo.get(org_id)
+    assert len(reloaded.locations) == before_count + 1
+    stored = next(loc for loc in reloaded.locations.values() if loc.name.value.startswith(name))
+    assert not stored.is_active
