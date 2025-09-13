@@ -6,12 +6,15 @@ from domain.org.value_objects import EventTagId
 from .commands import (
     AddEventTag,
     AddEventType,
+    AddLocation,
     CloneGlobalEventTag,
     CloneGlobalEventType,
     SoftDeleteEventTag,
     SoftDeleteEventType,
+    SoftDeleteLocation,
     UpdateEventTag,
     UpdateEventType,
+    UpdateLocation,
     UpdateRegionProfile,
 )
 
@@ -39,6 +42,12 @@ class OrgCommandHandler:
             return self._handle_soft_delete_event_type(command)
         if isinstance(command, CloneGlobalEventType):
             return self._handle_clone_global_event_type(command)
+        if isinstance(command, AddLocation):
+            return self._handle_add_location(command)
+        if isinstance(command, UpdateLocation):
+            return self._handle_update_location(command)
+        if isinstance(command, SoftDeleteLocation):
+            return self._handle_soft_delete_location(command)
         raise ValueError(f"Unhandled command type: {type(command)}")
 
     def _handle_update_region_profile(self, cmd: UpdateRegionProfile):
@@ -164,6 +173,63 @@ class OrgCommandHandler:
             acronym=global_et.acronym,
             triggered_by=cmd.triggered_by,
         )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    # --- Location handlers ---
+    def _handle_add_location(self, cmd: AddLocation):
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.add_location(
+            name=cmd.name,
+            description=cmd.description,
+            latitude=cmd.latitude,
+            longitude=cmd.longitude,
+            address_street=cmd.address_street,
+            address_street2=cmd.address_street2,
+            address_city=cmd.address_city,
+            address_state=cmd.address_state,
+            address_zip=cmd.address_zip,
+            address_country=cmd.address_country,
+            triggered_by=cmd.triggered_by,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_update_location(self, cmd: UpdateLocation):
+        from domain.org.value_objects import LocationId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.update_location(
+            LocationId(cmd.location_id),
+            name=cmd.name,
+            description=cmd.description,
+            latitude=cmd.latitude,
+            longitude=cmd.longitude,
+            address_street=cmd.address_street,
+            address_street2=cmd.address_street2,
+            address_city=cmd.address_city,
+            address_state=cmd.address_state,
+            address_zip=cmd.address_zip,
+            address_country=cmd.address_country,
+            triggered_by=cmd.triggered_by,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_soft_delete_location(self, cmd: SoftDeleteLocation):
+        from domain.org.value_objects import LocationId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.soft_delete_location(LocationId(cmd.location_id), triggered_by=cmd.triggered_by)
         org.version += 1
         self.repo.save(org)
         return org

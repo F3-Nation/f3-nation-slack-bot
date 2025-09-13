@@ -54,3 +54,14 @@ class PositionName:
         if not v:
             raise ValueError("Position name cannot be empty")
         object.__setattr__(self, "value", v)
+
+
+@dataclass(frozen=True)
+class LocationName:
+    value: str
+
+    def __post_init__(self):
+        v = (self.value or "").strip()
+        if not v:
+            raise ValueError("Location name cannot be empty")
+        object.__setattr__(self, "value", v)

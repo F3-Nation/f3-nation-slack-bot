@@ -4,13 +4,23 @@ from typing import Optional
 
 from f3_data_models.models import EventTag as SAEventTag  # type: ignore
 from f3_data_models.models import EventType as SAEventType  # type: ignore
+from f3_data_models.models import Location as SALocation  # type: ignore
 from f3_data_models.models import Org as SAOrg  # type: ignore
 from f3_data_models.utils import DbManager
 
 from domain.org import entities as domain_entities
-from domain.org.entities import EventTag, EventType, Org
+from domain.org.entities import EventTag, EventType, Location, Org
 from domain.org.repository import OrgRepository
-from domain.org.value_objects import Acronym, EventTagId, EventTagName, EventTypeId, EventTypeName, OrgId
+from domain.org.value_objects import (
+    Acronym,
+    EventTagId,
+    EventTagName,
+    EventTypeId,
+    EventTypeName,
+    LocationId,
+    LocationName,
+    OrgId,
+)
 
 """SQLAlchemy implementation of OrgRepository.
 
@@ -73,6 +83,27 @@ class SqlAlchemyOrgRepository(OrgRepository):
             org.event_tags[tag.id] = tag
             if rec.id and rec.id > max_tag_id:
                 max_tag_id = rec.id
+        # load locations for this org (active + inactive)
+        location_records = DbManager.find_records(SALocation, [SALocation.org_id == sa_org.id])
+        max_loc_id = 0
+        for rec in location_records:
+            loc = Location(
+                id=LocationId(rec.id),
+                name=LocationName(rec.name),
+                description=rec.description,
+                latitude=rec.latitude,
+                longitude=rec.longitude,
+                address_street=rec.address_street,
+                address_street2=rec.address_street2,
+                address_city=rec.address_city,
+                address_state=rec.address_state,
+                address_zip=rec.address_zip,
+                address_country=rec.address_country,
+                is_active=rec.is_active,
+            )
+            org.locations[loc.id] = loc
+            if rec.id and rec.id > max_loc_id:
+                max_loc_id = rec.id
         org.rebuild_indexes()
         # advance in-memory id sequences to avoid collisions for new domain-created entities
         try:
@@ -80,6 +111,8 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 domain_entities._event_type_seq._v = max(domain_entities._event_type_seq._v, int(max_type_id))
             if getattr(domain_entities, "_event_tag_seq", None) is not None:
                 domain_entities._event_tag_seq._v = max(domain_entities._event_tag_seq._v, int(max_tag_id))
+            if getattr(domain_entities, "_location_seq", None) is not None:
+                domain_entities._location_seq._v = max(domain_entities._location_seq._v, int(max_loc_id))
         except Exception:  # pragma: no cover - best-effort safety
             pass
         return org
@@ -91,6 +124,7 @@ class SqlAlchemyOrgRepository(OrgRepository):
             if hasattr(SAOrg, attr):
                 base_fields[getattr(SAOrg, attr)] = getattr(org, attr)
         DbManager.update_record(SAOrg, org.id, base_fields)
+
         # event type changes
         existing_types = {
             rec.id: rec for rec in DbManager.find_records(SAEventType, [SAEventType.specific_org_id == org.id])
@@ -106,7 +140,6 @@ class SqlAlchemyOrgRepository(OrgRepository):
                         is_active=et.is_active,
                     )
                 )
-                # remap domain id to persistence id if different
                 if sa_obj.id != et.id:
                     old_id = et.id
                     et.id = EventTypeId(sa_obj.id)
@@ -151,5 +184,49 @@ class SqlAlchemyOrgRepository(OrgRepository):
                         SAEventTag.name: tag.name.value,
                         SAEventTag.color: tag.color,
                         SAEventTag.is_active: tag.is_active,
+                    },
+                )
+
+        # location changes
+        existing_locations = {rec.id: rec for rec in DbManager.find_records(SALocation, [SALocation.org_id == org.id])}
+        for loc in list(org.locations.values()):
+            if loc.id not in existing_locations:
+                sa_obj = DbManager.create_record(
+                    SALocation(
+                        name=loc.name.value,
+                        description=loc.description,
+                        is_active=loc.is_active,
+                        latitude=loc.latitude,
+                        longitude=loc.longitude,
+                        address_street=loc.address_street,
+                        address_street2=loc.address_street2,
+                        address_city=loc.address_city,
+                        address_state=loc.address_state,
+                        address_zip=loc.address_zip,
+                        address_country=loc.address_country,
+                        org_id=org.id,
+                    )
+                )
+                if sa_obj.id != loc.id:
+                    old_id = loc.id
+                    loc.id = LocationId(sa_obj.id)
+                    org.locations[loc.id] = loc
+                    org.locations.pop(old_id, None)
+            else:
+                DbManager.update_record(
+                    SALocation,
+                    loc.id,
+                    {
+                        SALocation.name: loc.name.value,
+                        SALocation.description: loc.description,
+                        SALocation.is_active: loc.is_active,
+                        SALocation.latitude: loc.latitude,
+                        SALocation.longitude: loc.longitude,
+                        SALocation.address_street: loc.address_street,
+                        SALocation.address_street2: loc.address_street2,
+                        SALocation.address_city: loc.address_city,
+                        SALocation.address_state: loc.address_state,
+                        SALocation.address_zip: loc.address_zip,
+                        SALocation.address_country: loc.address_country,
                     },
                 )

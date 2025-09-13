@@ -10,6 +10,9 @@ from .events import (
     EventTypeCreated,
     EventTypeDeleted,
     EventTypeUpdated,
+    LocationCreated,
+    LocationDeleted,
+    LocationUpdated,
 )
 from .value_objects import (
     Acronym,
@@ -17,6 +20,8 @@ from .value_objects import (
     EventTagName,
     EventTypeId,
     EventTypeName,
+    LocationId,
+    LocationName,
     OrgId,
     PositionId,
     PositionName,
@@ -37,6 +42,7 @@ class _IdSeq:
 _event_type_seq = _IdSeq()
 _event_tag_seq = _IdSeq()
 _position_seq = _IdSeq()
+_location_seq = _IdSeq()
 
 
 @dataclass
@@ -65,6 +71,22 @@ class Position:
 
 
 @dataclass
+class Location:
+    id: LocationId
+    name: LocationName
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address_street: Optional[str] = None
+    address_street2: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_country: Optional[str] = None
+    is_active: bool = True
+
+
+@dataclass
 class Org:
     id: OrgId
     parent_id: Optional[OrgId]
@@ -82,6 +104,7 @@ class Org:
     event_types: Dict[EventTypeId, EventType] = field(default_factory=dict)
     event_tags: Dict[EventTagId, EventTag] = field(default_factory=dict)
     positions: Dict[PositionId, Position] = field(default_factory=dict)
+    locations: Dict[LocationId, Location] = field(default_factory=dict)
     admin_user_ids: List[UserId] = field(default_factory=list)
     _events: List[object] = field(default_factory=list, init=False)
 
@@ -90,6 +113,7 @@ class Org:
     _event_type_acronyms: set[str] = field(default_factory=set, init=False)
     _event_tag_names: set[str] = field(default_factory=set, init=False)
     _position_names: set[str] = field(default_factory=set, init=False)
+    _location_names: set[str] = field(default_factory=set, init=False)
 
     # --- domain behavior ---
     def record(self, event):
@@ -227,4 +251,113 @@ class Org:
         self._event_type_acronyms = {et.acronym.value for et in self.event_types.values() if et.is_active}
         self._event_tag_names = {t.name.value.lower() for t in self.event_tags.values() if t.is_active}
         self._position_names = {p.name.value.lower() for p in self.positions.values() if p.is_active}
+        self._location_names = {loc.name.value.lower() for loc in self.locations.values() if loc.is_active}
         return self
+
+    # Locations
+    def add_location(
+        self,
+        *,
+        name: str,
+        description: Optional[str] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        address_street: Optional[str] = None,
+        address_street2: Optional[str] = None,
+        address_city: Optional[str] = None,
+        address_state: Optional[str] = None,
+        address_zip: Optional[str] = None,
+        address_country: Optional[str] = None,
+        triggered_by: Optional[UserId] = None,
+    ) -> Location:
+        norm = (name or "").strip().lower()
+        if not norm:
+            raise ValueError("Location name cannot be empty")
+        if norm in self._location_names:
+            raise ValueError("Duplicate location name")
+        loc_id = LocationId(_location_seq.next())
+        loc = Location(
+            id=loc_id,
+            name=LocationName(name),
+            description=description,
+            latitude=latitude,
+            longitude=longitude,
+            address_street=address_street,
+            address_street2=address_street2,
+            address_city=address_city,
+            address_state=address_state,
+            address_zip=address_zip,
+            address_country=address_country,
+        )
+        self.locations[loc_id] = loc
+        self._location_names.add(norm)
+        self.record(LocationCreated.create(self.id, loc_id, loc.name.value, triggered_by))
+        return loc
+
+    def update_location(
+        self,
+        location_id: LocationId,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        latitude: Optional[float] = None,
+        longitude: Optional[float] = None,
+        address_street: Optional[str] = None,
+        address_street2: Optional[str] = None,
+        address_city: Optional[str] = None,
+        address_state: Optional[str] = None,
+        address_zip: Optional[str] = None,
+        address_country: Optional[str] = None,
+        triggered_by: Optional[UserId] = None,
+    ) -> Location:
+        loc = self.locations.get(location_id)
+        if not loc or not loc.is_active:
+            raise ValueError("Location not found")
+        changes: dict = {}
+        if name is not None:
+            norm = (name or "").strip().lower()
+            if not norm:
+                raise ValueError("Location name cannot be empty")
+            if norm != loc.name.value.lower() and norm in self._location_names:
+                raise ValueError("Duplicate location name")
+            self._location_names.discard(loc.name.value.lower())
+            loc.name = LocationName(name)
+            self._location_names.add(norm)
+            changes["name"] = loc.name.value
+        if description is not None:
+            loc.description = description
+            changes["description"] = description
+        if latitude is not None:
+            loc.latitude = latitude
+            changes["latitude"] = latitude
+        if longitude is not None:
+            loc.longitude = longitude
+            changes["longitude"] = longitude
+        if address_street is not None:
+            loc.address_street = address_street
+            changes["address_street"] = address_street
+        if address_street2 is not None:
+            loc.address_street2 = address_street2
+            changes["address_street2"] = address_street2
+        if address_city is not None:
+            loc.address_city = address_city
+            changes["address_city"] = address_city
+        if address_state is not None:
+            loc.address_state = address_state
+            changes["address_state"] = address_state
+        if address_zip is not None:
+            loc.address_zip = address_zip
+            changes["address_zip"] = address_zip
+        if address_country is not None:
+            loc.address_country = address_country
+            changes["address_country"] = address_country
+        if changes:
+            self.record(LocationUpdated.create(self.id, location_id, changes, triggered_by))
+        return loc
+
+    def soft_delete_location(self, location_id: LocationId, triggered_by: Optional[UserId]):
+        loc = self.locations.get(location_id)
+        if not loc or not loc.is_active:
+            raise ValueError("Location not found")
+        loc.is_active = False
+        self.record(LocationDeleted.create(self.id, location_id, triggered_by))

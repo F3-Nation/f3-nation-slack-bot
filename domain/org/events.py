@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from .value_objects import EventTagId, EventTypeId, OrgId, UserId
+from .value_objects import EventTagId, EventTypeId, LocationId, OrgId, UserId
 
 
 def _ts() -> datetime:
@@ -96,4 +96,44 @@ class EventTagDeleted(DomainEvent):
             triggered_by=triggered_by,
             name="EventTagDeleted",
             payload={"event_tag_id": event_tag_id},
+        )
+
+
+# Location events
+@dataclass
+class LocationCreated(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, location_id: LocationId, name: str, triggered_by: Optional[UserId]):
+        return LocationCreated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="LocationCreated",
+            payload={"location_id": location_id, "name": name},
+        )
+
+
+@dataclass
+class LocationUpdated(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, location_id: LocationId, fields: Dict[str, Any], triggered_by: Optional[UserId]):
+        return LocationUpdated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="LocationUpdated",
+            payload={"location_id": location_id, "fields": fields},
+        )
+
+
+@dataclass
+class LocationDeleted(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, location_id: LocationId, triggered_by: Optional[UserId]):
+        return LocationDeleted(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="LocationDeleted",
+            payload={"location_id": location_id},
         )

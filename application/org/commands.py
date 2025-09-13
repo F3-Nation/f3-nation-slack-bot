@@ -87,3 +87,46 @@ class CloneGlobalEventType:
     org_id: int
     global_event_type_id: int
     triggered_by: Optional[int] = None
+
+
+# --- Location Commands ---
+
+
+@dataclass
+class AddLocation:
+    org_id: int
+    name: str
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address_street: Optional[str] = None
+    address_street2: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_country: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class UpdateLocation:
+    org_id: int
+    location_id: int
+    name: Optional[str] = None
+    description: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    address_street: Optional[str] = None
+    address_street2: Optional[str] = None
+    address_city: Optional[str] = None
+    address_state: Optional[str] = None
+    address_zip: Optional[str] = None
+    address_country: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class SoftDeleteLocation:
+    org_id: int
+    location_id: int
+    triggered_by: Optional[int] = None
