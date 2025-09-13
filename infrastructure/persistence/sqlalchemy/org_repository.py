@@ -41,7 +41,7 @@ class SqlAlchemyOrgRepository(OrgRepository):
         # load custom event types for this org
         event_type_records = DbManager.find_records(
             SAEventType,
-            [SAEventType.specific_org_id == sa_org.id, SAEventType.is_active],
+            [SAEventType.specific_org_id == sa_org.id],  # include inactive for soft delete visibility
         )
         for rec in event_type_records:
             et = EventType(

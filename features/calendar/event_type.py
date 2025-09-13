@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from logging import Logger
 from typing import List
 
@@ -7,9 +8,30 @@ from f3_data_models.models import Event_Category, EventType
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from application.org.command_handlers import OrgCommandHandler
+from application.org.commands import (
+    AddEventType,
+    CloneGlobalEventType,
+    SoftDeleteEventType,
+    UpdateEventType,
+)
+from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
+
+use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
+
+
+class DummyETProxy:
+    """Lightweight proxy to adapt domain EventType to expected interface of legacy modal code."""
+
+    def __init__(self, domain_et):
+        self.id = int(domain_et.id)
+        self.name = domain_et.name.value
+        self.acronym = domain_et.acronym.value
+        # mimic enum attribute used earlier
+        self.event_category = type("_Cat", (), {"name": getattr(domain_et, "category", "first_f")})()
 
 
 def manage_event_types(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -31,14 +53,34 @@ def build_event_type_form(
 ):
     form = copy.deepcopy(EVENT_TYPE_FORM)
 
+    # Always fetch all active types for global selection and labeling
     event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
-    event_types_org = [
-        type.id
-        for type in event_types_all
-        if type.specific_org_id == region_record.org_id or type.specific_org_id is None
-    ]
-    event_types_other_org = [event_type for event_type in event_types_all if event_type.id not in event_types_org]
-    event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
+
+    if use_ddd:
+        # Use domain aggregate for org-specific custom types
+        repo = SqlAlchemyOrgRepository()
+        org = repo.get(int(region_record.org_id))
+        domain_custom_ids = {int(et.id) for et in org.event_types.values() if et.is_active}
+        # In-org types include: all global + custom for this org
+        event_types_in_org = [
+            et for et in event_types_all if et.specific_org_id is None or int(et.id) in domain_custom_ids
+        ]
+        # Other org types: active types with a different specific_org_id (exclude globals and this org's custom)
+        event_types_other_org = [
+            et
+            for et in event_types_all
+            if et.specific_org_id is not None
+            and str(et.specific_org_id) != str(region_record.org_id)
+            and int(et.id) not in domain_custom_ids
+        ]
+    else:
+        event_types_org = [
+            type.id
+            for type in event_types_all
+            if type.specific_org_id == region_record.org_id or type.specific_org_id is None
+        ]
+        event_types_other_org = [event_type for event_type in event_types_all if event_type.id not in event_types_org]
+        event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
     if not event_types_other_org:
         form.blocks.pop(0)
         form.blocks.pop(0)
@@ -96,48 +138,87 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     event_type_acronym = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
 
-    if safe_get(metadata, "edit_event_type_id"):
-        event_type_id = safe_get(metadata, "edit_event_type_id")
-        event_type: EventType = DbManager.get(EventType, event_type_id)
-        DbManager.update_record(
-            EventType,
-            event_type_id,
-            fields={
-                EventType.name: event_type_name or event_type.name,
-                EventType.event_category: event_category or event_type.event_category,
-                EventType.acronym: event_type_acronym or event_type.acronym,
-                EventType.specific_org_id: region_record.org_id,
-            },
-        )
-
-    elif event_type_id:
-        event_type: EventType = DbManager.get(EventType, event_type_id)
-        DbManager.create_record(
-            EventType(
-                name=event_type.name,
-                event_category=event_type.event_category,
-                acronym=event_type.acronym,
-                specific_org_id=region_record.org_id,
+    if not use_ddd:
+        # legacy path
+        if safe_get(metadata, "edit_event_type_id"):
+            event_type_id = safe_get(metadata, "edit_event_type_id")
+            event_type: EventType = DbManager.get(EventType, event_type_id)
+            DbManager.update_record(
+                EventType,
+                event_type_id,
+                fields={
+                    EventType.name: event_type_name or event_type.name,
+                    EventType.event_category: event_category or event_type.event_category,
+                    EventType.acronym: event_type_acronym or event_type.acronym,
+                    EventType.specific_org_id: region_record.org_id,
+                },
             )
-        )
-
-    elif event_type_name and event_category:
-        event_type: EventType = DbManager.create_record(
-            EventType(
-                name=event_type_name,
-                event_category=event_category,
-                acronym=event_type_acronym or event_type_name[:2],
-                specific_org_id=region_record.org_id,
+        elif event_type_id:
+            event_type: EventType = DbManager.get(EventType, event_type_id)
+            DbManager.create_record(
+                EventType(
+                    name=event_type.name,
+                    event_category=event_type.event_category,
+                    acronym=event_type.acronym,
+                    specific_org_id=region_record.org_id,
+                )
             )
-        )
+        elif event_type_name and event_category:
+            DbManager.create_record(
+                EventType(
+                    name=event_type_name,
+                    event_category=event_category,
+                    acronym=event_type_acronym or event_type_name[:2],
+                    specific_org_id=region_record.org_id,
+                )
+            )
+        return
+
+    # DDD path
+    repo = SqlAlchemyOrgRepository()
+    handler = OrgCommandHandler(repo)
+    org_id_int = int(region_record.org_id)
+
+    try:
+        if safe_get(metadata, "edit_event_type_id"):
+            handler.handle(
+                UpdateEventType(
+                    org_id=org_id_int,
+                    event_type_id=int(safe_get(metadata, "edit_event_type_id")),
+                    name=event_type_name,
+                    category=event_category,
+                    acronym=event_type_acronym,
+                )
+            )
+        elif event_type_id:
+            handler.handle(CloneGlobalEventType(org_id=org_id_int, global_event_type_id=int(event_type_id)))
+        elif event_type_name and event_category:
+            handler.handle(
+                AddEventType(
+                    org_id=org_id_int,
+                    name=event_type_name,
+                    category=event_category,
+                    acronym=event_type_acronym or (event_type_name[:2] if event_type_name else None),
+                )
+            )
+    except ValueError as e:
+        logger.error(f"Event type operation failed: {e}")
 
 
 def build_event_type_list_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
-    event_types_org = [type.id for type in event_types_all if type.specific_org_id == region_record.org_id]
-    event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
+    if use_ddd:
+        repo = SqlAlchemyOrgRepository()
+        org = repo.get(int(region_record.org_id))
+        # Use only custom types (domain aggregate does not include global) for edit/delete list
+        event_types_in_org = [
+            DummyETProxy(et) for et in org.event_types.values() if et.is_active
+        ]  # wrap to mimic needed attributes
+    else:
+        event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
+        event_types_org = [type.id for type in event_types_all if type.specific_org_id == region_record.org_id]
+        event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
 
     blocks = [
         orm.ContextBlock(
@@ -184,13 +265,22 @@ def handle_event_type_edit_delete(
         event_type: EventType = DbManager.get(EventType, event_type_id)
         build_event_type_form(body, client, logger, context, region_record, edit_event_type=event_type)
     elif action == "Delete":
-        DbManager.update_record(
-            EventType,
-            event_type_id,
-            fields={
-                EventType.is_active: False,
-            },
-        )
+        if not use_ddd:
+            DbManager.update_record(
+                EventType,
+                event_type_id,
+                fields={
+                    EventType.is_active: False,
+                },
+            )
+        else:
+            repo = SqlAlchemyOrgRepository()
+            handler = OrgCommandHandler(repo)
+            org_id_int = int(region_record.org_id)
+            try:
+                handler.handle(SoftDeleteEventType(org_id=org_id_int, event_type_id=int(event_type_id)))
+            except ValueError as e:
+                logger.error(f"Failed to delete event type: {e}")
 
 
 EVENT_TYPE_FORM = orm.BlockView(

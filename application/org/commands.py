@@ -51,3 +51,39 @@ class CloneGlobalEventTag:
     org_id: int
     global_tag_id: int
     triggered_by: Optional[int] = None
+
+
+# --- Event Type Commands ---
+
+
+@dataclass
+class AddEventType:
+    org_id: int
+    name: str
+    category: str
+    acronym: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class UpdateEventType:
+    org_id: int
+    event_type_id: int
+    name: Optional[str] = None
+    category: Optional[str] = None
+    acronym: Optional[str] = None
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class SoftDeleteEventType:
+    org_id: int
+    event_type_id: int
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class CloneGlobalEventType:
+    org_id: int
+    global_event_type_id: int
+    triggered_by: Optional[int] = None
