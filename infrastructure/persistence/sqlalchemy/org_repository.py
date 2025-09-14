@@ -87,9 +87,18 @@ class SqlAlchemyOrgRepository(OrgRepository):
         location_records = DbManager.find_records(SALocation, [SALocation.org_id == sa_org.id])
         max_loc_id = 0
         for rec in location_records:
+            raw_name = rec.name or ""
+            # Allow hydration of legacy blank-name locations: synthesize a display name
+            # and mark legacy_blank_name=True so uniqueness indexing excludes them and
+            # the save adapter can write back blank unless renamed.
+            display_name = (
+                raw_name.strip()
+                or (rec.description or rec.address_street or rec.address_city or rec.address_state or rec.address_zip)
+                or "Unnamed Location"
+            )
             loc = Location(
                 id=LocationId(rec.id),
-                name=LocationName(rec.name),
+                name=LocationName(display_name),
                 description=rec.description,
                 latitude=rec.latitude,
                 longitude=rec.longitude,
@@ -100,6 +109,7 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 address_zip=rec.address_zip,
                 address_country=rec.address_country,
                 is_active=rec.is_active,
+                legacy_blank_name=(raw_name.strip() == ""),
             )
             org.locations[loc.id] = loc
             if rec.id and rec.id > max_loc_id:
@@ -240,11 +250,14 @@ class SqlAlchemyOrgRepository(OrgRepository):
                     org.locations[loc.id] = loc
                     org.locations.pop(old_id, None)
             else:
+                # If this is a legacy blank-name location and hasn't been explicitly
+                # renamed (legacy_blank_name still True), persist blank string for name
+                name_to_persist = loc.name.value if not getattr(loc, "legacy_blank_name", False) else ""
                 DbManager.update_record(
                     SALocation,
                     loc.id,
                     {
-                        SALocation.name: loc.name.value,
+                        SALocation.name: name_to_persist,
                         SALocation.description: loc.description,
                         SALocation.is_active: loc.is_active,
                         SALocation.latitude: loc.latitude,

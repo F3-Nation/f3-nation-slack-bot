@@ -84,6 +84,10 @@ class Location:
     address_zip: Optional[str] = None
     address_country: Optional[str] = None
     is_active: bool = True
+    # If True, this location was loaded from persistence with a blank name; the
+    # in-memory name is a display fallback only and should not be persisted
+    # back unless explicitly renamed via update_location(name=...).
+    legacy_blank_name: bool = False
 
 
 @dataclass
@@ -251,7 +255,12 @@ class Org:
         self._event_type_acronyms = {et.acronym.value for et in self.event_types.values() if et.is_active}
         self._event_tag_names = {t.name.value.lower() for t in self.event_tags.values() if t.is_active}
         self._position_names = {p.name.value.lower() for p in self.positions.values() if p.is_active}
-        self._location_names = {loc.name.value.lower() for loc in self.locations.values() if loc.is_active}
+        # Exclude legacy blank-name locations from uniqueness index to avoid false collisions
+        self._location_names = {
+            loc.name.value.lower()
+            for loc in self.locations.values()
+            if loc.is_active and not getattr(loc, "legacy_blank_name", False)
+        }
         return self
 
     # Locations
@@ -322,6 +331,9 @@ class Org:
                 raise ValueError("Duplicate location name")
             self._location_names.discard(loc.name.value.lower())
             loc.name = LocationName(name)
+            # Explicit rename clears legacy blank-name status so name will persist
+            if getattr(loc, "legacy_blank_name", False):
+                loc.legacy_blank_name = False
             self._location_names.add(norm)
             changes["name"] = loc.name.value
         if description is not None:
