@@ -224,6 +224,13 @@ def generate_calendar_images(force: bool = False):
                         df.loc[(df["event_tag"].notnull()), ("label")] = (
                             df["q_name"] + "\n" + df["event_tag"] + "\n" + df["event_time"]
                         )
+                        df.loc[(df["pax_count"].notna()) & (df["event_tag"].notnull()), ("label")] = (
+                            df["q_name"]
+                            + "\n"
+                            + df["event_tag"]
+                            + "\nPAX: "
+                            + df["pax_count"].astype(str).str.replace(".0", "")
+                        )
                         df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
                         df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
                             df["ao_name"] + "\n" + df["ao_description"]
