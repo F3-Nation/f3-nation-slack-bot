@@ -202,40 +202,7 @@ def get_user(slack_user_id: str, region_record: SlackSettings, client: WebClient
         try:
             # check to see if this user's email is already in the db
             user_info = client.users_info(user=slack_user_id)
-            email = safe_get(user_info, "user", "profile", "email")
-            email = email or slack_user_id  # this means it's a bot
-            email = email.lower()
-            user_name = safe_get(user_info, "user", "profile", "display_name") or safe_get(
-                user_info, "user", "profile", "real_name"
-            )
-            avatar_url = safe_get(user_info, "user", "profile", "image_192")
-            user_record = safe_get(DbManager.find_records(User, filters=[User.email == email]), 0)
-
-            # If not, create a new user record
-            if not user_record:
-                user_record = DbManager.create_record(
-                    User(
-                        email=email,
-                        f3_name=user_name,
-                        home_region_id=region_record.org_id,
-                    )
-                )
-
-            # Create a new slack user record
-            slack_user_record = DbManager.create_record(
-                SlackUser(
-                    user_id=user_record.id,
-                    slack_id=slack_user_id,
-                    email=email,
-                    user_name=user_name,
-                    avatar_url=avatar_url,
-                    is_admin=safe_get(user_info, "user", "is_admin") or False,
-                    is_owner=safe_get(user_info, "user", "is_owner") or False,
-                    is_bot=safe_get(user_info, "user", "is_bot") or False,
-                    slack_updated=safe_convert(user_info.get("user", "updated"), int),
-                    slack_team_id=region_record.team_id,
-                )
-            )
+            slack_user_record = create_user(user_info["user"], region_record.org_id)
 
             # Update SLACK_USERS with the new id
             SLACK_USERS[slack_user_id] = slack_user_record
@@ -244,6 +211,54 @@ def get_user(slack_user_id: str, region_record: SlackSettings, client: WebClient
             raise e
     else:
         return user
+
+
+def create_user(slack_user_info: dict, home_region_id: int | None = None) -> SlackUser:
+    email = safe_get(slack_user_info, "profile", "email")
+    email = email or safe_get(slack_user_info, "id")  # this means it's a bot
+    email = email.lower()
+    user_name = safe_get(slack_user_info, "profile", "display_name") or safe_get(
+        slack_user_info, "profile", "real_name"
+    )
+    avatar_url = safe_get(slack_user_info, "profile", "image_192")
+    user_record = safe_get(DbManager.find_records(User, filters=[User.email == email]), 0)
+
+    # If not, create a new user record
+    if not user_record:
+        user_record = DbManager.create_record(
+            User(
+                email=email,
+                f3_name=user_name,
+                home_region_id=home_region_id,
+            )
+        )
+
+    slack_user_record = safe_get(
+        DbManager.find_records(SlackUser, filters=[SlackUser.slack_id == slack_user_info.get("id")]), 0
+    )
+    if not slack_user_record:
+        # Create a new slack user record
+        slack_user_record = DbManager.create_record(
+            SlackUser(
+                user_id=safe_get(user_record, "id"),
+                slack_id=slack_user_info.get("id"),
+                email=email,
+                user_name=user_name,
+                avatar_url=avatar_url,
+                is_admin=safe_get(slack_user_info, "is_admin") or False,
+                is_owner=safe_get(slack_user_info, "is_owner") or False,
+                is_bot=safe_get(slack_user_info, "is_bot") or False,
+                slack_updated=safe_convert(slack_user_info.get("updated"), int),
+                slack_team_id=safe_get(slack_user_info, "team_id") or "NOT FOUND",
+            )
+        )
+    elif not safe_get(slack_user_record, "user_id"):
+        DbManager.update_record(SlackUser, slack_user_record.id, {SlackUser.user_id: safe_get(user_record, "id")})
+        slack_user_record.user_id = safe_get(user_record, "id")
+
+    # Update SLACK_USERS with the new id
+    SLACK_USERS[slack_user_info.get("id")] = slack_user_record
+    return slack_user_record
 
 
 def update_local_slack_users() -> None:
