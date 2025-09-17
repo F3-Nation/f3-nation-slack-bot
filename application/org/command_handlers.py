@@ -7,17 +7,24 @@ from .commands import (
     AddEventTag,
     AddEventType,
     AddLocation,
+    AddPosition,
+    AssignUserToPosition,
     CloneGlobalEventTag,
     CloneGlobalEventType,
+    CloneGlobalPosition,
     CreateAo,
     DeactivateAo,
+    ReplacePositionAssignments,
     SoftDeleteEventTag,
     SoftDeleteEventType,
     SoftDeleteLocation,
+    SoftDeletePosition,
+    UnassignUserFromPosition,
     UpdateAoProfile,
     UpdateEventTag,
     UpdateEventType,
     UpdateLocation,
+    UpdatePosition,
     UpdateRegionProfile,
 )
 
@@ -57,6 +64,20 @@ class OrgCommandHandler:
             return self._handle_update_ao_profile(command)
         if isinstance(command, DeactivateAo):
             return self._handle_deactivate_ao(command)
+        if isinstance(command, AddPosition):
+            return self._handle_add_position(command)
+        if isinstance(command, UpdatePosition):
+            return self._handle_update_position(command)
+        if isinstance(command, SoftDeletePosition):
+            return self._handle_soft_delete_position(command)
+        if isinstance(command, CloneGlobalPosition):
+            return self._handle_clone_global_position(command)
+        if isinstance(command, AssignUserToPosition):
+            return self._handle_assign_user_to_position(command)
+        if isinstance(command, UnassignUserFromPosition):
+            return self._handle_unassign_user_from_position(command)
+        if isinstance(command, ReplacePositionAssignments):
+            return self._handle_replace_position_assignments(command)
         raise ValueError(f"Unhandled command type: {type(command)}")
 
     def _handle_update_region_profile(self, cmd: UpdateRegionProfile):
@@ -122,7 +143,12 @@ class OrgCommandHandler:
         org = self.repo.get(cmd.org_id)
         if not org:
             raise ValueError("Org not found")
-        org.add_event_tag(name=global_tag.name, color=global_tag.color, triggered_by=cmd.triggered_by)
+        org.add_event_tag(
+            name=global_tag.name,
+            color=global_tag.color,
+            triggered_by=cmd.triggered_by,
+            allow_global_duplicate=True,
+        )
         org.version += 1
         self.repo.save(org)
         return org
@@ -181,6 +207,7 @@ class OrgCommandHandler:
             category=getattr(global_et, "event_category", "first_f"),
             acronym=global_et.acronym,
             triggered_by=cmd.triggered_by,
+            allow_global_duplicate=True,
         )
         org.version += 1
         self.repo.save(org)
@@ -323,3 +350,125 @@ class OrgCommandHandler:
             fields={EventInstance.is_active: False},
         )
         return True
+
+    # --- Position handlers ---
+    def _handle_add_position(self, cmd: AddPosition):
+        from domain.org.value_objects import UserId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.add_position(
+            name=cmd.name,
+            description=cmd.description,
+            org_type=cmd.org_type,
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+            allow_global_duplicate=cmd.allow_global_duplicate,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_update_position(self, cmd: UpdatePosition):
+        from domain.org.value_objects import PositionId, UserId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.update_position(
+            PositionId(cmd.position_id),
+            name=cmd.name,
+            description=cmd.description,
+            org_type=cmd.org_type,
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+            allow_global_duplicate=cmd.allow_global_duplicate,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_soft_delete_position(self, cmd: SoftDeletePosition):
+        from domain.org.value_objects import PositionId, UserId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.soft_delete_position(
+            PositionId(cmd.position_id),
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_clone_global_position(self, cmd: CloneGlobalPosition):
+        """Clone a global position (org_id is NULL) into this org as a custom position.
+        allow_global_duplicate flag is forced True to permit using a global name.
+        """
+        from f3_data_models.models import Position as SAPosition  # type: ignore
+        from f3_data_models.utils import DbManager  # type: ignore
+
+        from domain.org.value_objects import UserId
+
+        global_pos = DbManager.get(SAPosition, cmd.global_position_id)
+        if not global_pos or getattr(global_pos, "org_id", None) is not None:
+            raise ValueError("Global position not found")
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.add_position(
+            name=global_pos.name,
+            description=global_pos.description,
+            org_type=(global_pos.org_type.name if getattr(global_pos, "org_type", None) else None),
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+            allow_global_duplicate=True,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    # --- Position assignment handlers ---
+    def _handle_assign_user_to_position(self, cmd: AssignUserToPosition):
+        from domain.org.value_objects import PositionId, UserId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.assign_user_to_position(
+            PositionId(cmd.position_id),
+            UserId(cmd.user_id),
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_unassign_user_from_position(self, cmd: UnassignUserFromPosition):
+        from domain.org.value_objects import PositionId, UserId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.unassign_user_from_position(
+            PositionId(cmd.position_id),
+            UserId(cmd.user_id),
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org
+
+    def _handle_replace_position_assignments(self, cmd: ReplacePositionAssignments):
+        from domain.org.value_objects import PositionId, UserId
+
+        org = self.repo.get(cmd.org_id)
+        if not org:
+            raise ValueError("Org not found")
+        org.replace_position_assignments(
+            PositionId(cmd.position_id),
+            [UserId(uid) for uid in cmd.user_ids],
+            triggered_by=UserId(cmd.triggered_by) if cmd.triggered_by is not None else None,
+        )
+        org.version += 1
+        self.repo.save(org)
+        return org

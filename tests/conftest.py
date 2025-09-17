@@ -47,6 +47,20 @@ def _list_org_specific_ids(org_id: int):
     return et_ids, tag_ids, loc_ids
 
 
+def _list_org_positions(org_id: int):
+    """Return set of position IDs for a given org_id."""
+    try:
+        from f3_data_models.models import Position as ORMPosition  # type: ignore
+        from f3_data_models.utils import DbManager  # type: ignore
+    except Exception:
+        return set()
+    try:
+        records = DbManager.find_records(ORMPosition, [ORMPosition.org_id == org_id])
+    except Exception:
+        return set()
+    return {r.id for r in records}
+
+
 @pytest.fixture(autouse=True)
 def cleanup_test_org_function():
     """
@@ -68,18 +82,23 @@ def cleanup_test_org_function():
         return
 
     before_types, before_tags, before_locs = _list_org_specific_ids(org_id)
+    before_positions = _list_org_positions(org_id)
     yield
     after_types, after_tags, after_locs = _list_org_specific_ids(org_id)
+    after_positions = _list_org_positions(org_id)
 
     new_type_ids = after_types - before_types
     new_tag_ids = after_tags - before_tags
     new_loc_ids = after_locs - before_locs
+    new_position_ids = after_positions - before_positions
 
     # Best-effort deletion of newly created rows
     try:
         from f3_data_models.models import EventTag as ORMEventTag  # type: ignore
         from f3_data_models.models import EventType as ORMEventType
         from f3_data_models.models import Location as ORMLocation  # type: ignore
+        from f3_data_models.models import Position as ORMPosition  # type: ignore
+        from f3_data_models.models import Position_x_Org_x_User as ORMAssignment  # type: ignore
         from f3_data_models.utils import DbManager  # type: ignore
     except Exception:
         return
@@ -98,5 +117,16 @@ def cleanup_test_org_function():
     for loc_id in new_loc_ids:
         try:
             DbManager.delete_record(ORMLocation, loc_id)
+        except Exception:
+            pass
+    # Delete assignments, then positions
+    for pos_id in new_position_ids:
+        try:
+            DbManager.delete_records(ORMAssignment, [ORMAssignment.position_id == pos_id])
+        except Exception:
+            pass
+    for pos_id in new_position_ids:
+        try:
+            DbManager.delete_record(ORMPosition, pos_id)
         except Exception:
             pass

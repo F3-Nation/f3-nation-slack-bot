@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from .value_objects import EventTagId, EventTypeId, LocationId, OrgId, UserId
+from .value_objects import EventTagId, EventTypeId, LocationId, OrgId, PositionId, UserId
 
 
 def _ts() -> datetime:
@@ -136,4 +136,82 @@ class LocationDeleted(DomainEvent):
             triggered_by=triggered_by,
             name="LocationDeleted",
             payload={"location_id": location_id},
+        )
+
+
+# Position events
+@dataclass
+class PositionCreated(DomainEvent):
+    @staticmethod
+    def create(
+        org_id: OrgId,
+        position_id: PositionId,
+        name: str,
+        org_type: Optional[str],
+        triggered_by: Optional[UserId],
+    ):
+        return PositionCreated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="PositionCreated",
+            payload={"position_id": position_id, "name": name, "org_type": org_type},
+        )
+
+
+@dataclass
+class PositionUpdated(DomainEvent):
+    @staticmethod
+    def create(
+        org_id: OrgId,
+        position_id: PositionId,
+        fields: Dict[str, Any],
+        triggered_by: Optional[UserId],
+    ):
+        return PositionUpdated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="PositionUpdated",
+            payload={"position_id": position_id, "fields": fields},
+        )
+
+
+@dataclass
+class PositionDeleted(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, position_id: PositionId, triggered_by: Optional[UserId]):
+        return PositionDeleted(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="PositionDeleted",
+            payload={"position_id": position_id},
+        )
+
+
+# Position assignment events
+@dataclass
+class PositionAssigned(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, position_id: PositionId, user_id: UserId, triggered_by: Optional[UserId]):
+        return PositionAssigned(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="PositionAssigned",
+            payload={"position_id": position_id, "user_id": user_id},
+        )
+
+
+@dataclass
+class PositionUnassigned(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, position_id: PositionId, user_id: UserId, triggered_by: Optional[UserId]):
+        return PositionUnassigned(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="PositionUnassigned",
+            payload={"position_id": position_id, "user_id": user_id},
         )

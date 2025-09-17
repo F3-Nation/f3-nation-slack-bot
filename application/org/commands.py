@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import List, Optional
 
 
 @dataclass
@@ -160,4 +160,69 @@ class UpdateAoProfile:
 @dataclass
 class DeactivateAo:
     ao_id: int
+    triggered_by: Optional[int] = None
+
+
+# --- Position Commands ---
+
+
+@dataclass
+class AddPosition:
+    org_id: int
+    name: str
+    description: Optional[str] = None
+    org_type: Optional[str] = None  # 'region', 'ao', etc. None applies to all
+    triggered_by: Optional[int] = None
+    allow_global_duplicate: bool = False
+
+
+@dataclass
+class UpdatePosition:
+    org_id: int
+    position_id: int
+    name: Optional[str] = None
+    description: Optional[str] = None
+    org_type: Optional[str] = None
+    triggered_by: Optional[int] = None
+    allow_global_duplicate: bool = False
+
+
+@dataclass
+class SoftDeletePosition:
+    org_id: int
+    position_id: int
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class CloneGlobalPosition:
+    org_id: int
+    global_position_id: int
+    triggered_by: Optional[int] = None
+
+
+# --- Position Assignment Commands ---
+
+
+@dataclass
+class AssignUserToPosition:
+    org_id: int
+    position_id: int
+    user_id: int
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class UnassignUserFromPosition:
+    org_id: int
+    position_id: int
+    user_id: int
+    triggered_by: Optional[int] = None
+
+
+@dataclass
+class ReplacePositionAssignments:
+    org_id: int
+    position_id: int
+    user_ids: List[int]
     triggered_by: Optional[int] = None

@@ -1,15 +1,20 @@
 from __future__ import annotations
 
-from typing import List, Optional
+import os
+import time
+from typing import Dict, List, Optional, Set, Tuple
 
 from f3_data_models.models import EventTag as SAEventTag  # type: ignore
 from f3_data_models.models import EventType as SAEventType  # type: ignore
 from f3_data_models.models import Location as SALocation  # type: ignore
 from f3_data_models.models import Org as SAOrg  # type: ignore
+from f3_data_models.models import Org_Type as SAOrgType  # type: ignore
+from f3_data_models.models import Position as SAPosition  # type: ignore
+from f3_data_models.models import Position_x_Org_x_User as SAPositionAssignment  # type: ignore
 from f3_data_models.utils import DbManager
 
 from domain.org import entities as domain_entities
-from domain.org.entities import EventTag, EventType, Location, Org
+from domain.org.entities import EventTag, EventType, Location, Org, Position
 from domain.org.repository import OrgRepository
 from domain.org.value_objects import (
     Acronym,
@@ -20,6 +25,8 @@ from domain.org.value_objects import (
     LocationId,
     LocationName,
     OrgId,
+    PositionId,
+    PositionName,
 )
 
 """SQLAlchemy implementation of OrgRepository.
@@ -30,6 +37,66 @@ Later we can optimize queries and handle version checking.
 
 
 class SqlAlchemyOrgRepository(OrgRepository):
+    # Simple in-process TTL cache for global catalogs to avoid frequent DB hits
+    _GLOBAL_CACHE: dict = {
+        "expires": 0.0,
+        "type_names": set(),
+        "type_acros": set(),
+        "tag_names": set(),
+        "position_names_by_type": {},
+    }
+    _GLOBAL_TTL_SEC: int = int(os.environ.get("ORG_GLOBAL_CATALOG_TTL", "300"))
+
+    @classmethod
+    def _get_global_catalog(cls) -> Tuple[Set[str], Set[str], Set[str], Dict[Optional[str], Set[str]]]:
+        now = time.time()
+        if now < float(cls._GLOBAL_CACHE.get("expires", 0)):
+            return (
+                set(cls._GLOBAL_CACHE.get("type_names", set())),
+                set(cls._GLOBAL_CACHE.get("type_acros", set())),
+                set(cls._GLOBAL_CACHE.get("tag_names", set())),
+                dict(cls._GLOBAL_CACHE.get("position_names_by_type", {})),
+            )
+        # Fetch active global (specific_org_id is NULL) types/tags
+        type_filters = [SAEventType.specific_org_id.is_(None)]
+        if hasattr(SAEventType, "is_active"):
+            type_filters.append(SAEventType.is_active.is_(True))
+        tag_filters = [SAEventTag.specific_org_id.is_(None)]
+        if hasattr(SAEventTag, "is_active"):
+            tag_filters.append(SAEventTag.is_active.is_(True))
+        global_types = DbManager.find_records(SAEventType, type_filters)
+        global_tags = DbManager.find_records(SAEventTag, tag_filters)
+        # Global positions are those with org_id is NULL
+        pos_filters = [SAPosition.org_id.is_(None)]
+        global_positions = DbManager.find_records(SAPosition, pos_filters)
+        type_names = {str(getattr(t, "name", "")).strip().lower() for t in global_types if getattr(t, "name", None)}
+        type_acros = {
+            (str(getattr(t, "acronym", None)) or str(getattr(t, "name", ""))[:2]).strip().upper() for t in global_types
+        }
+        tag_names = {str(getattr(t, "name", "")).strip().lower() for t in global_tags if getattr(t, "name", None)}
+        # Build map of org_type -> set of names (normalized lower)
+        pos_map: Dict[Optional[str], Set[str]] = {}
+        for p in global_positions:
+            key = None
+            ot = getattr(p, "org_type", None)
+            if ot is not None:
+                try:
+                    key = str(ot.name).strip().lower()
+                except Exception:
+                    key = str(ot).strip().lower()
+            bucket = pos_map.setdefault(key, set())
+            nm = str(getattr(p, "name", "")).strip().lower()
+            if nm:
+                bucket.add(nm)
+        cls._GLOBAL_CACHE = {
+            "expires": now + cls._GLOBAL_TTL_SEC,
+            "type_names": type_names,
+            "type_acros": type_acros,
+            "tag_names": tag_names,
+            "position_names_by_type": pos_map,
+        }
+        return set(type_names), set(type_acros), set(tag_names), pos_map
+
     def get(self, org_id: OrgId) -> Optional[Org]:
         sa_org: SAOrg = DbManager.get(SAOrg, org_id)
         if not sa_org:
@@ -114,7 +181,41 @@ class SqlAlchemyOrgRepository(OrgRepository):
             org.locations[loc.id] = loc
             if rec.id and rec.id > max_loc_id:
                 max_loc_id = rec.id
+        # load positions for this org (no is_active column; treat all as active)
+        position_records = DbManager.find_records(SAPosition, [SAPosition.org_id == sa_org.id])
+        max_pos_id = 0
+        for rec in position_records:
+            # Map SA Org_Type enum to lower-case string key
+            ot = getattr(rec, "org_type", None)
+            org_type_key: Optional[str] = None
+            if ot is not None:
+                try:
+                    org_type_key = str(ot.name).strip().lower()
+                except Exception:
+                    org_type_key = str(ot).strip().lower()
+            pos = Position(
+                id=PositionId(rec.id),
+                name=PositionName(rec.name),
+                org_type=org_type_key,
+                description=rec.description,
+                is_active=True,
+            )
+            org.positions[pos.id] = pos
+            if rec.id and rec.id > max_pos_id:
+                max_pos_id = rec.id
         org.rebuild_indexes()
+        # set global catalogs for invariant checks (cached)
+        try:
+            type_names, type_acros, tag_names, pos_map = self._get_global_catalog()
+            org.set_global_catalog(
+                event_type_names=type_names,
+                event_type_acronyms=type_acros,
+                event_tag_names=tag_names,
+                position_names_by_type=pos_map,
+            )
+        except Exception:
+            # best-effort; continue without global catalogs if lookup fails
+            pass
         # advance in-memory id sequences to avoid collisions for new domain-created entities
         try:
             if getattr(domain_entities, "_event_type_seq", None) is not None:
@@ -123,6 +224,8 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 domain_entities._event_tag_seq._v = max(domain_entities._event_tag_seq._v, int(max_tag_id))
             if getattr(domain_entities, "_location_seq", None) is not None:
                 domain_entities._location_seq._v = max(domain_entities._location_seq._v, int(max_loc_id))
+            if getattr(domain_entities, "_position_seq", None) is not None:
+                domain_entities._position_seq._v = max(domain_entities._position_seq._v, int(max_pos_id))
         except Exception:  # pragma: no cover - best-effort safety
             pass
         return org
@@ -270,3 +373,73 @@ class SqlAlchemyOrgRepository(OrgRepository):
                         SALocation.address_country: loc.address_country,
                     },
                 )
+
+        # position changes (simple upsert; no soft-delete tracking available)
+        existing_positions = {rec.id: rec for rec in DbManager.find_records(SAPosition, [SAPosition.org_id == org.id])}
+        for pos in list(org.positions.values()):
+            # Persist only positions that belong to this org (org-level custom positions)
+            if pos.id not in existing_positions:
+                # Map org_type key (str) back to SA enum by name
+                sa_org_type = None
+                try:
+                    sa_org_type = SAOrgType[pos.org_type] if pos.org_type else None
+                except Exception:
+                    sa_org_type = None
+                sa_obj = DbManager.create_record(
+                    SAPosition(
+                        name=pos.name.value,
+                        description=pos.description,
+                        org_type=sa_org_type,
+                        org_id=org.id,
+                    )
+                )
+                if sa_obj.id != pos.id:
+                    old_id = pos.id
+                    pos.id = PositionId(sa_obj.id)
+                    org.positions[pos.id] = pos
+                    org.positions.pop(old_id, None)
+            else:
+                # Update name/description/org_type
+                try:
+                    sa_org_type = SAOrgType[pos.org_type] if pos.org_type else None
+                except Exception:
+                    sa_org_type = None
+                fields = {
+                    SAPosition.name: pos.name.value,
+                    SAPosition.description: pos.description,
+                    SAPosition.org_type: sa_org_type,
+                    SAPosition.org_id: org.id,
+                }
+                DbManager.update_record(SAPosition, pos.id, fields)
+
+        # Invalidate global position cache if any positions were added/updated that might affect cloning uniqueness
+        # Simplistic approach: always expire cache after any position persistence for now.
+        try:  # pragma: no cover - cache invalidation best-effort
+            self._GLOBAL_CACHE["expires"] = 0.0
+        except Exception:
+            pass
+
+        # Persist position assignments (replace strategy per position)
+        try:  # pragma: no cover - best-effort for now
+            existing_assignments = DbManager.find_records(SAPositionAssignment, [SAPositionAssignment.org_id == org.id])
+            # Build current mapping: position_id -> set[user_id]
+            current_map: Dict[int, set[int]] = {}
+            for rec in existing_assignments:
+                current_map.setdefault(rec.position_id, set()).add(rec.user_id)
+            # Desired state from aggregate
+            for pos_id, user_set in org.position_assignments.items():
+                pid_int = int(pos_id)  # type: ignore[arg-type]
+                desired = {int(u) for u in user_set}
+                existing = current_map.get(pid_int, set())
+                if desired == existing:
+                    continue
+                # Remove existing rows for this position/org
+                DbManager.delete_records(
+                    SAPositionAssignment,
+                    filters=[SAPositionAssignment.org_id == org.id, SAPositionAssignment.position_id == pid_int],
+                )
+                # Insert desired
+                for uid in desired:
+                    DbManager.create_record(SAPositionAssignment(org_id=org.id, position_id=pid_int, user_id=uid))
+        except Exception:
+            pass
