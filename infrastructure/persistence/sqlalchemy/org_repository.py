@@ -443,3 +443,75 @@ class SqlAlchemyOrgRepository(OrgRepository):
                     DbManager.create_record(SAPositionAssignment(org_id=org.id, position_id=pid_int, user_id=uid))
         except Exception:
             pass
+
+    # --- Query helpers (DDD read adapters) ---
+    def get_locations_and_event_types(
+        self,
+        org_id: OrgId,
+        *,
+        include_global_event_types: bool = True,
+        only_active: bool = True,
+    ) -> Tuple[List[Location], List[EventType]]:
+        """Return (locations, event_types) for a region org.
+
+        include_global_event_types: if True, prepend active global (specific_org_id NULL) event types.
+        only_active: if True filter out inactive rows.
+        Order: alphabetical by name.
+        """
+        # Locations tied to org_id
+        loc_filters = [SALocation.org_id == int(org_id)]
+        if only_active and hasattr(SALocation, "is_active"):
+            loc_filters.append(SALocation.is_active.is_(True))  # type: ignore[attr-defined]
+        sa_locs = DbManager.find_records(SALocation, loc_filters)
+        locs: List[Location] = []
+        for rec in sa_locs:
+            raw_name = rec.name or ""
+            display_name = (
+                raw_name.strip()
+                or (rec.description or rec.address_street or rec.address_city or rec.address_state or rec.address_zip)
+                or "Unnamed Location"
+            )
+            locs.append(
+                Location(
+                    id=LocationId(rec.id),
+                    name=LocationName(display_name),
+                    description=rec.description,
+                    latitude=rec.latitude,
+                    longitude=rec.longitude,
+                    address_street=rec.address_street,
+                    address_street2=rec.address_street2,
+                    address_city=rec.address_city,
+                    address_state=rec.address_state,
+                    address_zip=rec.address_zip,
+                    address_country=rec.address_country,
+                    is_active=rec.is_active,
+                    legacy_blank_name=(raw_name.strip() == ""),
+                )
+            )
+        # Event types: custom + optional globals
+        et_filters = [SAEventType.specific_org_id == int(org_id)]
+        if only_active and hasattr(SAEventType, "is_active"):
+            et_filters.append(SAEventType.is_active.is_(True))  # type: ignore[attr-defined]
+        sa_custom_types = DbManager.find_records(SAEventType, et_filters)
+        sa_global_types: List[SAEventType] = []
+        if include_global_event_types:
+            g_filters = [SAEventType.specific_org_id.is_(None)]
+            if only_active and hasattr(SAEventType, "is_active"):
+                g_filters.append(SAEventType.is_active.is_(True))  # type: ignore[attr-defined]
+            sa_global_types = DbManager.find_records(SAEventType, g_filters)
+        event_types: List[EventType] = []
+        # First global, then custom (will sort later)
+        for rec in list(sa_global_types) + list(sa_custom_types):
+            event_types.append(
+                EventType(
+                    id=EventTypeId(rec.id),
+                    name=EventTypeName(rec.name),
+                    acronym=Acronym(rec.acronym or rec.name[:2]),
+                    category=getattr(rec, "event_category", "first_f"),
+                    is_active=getattr(rec, "is_active", True),
+                )
+            )
+        # Sort alpha by name
+        locs.sort(key=lambda loc: loc.name.value.lower())
+        event_types.sort(key=lambda et: et.name.value.lower())
+        return locs, event_types

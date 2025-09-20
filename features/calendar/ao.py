@@ -47,10 +47,33 @@ def build_ao_add_form(
 ):
     form = copy.deepcopy(AO_FORM)
 
-    # Pull locations and event types for the region
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
-    locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
-    event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
+    # Pull locations and event types (DDD path optionally includes global types)
+    if use_ddd:
+        repo = SqlAlchemyOrgRepository()
+        # DDD repository returns domain objects; adapt to legacy helpers expecting attributes like .name
+        ddd_locations, ddd_event_types = repo.get_locations_and_event_types(region_record.org_id)
+        locations = [
+            # create lightweight adapter object with .id, .name for existing UI code
+            type("LocAdapter", (), {"id": int(loc.id), "name": loc.name.value, "description": loc.description})
+            for loc in ddd_locations
+        ]
+        event_types = [
+            type(
+                "EtAdapter",
+                (),
+                {
+                    "id": int(et.id),
+                    "name": et.name.value,
+                    "acronym": et.acronym.value,
+                    "category": et.category,
+                },
+            )
+            for et in ddd_event_types
+        ]
+    else:
+        region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+        locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
+        event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
 
     form.set_options(
         {
