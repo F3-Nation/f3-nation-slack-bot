@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from .events import (
     EventTagCreated,
@@ -109,6 +109,9 @@ class Org:
     facebook: Optional[str] = None
     instagram: Optional[str] = None
     logo_url: Optional[str] = None
+    # AO/Org-specific metadata and preferences
+    meta: Optional[Dict[str, Any]] = None
+    default_location_id: Optional[int] = None
     version: int = 0
     # collections
     event_types: Dict[EventTypeId, EventType] = field(default_factory=dict)

@@ -114,6 +114,8 @@ class SqlAlchemyOrgRepository(OrgRepository):
             facebook=getattr(sa_org, "facebook", None),
             instagram=getattr(sa_org, "instagram", None),
             logo_url=getattr(sa_org, "logo_url", None),
+            meta=getattr(sa_org, "meta", None),
+            default_location_id=getattr(sa_org, "default_location_id", None),
             version=getattr(sa_org, "version", 0) or 0,
         )
         # load custom event types for this org
@@ -250,6 +252,8 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 facebook=getattr(sa_org, "facebook", None),
                 instagram=getattr(sa_org, "instagram", None),
                 logo_url=getattr(sa_org, "logo_url", None),
+                meta=getattr(sa_org, "meta", None),
+                default_location_id=getattr(sa_org, "default_location_id", None),
                 version=getattr(sa_org, "version", 0) or 0,
             )
             # children are returned without loading collections for performance

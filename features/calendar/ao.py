@@ -3,8 +3,6 @@ import json
 from logging import Logger
 
 import requests
-from f3_data_models.models import Org
-from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from application.org.command_handlers import OrgCommandHandler
@@ -12,7 +10,12 @@ from application.org.commands import CreateAo, DeactivateAo, UpdateAoProfile
 from application.services.org_query_service import OrgQueryService
 from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_convert, safe_get, trigger_map_revalidation, upload_files_to_storage
+from utilities.helper_functions import (
+    safe_convert,
+    safe_get,
+    trigger_map_revalidation,
+    upload_files_to_storage,
+)
 from utilities.slack import actions, orm
 
 
@@ -31,9 +34,9 @@ def build_ao_add_form(
     logger: Logger,
     context: dict,
     region_record: SlackSettings,
-    edit_ao: Org = None,
-    update_view_id: str = None,
-    update_metadata: dict = None,
+    edit_ao_id: int | None = None,
+    update_view_id: str | None = None,
+    update_metadata: dict | None = None,
 ):
     form = copy.deepcopy(AO_FORM)
 
@@ -56,6 +59,10 @@ def build_ao_add_form(
         }
     )
 
+    edit_ao = None
+    if edit_ao_id is not None:
+        # fetch AO via repository to avoid direct Db access here
+        edit_ao = repo.get(edit_ao_id)
     if edit_ao:
         slack_id = safe_get(edit_ao.meta, "slack_channel_id")
         form.set_initial_values(
@@ -92,7 +99,7 @@ def build_ao_add_form(
             title_text=title_text,
             callback_id=actions.ADD_AO_CALLBACK_ID,
             new_or_add="add",
-            parent_metadata={"ao_id": edit_ao.id} if edit_ao else {},
+            parent_metadata={"ao_id": int(edit_ao.id)} if edit_ao else {},
         )
 
 
@@ -107,13 +114,6 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
             files=[file], logger=logger, client=client, enforce_square=True, max_height=512
         )
         logo_url = safe_get(file_list, 0)
-        # try:
-        #     r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
-        #     r.raise_for_status()
-        #     logo = r.content
-        # except Exception as exc:
-        #     logger.error(f"Error downloading file: {exc}")
-        #     logo = None
     else:
         logo_url = None
 
@@ -193,8 +193,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        ao: Org = DbManager.get(Org, ao_id, joinedloads="all")
-        build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao)
+        build_ao_add_form(body, client, logger, context, region_record, edit_ao_id=ao_id)
     elif action == "Delete":
         repo = SqlAlchemyOrgRepository()
         handler = OrgCommandHandler(repo)
