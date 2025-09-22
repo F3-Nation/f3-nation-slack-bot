@@ -427,7 +427,7 @@ INSTANCE_FORM = orm.BlockView(
             label="Location",
             action=CALENDAR_ADD_EVENT_INSTANCE_LOCATION,
             element=orm.StaticSelectElement(placeholder="Select the location"),
-            optional=False,
+            optional=True,
         ),
         orm.InputBlock(
             label="Event Type",

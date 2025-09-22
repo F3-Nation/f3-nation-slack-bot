@@ -120,13 +120,6 @@ BACKBLAST_FORM = orm.BlockView(
                 initial_value="yes",
             ),
         ),
-        orm.ContextBlock(
-            element=orm.ContextElement(
-                initial_value="*Do not hit Submit more than once!* Even if you get a timeout error, the backblast has "
-                "likely already been posted. If using email, this can take time and this form may not automatically "
-                "close.",
-            ),
-        ),
     ]
 )
 
@@ -184,12 +177,6 @@ PREBLAST_FORM = orm.BlockView(
             action=actions.PREBLAST_DESTINATION,
             optional=False,
             element=orm.StaticSelectElement(placeholder="Select a destination..."),
-        ),
-        orm.ContextBlock(
-            element=orm.ContextElement(
-                initial_value="*Do not hit Submit more than once!* Even if you get a timeout error, the preblast has "
-                "likely already been posted. This form may not automatically close.",
-            ),
         ),
     ]
 )
@@ -824,13 +811,6 @@ BACKBLAST_LEGACY_FORM = orm.BlockView(
                 initial_value="yes",
             ),
         ),
-        orm.ContextBlock(
-            element=orm.ContextElement(
-                initial_value="*Do not hit Submit more than once!* Even if you get a timeout error, the backblast has "
-                "likely already been posted. If using email, this can take time and this form may not automatically "
-                "close.",
-            ),
-        ),
     ]
 )
 
@@ -888,12 +868,6 @@ PREBLAST_LEGACY_FORM = orm.BlockView(
             action=actions.PREBLAST_DESTINATION,
             optional=False,
             element=orm.StaticSelectElement(placeholder="Select a destination..."),
-        ),
-        orm.ContextBlock(
-            element=orm.ContextElement(
-                initial_value="*Do not hit Submit more than once!* Even if you get a timeout error, the preblast has "
-                "likely already been posted. This form may not automatically close.",
-            ),
         ),
     ]
 )
