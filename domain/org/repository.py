@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
-from .entities import EventType, Location, Org
+from .entities import EventTag, EventType, Location, Org, Position
 from .value_objects import OrgId
 
 
@@ -21,10 +21,17 @@ class OrgRepository(ABC):
 
     # Query helpers
     @abstractmethod
-    def get_locations_and_event_types(
-        self,
-        org_id: OrgId,
-        *,
-        include_global_event_types: bool = True,
-        only_active: bool = True,
-    ) -> Tuple[List[Location], List[EventType]]: ...
+    def get_locations(self, org_id: OrgId, *, only_active: bool = True) -> List[Location]: ...
+
+    @abstractmethod
+    def get_event_types(
+        self, org_id: OrgId, *, include_global: bool = True, only_active: bool = True
+    ) -> List[EventType]: ...
+
+    @abstractmethod
+    def get_event_tags(
+        self, org_id: OrgId, *, include_global: bool = True, only_active: bool = True
+    ) -> List[EventTag]: ...
+
+    @abstractmethod
+    def get_positions(self, org_id: OrgId, *, include_global: bool = True) -> List[Position]: ...

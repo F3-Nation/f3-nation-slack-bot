@@ -515,3 +515,116 @@ class SqlAlchemyOrgRepository(OrgRepository):
         locs.sort(key=lambda loc: loc.name.value.lower())
         event_types.sort(key=lambda et: et.name.value.lower())
         return locs, event_types
+
+    def get_locations(self, org_id: OrgId, *, only_active: bool = True) -> List[Location]:
+        loc_filters = [SALocation.org_id == int(org_id)]
+        if only_active and hasattr(SALocation, "is_active"):
+            loc_filters.append(SALocation.is_active.is_(True))  # type: ignore[attr-defined]
+        sa_locs = DbManager.find_records(SALocation, loc_filters)
+        locs: List[Location] = []
+        for rec in sa_locs:
+            raw_name = rec.name or ""
+            display_name = (
+                raw_name.strip()
+                or (rec.description or rec.address_street or rec.address_city or rec.address_state or rec.address_zip)
+                or "Unnamed Location"
+            )
+            locs.append(
+                Location(
+                    id=LocationId(rec.id),
+                    name=LocationName(display_name),
+                    description=rec.description,
+                    latitude=rec.latitude,
+                    longitude=rec.longitude,
+                    address_street=rec.address_street,
+                    address_street2=rec.address_street2,
+                    address_city=rec.address_city,
+                    address_state=rec.address_state,
+                    address_zip=rec.address_zip,
+                    address_country=rec.address_country,
+                    is_active=rec.is_active,
+                    legacy_blank_name=(raw_name.strip() == ""),
+                )
+            )
+        locs.sort(key=lambda loc: loc.name.value.lower())
+        return locs
+
+    def get_event_types(
+        self, org_id: OrgId, *, include_global: bool = True, only_active: bool = True
+    ) -> List[EventType]:
+        # Custom types
+        filters = [SAEventType.specific_org_id == int(org_id)]
+        if only_active and hasattr(SAEventType, "is_active"):
+            filters.append(SAEventType.is_active.is_(True))  # type: ignore[attr-defined]
+        custom = DbManager.find_records(SAEventType, filters)
+        global_rows: List[SAEventType] = []
+        if include_global:
+            g_filters = [SAEventType.specific_org_id.is_(None)]
+            if only_active and hasattr(SAEventType, "is_active"):
+                g_filters.append(SAEventType.is_active.is_(True))  # type: ignore[attr-defined]
+            global_rows = DbManager.find_records(SAEventType, g_filters)
+        results: List[EventType] = []
+        for rec in list(global_rows) + list(custom):
+            results.append(
+                EventType(
+                    id=EventTypeId(rec.id),
+                    name=EventTypeName(rec.name),
+                    acronym=Acronym(rec.acronym or rec.name[:2]),
+                    category=getattr(rec, "event_category", "first_f"),
+                    is_active=getattr(rec, "is_active", True),
+                )
+            )
+        results.sort(key=lambda et: et.name.value.lower())
+        return results
+
+    def get_event_tags(self, org_id: OrgId, *, include_global: bool = True, only_active: bool = True) -> List[EventTag]:
+        # Custom tags
+        filters = [SAEventTag.specific_org_id == int(org_id)]
+        if only_active and hasattr(SAEventTag, "is_active"):
+            filters.append(SAEventTag.is_active.is_(True))  # type: ignore[attr-defined]
+        custom = DbManager.find_records(SAEventTag, filters)
+        global_rows: List[SAEventTag] = []
+        if include_global:
+            g_filters = [SAEventTag.specific_org_id.is_(None)]
+            if only_active and hasattr(SAEventTag, "is_active"):
+                g_filters.append(SAEventTag.is_active.is_(True))  # type: ignore[attr-defined]
+            global_rows = DbManager.find_records(SAEventTag, g_filters)
+        results: List[EventTag] = []
+        for rec in list(global_rows) + list(custom):
+            results.append(
+                EventTag(
+                    id=EventTagId(rec.id),
+                    name=EventTagName(rec.name),
+                    color=getattr(rec, "color", "#000000"),
+                    is_active=getattr(rec, "is_active", True),
+                )
+            )
+        results.sort(key=lambda t: t.name.value.lower())
+        return results
+
+    def get_positions(self, org_id: OrgId, *, include_global: bool = True) -> List[Position]:
+        # Custom positions
+        custom = DbManager.find_records(SAPosition, [SAPosition.org_id == int(org_id)])
+        global_rows: List[SAPosition] = []
+        if include_global:
+            global_rows = DbManager.find_records(SAPosition, [SAPosition.org_id.is_(None)])
+        results: List[Position] = []
+        for rec in list(global_rows) + list(custom):
+            org_type_key: Optional[str] = None
+            ot = getattr(rec, "org_type", None)
+            if ot is not None:
+                try:
+                    org_type_key = str(ot.name).strip().lower()
+                except Exception:
+                    org_type_key = str(ot).strip().lower()
+            results.append(
+                Position(
+                    id=PositionId(rec.id),
+                    name=PositionName(rec.name),
+                    org_type=org_type_key,
+                    description=getattr(rec, "description", None),
+                    is_active=True,
+                )
+            )
+        results.sort(key=lambda p: p.name.value.lower())
+        return results
