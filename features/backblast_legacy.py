@@ -160,7 +160,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     if not is_duplicate:
         backblast_form.delete_block(actions.BACKBLAST_DUPLICATE_WARNING)
 
-    if backblast_method == "edit" or duplicate_check:
+    if (backblast_method == "edit" or duplicate_check) and initial_backblast_data:
         backblast_form.set_initial_values(initial_backblast_data)
 
     if backblast_method == "edit":
