@@ -1,16 +1,14 @@
 import copy
 import json
-import os
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import EventTag, Org
-from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import DividerBlock, InputBlock, SectionBlock
 from slack_sdk.models.blocks.basic_components import ConfirmObject, PlainTextObject
 from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.web import WebClient
 
+from application.dto import EventTagDTO
 from application.org.command_handlers import OrgCommandHandler
 from application.org.commands import (
     AddEventTag,
@@ -18,13 +16,12 @@ from application.org.commands import (
     SoftDeleteEventTag,
     UpdateEventTag,
 )
+from application.services.org_query_service import OrgQueryService
 from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
-
-use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
 
 # Action IDs
 CALENDAR_MANAGE_EVENT_TAGS = "calendar-manage-event-tags"
@@ -37,82 +34,13 @@ EDIT_DELETE_AO_CALLBACK_ID = "edit-delete-ao-id"
 CALENDAR_EVENT_TAG_COLORS_IN_USE = "calendar-event-tag-colors-in-use"
 
 
-class EventTagService:
-    """
-    A service class for handling business logic related to event tags.
-    """
-
-    @staticmethod
-    def get_org_event_tags(org_id: str) -> List[EventTag]:
-        """
-        Fetches the event tags associated with a specific organization.
-        """
-        org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
-        return org_record.event_tags
-
-    @staticmethod
-    def get_available_global_tags(org_id: str) -> List[EventTag]:
-        """
-        Fetches global event tags that the organization has not yet added.
-        """
-        all_event_tags: List[EventTag] = DbManager.find_records(EventTag, [True])
-        org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
-        org_event_tag_ids = {e.id for e in org_record.event_tags}
-        return [tag for tag in all_event_tags if tag.id not in org_event_tag_ids]
-
-    @staticmethod
-    def add_global_tag_to_org(tag_id: int, org_id: str):
-        """
-        Associates an existing global event tag with an organization.
-        """
-        event_tag: EventTag = DbManager.get(EventTag, tag_id)
-        DbManager.create_record(
-            EventTag(
-                name=event_tag.name,
-                color=event_tag.color,
-                specific_org_id=org_id,
-            )
-        )
-
-    @staticmethod
-    def create_org_specific_tag(name: str, color: str, org_id: str):
-        """
-        Creates a new event tag that is specific to an organization.
-        """
-        DbManager.create_record(
-            EventTag(
-                name=name,
-                color=color,
-                specific_org_id=org_id,
-            )
-        )
-
-    @staticmethod
-    def update_org_specific_tag(tag_id: int, name: str, color: str):
-        """
-        Updates an organization-specific event tag.
-        """
-        DbManager.update_record(
-            EventTag,
-            tag_id,
-            {EventTag.color: color, EventTag.name: name},
-        )
-
-    @staticmethod
-    def delete_org_specific_tag(tag_id: int):
-        """
-        Deletes an organization-specific event tag.
-        """
-        DbManager.delete_record(EventTag, tag_id)
-
-
 class EventTagViews:
     """
     A class for building Slack modal views related to event tags.
     """
 
     @staticmethod
-    def build_add_tag_modal(available_tags: List[EventTag], org_tags: List[EventTag]) -> SdkBlockView:
+    def build_add_tag_modal(available_tags: List[EventTagDTO], org_tags: List[EventTagDTO]) -> SdkBlockView:
         """
         Constructs the modal for adding a new or existing event tag.
         """
@@ -132,7 +60,7 @@ class EventTagViews:
         return form
 
     @staticmethod
-    def build_edit_tag_modal(tag_to_edit: EventTag, org_tags: List[EventTag]) -> SdkBlockView:
+    def build_edit_tag_modal(tag_to_edit: EventTagDTO, org_tags: List[EventTagDTO]) -> SdkBlockView:
         """
         Constructs the modal for editing an existing event tag.
         """
@@ -160,7 +88,7 @@ class EventTagViews:
         return form
 
     @staticmethod
-    def build_tag_list_modal(org_tags: List[EventTag]) -> SdkBlockView:
+    def build_tag_list_modal(org_tags: List[EventTagDTO]) -> SdkBlockView:
         """
         Constructs the modal that lists an organization's event tags, with options to edit or delete them.
         """
@@ -181,20 +109,23 @@ class EventTagViews:
                 ),
             )
             for s in org_tags
-            if s.is_active
         ]
         return SdkBlockView(blocks=blocks)
 
 
 def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    service = EventTagService()
     views = EventTagViews()
 
-    # Data retrieval identical for legacy/domain (read model not yet split)
+    repo = SqlAlchemyOrgRepository()
+    qs = OrgQueryService(repo)
+
     if action == "add":
-        available_tags = service.get_available_global_tags(region_record.org_id)
-        org_tags = service.get_org_event_tags(region_record.org_id)
+        # available = (global + region) - (region)
+        org_tags = qs.get_event_tags(region_record.org_id, include_global=False)
+        all_tags = qs.get_event_tags(region_record.org_id, include_global=True)
+        org_ids = {t.id for t in org_tags}
+        available_tags = [t for t in all_tags if t.id not in org_ids]
         form = views.build_add_tag_modal(available_tags, org_tags)
         form.post_modal(
             client=client,
@@ -204,7 +135,7 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
             new_or_add="add",
         )
     elif action == "edit":
-        org_tags = service.get_org_event_tags(region_record.org_id)
+        org_tags = qs.get_event_tags(region_record.org_id, include_global=False)
         form = views.build_tag_list_modal(org_tags)
         form.post_modal(
             client=client,
@@ -224,20 +155,7 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     edit_event_tag_id = safe_convert(metadata.get("edit_event_tag_id"), int)
 
-    service = EventTagService()
-
-    if not use_ddd:
-        # Legacy path
-        if event_tag_id:
-            service.add_global_tag_to_org(event_tag_id, region_record.org_id)
-        elif event_tag_name and event_color:
-            if edit_event_tag_id:
-                service.update_org_specific_tag(edit_event_tag_id, event_tag_name, event_color)
-            else:
-                service.create_org_specific_tag(event_tag_name, event_color, region_record.org_id)
-        return
-
-    # DDD path
+    # DDD path only
     repo = SqlAlchemyOrgRepository()
     handler = OrgCommandHandler(repo)
     org_id_int = int(region_record.org_id)
@@ -267,12 +185,16 @@ def handle_event_tag_edit_delete(
 ):
     event_tag_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    service = EventTagService()
     views = EventTagViews()
+    repo = SqlAlchemyOrgRepository()
+    qs = OrgQueryService(repo)
 
     if action == "Edit":
-        event_tag = DbManager.get(EventTag, event_tag_id)
-        org_tags = service.get_org_event_tags(region_record.org_id)
+        org_tags = qs.get_event_tags(region_record.org_id, include_global=False)
+        event_tag = next((t for t in org_tags if int(t.id) == int(event_tag_id)), None)
+        if not event_tag:
+            logger.error("Event tag not found for edit")
+            return
         form = views.build_edit_tag_modal(event_tag, org_tags)
         form.post_modal(
             client=client,
@@ -280,19 +202,15 @@ def handle_event_tag_edit_delete(
             title_text="Edit an Event Tag",
             callback_id=CALENDAR_ADD_EVENT_TAG_CALLBACK_ID,
             new_or_add="add",
-            parent_metadata={"edit_event_tag_id": event_tag.id},
+            parent_metadata={"edit_event_tag_id": int(event_tag.id)},
         )
     elif action == "Delete":
-        if not use_ddd:
-            service.delete_org_specific_tag(event_tag_id)
-        else:
-            repo = SqlAlchemyOrgRepository()
-            handler = OrgCommandHandler(repo)
-            org_id_int = int(region_record.org_id)
-            try:
-                handler.handle(SoftDeleteEventTag(org_id=org_id_int, tag_id=int(event_tag_id)))
-            except ValueError as e:
-                logger.error(f"Failed to delete event tag: {e}")
+        handler = OrgCommandHandler(repo)
+        org_id_int = int(region_record.org_id)
+        try:
+            handler.handle(SoftDeleteEventTag(org_id=org_id_int, tag_id=int(event_tag_id)))
+        except ValueError as e:
+            logger.error(f"Failed to delete event tag: {e}")
 
 
 EVENT_TAG_FORM = SdkBlockView(
