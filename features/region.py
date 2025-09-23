@@ -16,6 +16,8 @@ from utilities.helper_functions import get_user, safe_get, upload_files_to_stora
 from utilities.slack import actions
 from utilities.slack.sdk_orm import SdkBlockView
 
+REGION_ADMINS_NON_SLACK = "region_admins_non_slack"
+
 
 def build_region_form(
     body: dict,
@@ -33,7 +35,17 @@ def build_region_form(
         connect.build_connect_options_form(body, client, logger, context)
     else:
         admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
-        admin_user_ids = [u[1].slack_id for u in admin_users]
+        admin_slack_user_ids = [u[1].slack_id for u in admin_users if u[1] and u[1].slack_id]
+        admin_non_slack_users = [u[0] for u in admin_users if u[1] is None or not u[1].slack_id]
+
+        if admin_non_slack_users:
+            non_slack = [
+                {
+                    "text": r.f3_name,
+                    "value": str(r.id),
+                }
+                for r in admin_non_slack_users
+            ]
 
         form.set_initial_values(
             {
@@ -45,7 +57,8 @@ def build_region_form(
                 actions.REGION_TWITTER: getattr(org_record, "twitter", None),
                 actions.REGION_FACEBOOK: getattr(org_record, "facebook", None),
                 actions.REGION_INSTAGRAM: getattr(org_record, "instagram", None),
-                actions.REGION_ADMINS: admin_user_ids,
+                actions.REGION_ADMINS: admin_slack_user_ids,
+                REGION_ADMINS_NON_SLACK: non_slack,
             }
         )
 
@@ -108,6 +121,9 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     admin_users = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
     admin_user_ids = [u.user_id for u in admin_users if u is not None]
 
+    admin_users_non_slack = safe_get(form_data, REGION_ADMINS_NON_SLACK) or []
+    admin_user_ids += [int(u["value"]) for u in admin_users_non_slack]
+
     cmd.admin_user_ids = admin_user_ids
     handler.handle(cmd)
 
@@ -146,6 +162,15 @@ REGION_FORM = SdkBlockView(
             element=blocks.UserMultiSelectElement(placeholder="Select the Region admins"),
             hint="These users will have admin permissions for the Region (modify schedules, backblasts, etc.)",
             optional=False,
+        ),
+        blocks.InputBlock(
+            label="Region Admins (non-Slack users)",
+            block_id="region_admins_non_slack",
+            element=blocks.ExternalDataMultiSelectElement(
+                placeholder="Enter the names of non-Slack users",
+                min_query_length=3,
+                action_id=actions.USER_OPTION_LOAD,
+            ),
         ),
         blocks.InputBlock(
             label="Region Website",
