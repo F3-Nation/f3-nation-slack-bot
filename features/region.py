@@ -1,11 +1,9 @@
 import copy
-import os
 import re
 from logging import Logger
 
 import requests
-from f3_data_models.models import Org, Role, Role_x_User_x_Org, SlackUser
-from f3_data_models.utils import DbManager
+from slack_sdk.models import blocks
 from slack_sdk.web import WebClient
 
 from application.org.command_handlers import OrgCommandHandler
@@ -15,7 +13,8 @@ from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRe
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
-from utilities.slack import actions, orm
+from utilities.slack import actions
+from utilities.slack.sdk_orm import SdkBlockView
 
 
 def build_region_form(
@@ -26,7 +25,9 @@ def build_region_form(
     region_record: SlackSettings,
 ):
     form = copy.deepcopy(REGION_FORM)
-    org_record: Org = DbManager.get(Org, region_record.org_id)
+    # DDD: fetch domain org via repository
+    repo = SqlAlchemyOrgRepository()
+    org_record = repo.get(int(region_record.org_id))
 
     if not org_record:
         connect.build_connect_options_form(body, client, logger, context)
@@ -36,22 +37,23 @@ def build_region_form(
 
         form.set_initial_values(
             {
-                actions.REGION_NAME: org_record.name,
-                actions.REGION_DESCRIPTION: org_record.description,
-                actions.REGION_LOGO: org_record.logo_url,
-                actions.REGION_WEBSITE: org_record.website,
-                actions.REGION_EMAIL: org_record.email,
-                actions.REGION_TWITTER: org_record.twitter,
-                actions.REGION_FACEBOOK: org_record.facebook,
-                actions.REGION_INSTAGRAM: org_record.instagram,
+                actions.REGION_NAME: getattr(org_record.name, "value", org_record.name),
+                actions.REGION_DESCRIPTION: getattr(org_record, "description", None),
+                actions.REGION_LOGO: getattr(org_record, "logo_url", None),
+                actions.REGION_WEBSITE: getattr(org_record, "website", None),
+                actions.REGION_EMAIL: getattr(org_record, "email", None),
+                actions.REGION_TWITTER: getattr(org_record, "twitter", None),
+                actions.REGION_FACEBOOK: getattr(org_record, "facebook", None),
+                actions.REGION_INSTAGRAM: getattr(org_record, "instagram", None),
                 actions.REGION_ADMINS: admin_user_ids,
             }
         )
 
-        if org_record.logo_url:
+        if getattr(org_record, "logo_url", None):
             try:
-                if requests.head(org_record.logo_url).status_code == 200:
-                    form.blocks.insert(2, orm.ImageBlock(image_url=org_record.logo_url, alt_text="Region Logo"))
+                logo_url = getattr(org_record, "logo_url", None)
+                if logo_url and requests.head(logo_url).status_code == 200:
+                    form.blocks.insert(2, blocks.ImageBlock(image_url=logo_url, alt_text="Region Logo"))
             except requests.RequestException as e:
                 logger.error(f"Error fetching region logo: {e}")
 
@@ -86,82 +88,49 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     ):
         website = None
 
-    use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
-    if use_ddd:
-        repo = SqlAlchemyOrgRepository()
-        handler = OrgCommandHandler(repo)
-        cmd = UpdateRegionProfile(
-            org_id=region_record.org_id,
-            name=safe_get(form_data, actions.REGION_NAME),
-            description=safe_get(form_data, actions.REGION_DESCRIPTION),
-            website=website,
-            email=email,
-            twitter=safe_get(form_data, actions.REGION_TWITTER),
-            facebook=safe_get(form_data, actions.REGION_FACEBOOK),
-            instagram=safe_get(form_data, actions.REGION_INSTAGRAM),
-            logo_url=logo_url,
-        )
-        # admins handled after we collect user ids below
-    else:
-        fields = {
-            Org.name: safe_get(form_data, actions.REGION_NAME),
-            Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
-            Org.website: website,
-            Org.email: email,
-            Org.twitter: safe_get(form_data, actions.REGION_TWITTER),
-            Org.facebook: safe_get(form_data, actions.REGION_FACEBOOK),
-            Org.instagram: safe_get(form_data, actions.REGION_INSTAGRAM),
-        }
-        if logo_url:
-            fields[Org.logo_url] = logo_url
-        DbManager.update_record(Org, region_record.org_id, fields)
+    # DDD-only path
+    repo = SqlAlchemyOrgRepository()
+    handler = OrgCommandHandler(repo)
+    cmd = UpdateRegionProfile(
+        org_id=region_record.org_id,
+        name=safe_get(form_data, actions.REGION_NAME),
+        description=safe_get(form_data, actions.REGION_DESCRIPTION),
+        website=website,
+        email=email,
+        twitter=safe_get(form_data, actions.REGION_TWITTER),
+        facebook=safe_get(form_data, actions.REGION_FACEBOOK),
+        instagram=safe_get(form_data, actions.REGION_INSTAGRAM),
+        logo_url=logo_url,
+    )
+    # admins handled after we collect user ids below
 
-    admin_users_slack = safe_get(form_data, actions.REGION_ADMINS)
-    admin_users: list[SlackUser] = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
-    admin_user_ids = [u.user_id for u in admin_users]
-    admin_role_id = DbManager.find_first_record(Role, filters=[Role.name == "admin"]).id
-    admin_records = [
-        Role_x_User_x_Org(
-            role_id=admin_role_id,  # Admin role, need to get dynamically
-            org_id=region_record.org_id,
-            user_id=user_id,
-        )
-        for user_id in admin_user_ids
-    ]
+    admin_users_slack = safe_get(form_data, actions.REGION_ADMINS) or []
+    admin_users = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
+    admin_user_ids = [u.user_id for u in admin_users if u is not None]
 
-    if use_ddd:
-        cmd.admin_user_ids = admin_user_ids
-        handler.handle(cmd)
-    else:
-        DbManager.delete_records(
-            Role_x_User_x_Org,
-            filters=[
-                Role_x_User_x_Org.org_id == region_record.org_id,
-                Role_x_User_x_Org.role_id == admin_role_id,
-            ],
-        )
-        DbManager.create_records(admin_records)
+    cmd.admin_user_ids = admin_user_ids
+    handler.handle(cmd)
 
 
-REGION_FORM = orm.BlockView(
+REGION_FORM = SdkBlockView(
     blocks=[
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Title",
-            action=actions.REGION_NAME,
-            element=orm.PlainTextInputElement(placeholder="Enter the Region name"),
+            block_id=actions.REGION_NAME,
+            element=blocks.PlainTextInputElement(placeholder="Enter the Region name"),
             optional=False,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Description",
-            action=actions.REGION_DESCRIPTION,
-            element=orm.PlainTextInputElement(placeholder="Enter a description for the Region", multiline=True),
+            block_id=actions.REGION_DESCRIPTION,
+            element=blocks.PlainTextInputElement(placeholder="Enter a description for the Region", multiline=True),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Logo",
-            action=actions.REGION_LOGO,
+            block_id=actions.REGION_LOGO,
             optional=True,
-            element=orm.FileInputElement(
+            element=blocks.block_elements.FileInputElement(
                 max_files=1,
                 filetypes=[
                     "png",
@@ -171,41 +140,41 @@ REGION_FORM = orm.BlockView(
                 ],
             ),
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Admins",
-            action=actions.REGION_ADMINS,
-            element=orm.MultiUsersSelectElement(placeholder="Select the Region admins"),
+            block_id=actions.REGION_ADMINS,
+            element=blocks.UserMultiSelectElement(placeholder="Select the Region admins"),
             hint="These users will have admin permissions for the Region (modify schedules, backblasts, etc.)",
             optional=False,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Website",
-            action=actions.REGION_WEBSITE,
-            element=orm.URLInputElement(placeholder="Enter the Region website"),
+            block_id=actions.REGION_WEBSITE,
+            element=blocks.UrlInputElement(placeholder="Enter the Region website"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region email",
-            action=actions.REGION_EMAIL,
-            element=orm.EmailInputElement(placeholder="Enter the Region email"),
+            block_id=actions.REGION_EMAIL,
+            element=blocks.EmailInputElement(placeholder="Enter the Region email"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Twitter",
-            action=actions.REGION_TWITTER,
-            element=orm.PlainTextInputElement(placeholder="Enter the Region Twitter"),
+            block_id=actions.REGION_TWITTER,
+            element=blocks.PlainTextInputElement(placeholder="Enter the Region Twitter"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Facebook",
-            action=actions.REGION_FACEBOOK,
-            element=orm.PlainTextInputElement(placeholder="Enter the Region Facebook"),
+            block_id=actions.REGION_FACEBOOK,
+            element=blocks.PlainTextInputElement(placeholder="Enter the Region Facebook"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Region Instagram",
-            action=actions.REGION_INSTAGRAM,
-            element=orm.PlainTextInputElement(placeholder="Enter the Region Instagram"),
+            block_id=actions.REGION_INSTAGRAM,
+            element=blocks.PlainTextInputElement(placeholder="Enter the Region Instagram"),
             optional=True,
         ),
     ]
