@@ -1,22 +1,36 @@
 import copy
 import json
-import os
 from logging import Logger
-from typing import List
+from typing import List, Optional
 
-from f3_data_models.models import Location, Org
-from f3_data_models.utils import DbManager
+from slack_sdk.models import blocks
 from slack_sdk.web import WebClient
 
+from application.dto import LocationDTO
 from application.org.command_handlers import OrgCommandHandler
 from application.org.commands import AddLocation, SoftDeleteLocation, UpdateLocation
+from application.services.org_query_service import OrgQueryService
 from features.calendar import ao
 from infrastructure.persistence.sqlalchemy.org_repository import SqlAlchemyOrgRepository
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_location_display_name, safe_convert, safe_get, trigger_map_revalidation
-from utilities.slack import actions, orm
+from utilities.helper_functions import safe_convert, safe_get, trigger_map_revalidation
+from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
 
-use_ddd = bool(int(os.environ.get("ORG_DDD_ENABLED", "1")))  # default on
+# Local copies of Slack action constants used in this module to avoid importing utilities.slack.actions
+# Values mirror those defined in utilities/slack/actions.py
+CALENDAR_ADD_LOCATION_NAME = "calendar_add_location_name"
+CALENDAR_ADD_LOCATION_DESCRIPTION = "calendar_add_location_description"
+CALENDAR_ADD_LOCATION_LAT = "calendar_add_location_lat"
+CALENDAR_ADD_LOCATION_LON = "calendar_add_location_lon"
+CALENDAR_ADD_LOCATION_STREET = "calendar-add-location-street"
+CALENDAR_ADD_LOCATION_STREET2 = "calendar-add-location-street2"
+CALENDAR_ADD_LOCATION_CITY = "calendar-add-location-city"
+CALENDAR_ADD_LOCATION_STATE = "calendar-add-location-state"
+CALENDAR_ADD_LOCATION_ZIP = "calendar-add-location-zip"
+CALENDAR_ADD_LOCATION_COUNTRY = "calendar-add-location-country"
+ADD_LOCATION_CALLBACK_ID = "add-location-id"
+EDIT_DELETE_LOCATION_CALLBACK_ID = "edit-delete-location-id"
+LOCATION_EDIT_DELETE = "location-edit-delete"
 
 
 def manage_locations(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -34,7 +48,7 @@ def build_location_add_form(
     logger: Logger,
     context: dict,
     region_record: SlackSettings,
-    edit_location: Location = None,
+    edit_location: Optional[LocationDTO] = None,
 ):
     form = copy.deepcopy(LOCATION_FORM)
     action_id = safe_get(body, "actions", 0, "action_id")
@@ -42,21 +56,21 @@ def build_location_add_form(
     if edit_location:
         form.set_initial_values(
             {
-                actions.CALENDAR_ADD_LOCATION_NAME: edit_location.name,
-                actions.CALENDAR_ADD_LOCATION_DESCRIPTION: edit_location.description,
-                actions.CALENDAR_ADD_LOCATION_STREET: edit_location.address_street,
-                actions.CALENDAR_ADD_LOCATION_STREET2: edit_location.address_street2,
-                actions.CALENDAR_ADD_LOCATION_CITY: edit_location.address_city,
-                actions.CALENDAR_ADD_LOCATION_STATE: edit_location.address_state,
-                actions.CALENDAR_ADD_LOCATION_ZIP: edit_location.address_zip,
-                actions.CALENDAR_ADD_LOCATION_COUNTRY: edit_location.address_country,
+                CALENDAR_ADD_LOCATION_NAME: edit_location.name,
+                CALENDAR_ADD_LOCATION_DESCRIPTION: edit_location.description,
+                CALENDAR_ADD_LOCATION_STREET: edit_location.address_street,
+                CALENDAR_ADD_LOCATION_STREET2: edit_location.address_street2,
+                CALENDAR_ADD_LOCATION_CITY: edit_location.address_city,
+                CALENDAR_ADD_LOCATION_STATE: edit_location.address_state,
+                CALENDAR_ADD_LOCATION_ZIP: edit_location.address_zip,
+                CALENDAR_ADD_LOCATION_COUNTRY: edit_location.address_country,
             }
         )
         if edit_location.latitude and edit_location.longitude:
             form.set_initial_values(
                 {
-                    actions.CALENDAR_ADD_LOCATION_LAT: edit_location.latitude,
-                    actions.CALENDAR_ADD_LOCATION_LON: edit_location.longitude,
+                    CALENDAR_ADD_LOCATION_LAT: edit_location.latitude,
+                    CALENDAR_ADD_LOCATION_LON: edit_location.longitude,
                 }
             )
         title_text = "Edit Location"
@@ -64,21 +78,21 @@ def build_location_add_form(
         title_text = "Add a Location"
 
     parent_metadata = (
-        {"update_view_id": safe_get(body, "view", "id")} if action_id == actions.CALENDAR_ADD_AO_NEW_LOCATION else {}
+        {"update_view_id": safe_get(body, "view", "id")} if action_id == ao.CALENDAR_ADD_AO_NEW_LOCATION else {}
     )
     parent_metadata = {}
-    if action_id == actions.CALENDAR_ADD_AO_NEW_LOCATION:
+    if action_id == ao.CALENDAR_ADD_AO_NEW_LOCATION:
         parent_metadata["update_view_id"] = safe_get(body, "view", "id")
         form_data = ao.AO_FORM.get_selected_values(body)
         parent_metadata.update(form_data)
     if edit_location:
-        parent_metadata["location_id"] = edit_location.id
+        parent_metadata["location_id"] = int(edit_location.id)
 
     form.post_modal(
         client=client,
         trigger_id=safe_get(body, "trigger_id"),
         title_text=title_text,
-        callback_id=actions.ADD_LOCATION_CALLBACK_ID,
+        callback_id=ADD_LOCATION_CALLBACK_ID,
         new_or_add="add",
         parent_metadata=parent_metadata,
     )
@@ -88,102 +102,77 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
     form_data = LOCATION_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
 
-    name = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_NAME)
-    description = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_DESCRIPTION)
-    latitude = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LAT), float)
-    longitude = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_LOCATION_LON), float)
-    address_street = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET)
-    address_street2 = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STREET2)
-    address_city = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_CITY)
-    address_state = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_STATE)
-    address_zip = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_ZIP)
-    address_country = safe_get(form_data, actions.CALENDAR_ADD_LOCATION_COUNTRY)
+    name = safe_get(form_data, CALENDAR_ADD_LOCATION_NAME)
+    description = safe_get(form_data, CALENDAR_ADD_LOCATION_DESCRIPTION)
+    latitude = safe_convert(safe_get(form_data, CALENDAR_ADD_LOCATION_LAT), float)
+    longitude = safe_convert(safe_get(form_data, CALENDAR_ADD_LOCATION_LON), float)
+    address_street = safe_get(form_data, CALENDAR_ADD_LOCATION_STREET)
+    address_street2 = safe_get(form_data, CALENDAR_ADD_LOCATION_STREET2)
+    address_city = safe_get(form_data, CALENDAR_ADD_LOCATION_CITY)
+    address_state = safe_get(form_data, CALENDAR_ADD_LOCATION_STATE)
+    address_zip = safe_get(form_data, CALENDAR_ADD_LOCATION_ZIP)
+    address_country = safe_get(form_data, CALENDAR_ADD_LOCATION_COUNTRY)
 
-    if not use_ddd:
-        # Legacy path using ORM directly
-        location: Location = Location(
-            name=name,
-            description=description,
-            is_active=True,
-            latitude=latitude,
-            longitude=longitude,
-            address_street=address_street,
-            address_street2=address_street2,
-            address_city=address_city,
-            address_state=address_state,
-            address_zip=address_zip,
-            address_country=address_country,
-            org_id=region_record.org_id,
-        )
+    # DDD path via application commands
+    repo = SqlAlchemyOrgRepository()
+    handler = OrgCommandHandler(repo)
+    org_id_int = int(region_record.org_id)
+    try:
         if safe_get(metadata, "location_id"):
-            update_dict = location.__dict__
-            update_dict.pop("_sa_instance_state")
-            DbManager.update_record(Location, metadata["location_id"], fields=update_dict)
+            handler.handle(
+                UpdateLocation(
+                    org_id=org_id_int,
+                    location_id=int(safe_get(metadata, "location_id")),
+                    name=name,
+                    description=description,
+                    latitude=latitude,
+                    longitude=longitude,
+                    address_street=address_street,
+                    address_street2=address_street2,
+                    address_city=address_city,
+                    address_state=address_state,
+                    address_zip=address_zip,
+                    address_country=address_country,
+                )
+            )
             new_location_id = safe_get(metadata, "location_id")
         else:
-            location = DbManager.create_record(location)
-            new_location_id = location.id
-    else:
-        # DDD path via application commands
-        repo = SqlAlchemyOrgRepository()
-        handler = OrgCommandHandler(repo)
-        org_id_int = int(region_record.org_id)
-        try:
-            if safe_get(metadata, "location_id"):
-                handler.handle(
-                    UpdateLocation(
-                        org_id=org_id_int,
-                        location_id=int(safe_get(metadata, "location_id")),
-                        name=name,
-                        description=description,
-                        latitude=latitude,
-                        longitude=longitude,
-                        address_street=address_street,
-                        address_street2=address_street2,
-                        address_city=address_city,
-                        address_state=address_state,
-                        address_zip=address_zip,
-                        address_country=address_country,
-                    )
+            handler.handle(
+                AddLocation(
+                    org_id=org_id_int,
+                    name=name,
+                    description=description,
+                    latitude=latitude,
+                    longitude=longitude,
+                    address_street=address_street,
+                    address_street2=address_street2,
+                    address_city=address_city,
+                    address_state=address_state,
+                    address_zip=address_zip,
+                    address_country=address_country,
                 )
-                new_location_id = safe_get(metadata, "location_id")
-            else:
-                handler.handle(
-                    AddLocation(
-                        org_id=org_id_int,
-                        name=name,
-                        description=description,
-                        latitude=latitude,
-                        longitude=longitude,
-                        address_street=address_street,
-                        address_street2=address_street2,
-                        address_city=address_city,
-                        address_state=address_state,
-                        address_zip=address_zip,
-                        address_country=address_country,
-                    )
-                )
-                # retrieve created id by name from aggregate (names are unique by domain rule)
-                org = repo.get(org_id_int)
-                new_location_id = None
-                if org:
-                    for loc in org.locations.values():
-                        if getattr(loc.name, "value", None) == name:
-                            new_location_id = int(loc.id)
-                            break
-        except ValueError as e:
-            logger.error(f"Location operation failed: {e}")
-            return
+            )
+            # retrieve created id by name from aggregate (names are unique by domain rule)
+            org = repo.get(org_id_int)
+            new_location_id = None
+            if org:
+                for loc in org.locations.values():
+                    if getattr(loc.name, "value", None) == name:
+                        new_location_id = int(loc.id)
+                        break
+    except ValueError as e:
+        logger.error(f"Location operation failed: {e}")
+        return
 
     trigger_map_revalidation()
 
     if safe_get(metadata, "update_view_id"):
         update_metadata = {
-            actions.CALENDAR_ADD_AO_NAME: safe_get(metadata, actions.CALENDAR_ADD_AO_NAME),
-            actions.CALENDAR_ADD_AO_DESCRIPTION: safe_get(metadata, actions.CALENDAR_ADD_AO_DESCRIPTION),
-            actions.CALENDAR_ADD_AO_CHANNEL: safe_get(metadata, actions.CALENDAR_ADD_AO_CHANNEL),
-            actions.CALENDAR_ADD_AO_LOCATION: str(new_location_id) if new_location_id is not None else None,
-            actions.CALENDAR_ADD_AO_TYPE: safe_get(metadata, actions.CALENDAR_ADD_AO_TYPE),
+            ao.CALENDAR_ADD_AO_NAME: safe_get(metadata, ao.CALENDAR_ADD_AO_NAME),
+            ao.CALENDAR_ADD_AO_DESCRIPTION: safe_get(metadata, ao.CALENDAR_ADD_AO_DESCRIPTION),
+            ao.CALENDAR_ADD_AO_CHANNEL: safe_get(metadata, ao.CALENDAR_ADD_AO_CHANNEL),
+            ao.CALENDAR_ADD_AO_LOCATION: str(new_location_id) if new_location_id is not None else None,
+            ao.CALENDAR_ADD_AO_TYPE: safe_get(metadata, ao.CALENDAR_ADD_AO_TYPE),
         }
         ao.build_ao_add_form(
             body,
@@ -199,27 +188,49 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
 def build_location_list_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    # find locations whose org_id points to the region
-    location_records: List[Location] = DbManager.find_records(
-        Location, [Location.org_id == region_record.org_id, Location.is_active]
-    )
+    repo = SqlAlchemyOrgRepository()
+    qs = OrgQueryService(repo)
 
-    # also find locations whose org_id points to AOs of that region
-    location_records2 = DbManager.find_join_records2(
-        Location,
-        Org,
-        [Location.org_id == Org.id, Org.parent_id == region_record.org_id, Location.is_active],
-    )
-    location_records.extend(record[0] for record in location_records2)
+    # Region-owned locations
+    locs: List[LocationDTO] = qs.get_locations(region_record.org_id, only_active=True)
 
-    blocks = [
-        orm.SectionBlock(
-            label=get_location_display_name(s),
-            action=f"{actions.LOCATION_EDIT_DELETE}_{s.id}",
-            element=orm.StaticSelectElement(
+    # Also include locations owned by AOs under this region
+    try:
+        children = repo.list_children(int(region_record.org_id), include_inactive=False)
+    except Exception:
+        children = []
+    for child in children:
+        try:
+            locs.extend(qs.get_locations(int(child.id), only_active=True))
+        except Exception:
+            continue
+
+    # De-duplicate by id
+    seen = set()
+    unique_locs: List[LocationDTO] = []
+    for loc in locs:
+        if int(loc.id) not in seen:
+            seen.add(int(loc.id))
+            unique_locs.append(loc)
+
+    def display_name(dto: LocationDTO) -> str:
+        if (dto.name or "").strip() != "":
+            return dto.name
+        if (dto.description or "") != "":
+            return (dto.description or "")[:30]
+        if (dto.address_street or "") != "":
+            return (dto.address_street or "")[:30]
+        return "Unnamed Location"
+
+    block_list = [
+        blocks.SectionBlock(
+            label=display_name(s),
+            block_id=f"{LOCATION_EDIT_DELETE}_{s.id}",
+            element=blocks.StaticSelectElement(
                 placeholder="Edit or Delete",
-                options=orm.as_selector_options(names=["Edit", "Delete"]),
-                confirm=orm.ConfirmObject(
+                options=as_selector_options(names=["Edit", "Delete"]),
+                action_id=f"{LOCATION_EDIT_DELETE}_{s.id}",
+                confirm=blocks.ConfirmObject(
                     title="Are you sure?",
                     text="Are you sure you want to edit / delete this location? This cannot be undone.",  # noqa
                     confirm="Yes, I'm sure",
@@ -227,17 +238,17 @@ def build_location_list_form(
                 ),
             ),
         )
-        for s in location_records
+        for s in unique_locs
     ]
 
     # TODO: add a "next page" button if there are more than 50 locations
 
-    form = orm.BlockView(blocks=blocks)
+    form = SdkBlockView(blocks=block_list)
     form.post_modal(
         client=client,
         trigger_id=safe_get(body, "trigger_id"),
         title_text="Edit/Delete a Location",
-        callback_id=actions.EDIT_DELETE_LOCATION_CALLBACK_ID,
+        callback_id=EDIT_DELETE_LOCATION_CALLBACK_ID,
         submit_button_text="None",
         new_or_add="add",
     )
@@ -250,89 +261,95 @@ def handle_location_edit_delete(
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        location = DbManager.get(Location, location_id)
-        build_location_add_form(body, client, logger, context, region_record, location)
+        # Find the location among region and AO children
+        repo = SqlAlchemyOrgRepository()
+        qs = OrgQueryService(repo)
+        candidates: List[LocationDTO] = qs.get_locations(region_record.org_id, only_active=True)
+        try:
+            for child in repo.list_children(int(region_record.org_id), include_inactive=False):
+                candidates.extend(qs.get_locations(int(child.id), only_active=True))
+        except Exception:
+            pass
+        loc_dto = next((loc for loc in candidates if int(loc.id) == int(location_id)), None)
+        build_location_add_form(body, client, logger, context, region_record, loc_dto)
     elif action == "Delete":
-        if not use_ddd:
-            DbManager.update_record(Location, location_id, fields={"is_active": False})
-        else:
-            repo = SqlAlchemyOrgRepository()
-            handler = OrgCommandHandler(repo)
-            org_id_int = int(region_record.org_id)
-            try:
-                handler.handle(SoftDeleteLocation(org_id=org_id_int, location_id=int(location_id)))
-            except ValueError as e:
-                logger.error(f"Failed to delete location: {e}")
+        repo = SqlAlchemyOrgRepository()
+        handler = OrgCommandHandler(repo)
+        org_id_int = int(region_record.org_id)
+        try:
+            handler.handle(SoftDeleteLocation(org_id=org_id_int, location_id=int(location_id)))
+        except ValueError as e:
+            logger.error(f"Failed to delete location: {e}")
         trigger_map_revalidation()
 
 
-LOCATION_FORM = orm.BlockView(
+LOCATION_FORM = SdkBlockView(
     blocks=[
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location Name",
-            action=actions.CALENDAR_ADD_LOCATION_NAME,
-            element=orm.PlainTextInputElement(placeholder="ie Central Park - Main Entrance"),
+            block_id=CALENDAR_ADD_LOCATION_NAME,
+            element=blocks.PlainTextInputElement(placeholder="ie Central Park - Main Entrance"),
             optional=False,
             hint="Use the actual name of the location, ie park name, etc. You will define the F3 AO name when you create AOs.",  # noqa
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Description",
-            action=actions.CALENDAR_ADD_LOCATION_DESCRIPTION,
-            element=orm.PlainTextInputElement(
+            block_id=CALENDAR_ADD_LOCATION_DESCRIPTION,
+            element=blocks.PlainTextInputElement(
                 placeholder="Notes about the meetup spot, ie 'Meet at the flagpole near the entrance'",  # noqa
                 multiline=True,
             ),
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Latitude",
-            action=actions.CALENDAR_ADD_LOCATION_LAT,
-            element=orm.NumberInputElement(
+            block_id=CALENDAR_ADD_LOCATION_LAT,
+            element=blocks.NumberInputElement(
                 placeholder="ie 34.0522", min_value=-90, max_value=90, is_decimal_allowed=True
             ),
             optional=False,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Longitude",
-            action=actions.CALENDAR_ADD_LOCATION_LON,
-            element=orm.NumberInputElement(
+            block_id=CALENDAR_ADD_LOCATION_LON,
+            element=blocks.NumberInputElement(
                 placeholder="ie -118.2437", min_value=-180, max_value=180, is_decimal_allowed=True
             ),
             optional=False,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location Street Address",
-            action=actions.CALENDAR_ADD_LOCATION_STREET,
-            element=orm.PlainTextInputElement(placeholder="ie 123 Main St."),
+            block_id=CALENDAR_ADD_LOCATION_STREET,
+            element=blocks.PlainTextInputElement(placeholder="ie 123 Main St."),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location Address Line 2",
-            action=actions.CALENDAR_ADD_LOCATION_STREET2,
-            element=orm.PlainTextInputElement(placeholder="ie Suite 200"),
+            block_id=CALENDAR_ADD_LOCATION_STREET2,
+            element=blocks.PlainTextInputElement(placeholder="ie Suite 200"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location City",
-            action=actions.CALENDAR_ADD_LOCATION_CITY,
-            element=orm.PlainTextInputElement(placeholder="ie Los Angeles"),
+            block_id=CALENDAR_ADD_LOCATION_CITY,
+            element=blocks.PlainTextInputElement(placeholder="ie Los Angeles"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location State",
-            action=actions.CALENDAR_ADD_LOCATION_STATE,
-            element=orm.PlainTextInputElement(placeholder="ie CA"),
+            block_id=CALENDAR_ADD_LOCATION_STATE,
+            element=blocks.PlainTextInputElement(placeholder="ie CA"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location Zip",
-            action=actions.CALENDAR_ADD_LOCATION_ZIP,
-            element=orm.PlainTextInputElement(placeholder="ie 90210"),
+            block_id=CALENDAR_ADD_LOCATION_ZIP,
+            element=blocks.PlainTextInputElement(placeholder="ie 90210"),
             optional=True,
         ),
-        orm.InputBlock(
+        blocks.InputBlock(
             label="Location Country",
-            action=actions.CALENDAR_ADD_LOCATION_COUNTRY,
-            element=orm.PlainTextInputElement(placeholder="ie USA"),
+            block_id=CALENDAR_ADD_LOCATION_COUNTRY,
+            element=blocks.PlainTextInputElement(placeholder="ie USA"),
             optional=True,
             hint="If outside the US, please enter the country name.",
         ),
