@@ -56,7 +56,7 @@ def build_config_slt_form(
             block_id=SLT_LEVEL_SELECT,
             element=blocks.StaticSelectElement(
                 options=as_selector_options(**level_options),
-                initial_value="0" if org_id == region_record.org_id else str(org_id),
+                # initial_option="0" if org_id == region_record.org_id else str(org_id),
                 action_id=SLT_LEVEL_SELECT,
             ),
             dispatch_action=True,
@@ -71,7 +71,7 @@ def build_config_slt_form(
                 optional=True,
                 element=blocks.UserMultiSelectElement(
                     placeholder="Select SLT Members...",
-                    initial_value=[u.slack_id for u in p.slack_users if u is not None],
+                    initial_users=[u.slack_id for u in p.slack_users if u is not None],
                     action_id=SLT_SELECT + str(p.position.id),
                 ),
                 hint=p.position.description,
@@ -88,6 +88,7 @@ def build_config_slt_form(
     )
 
     form = SdkBlockView(blocks=block_list)
+    form.set_initial_values({SLT_LEVEL_SELECT: "0" if org_id == region_record.org_id else str(org_id)})
     if update_view_id:
         form.update_modal(
             client=client,
@@ -203,11 +204,10 @@ def handle_config_slt_post(body: dict, client: WebClient, logger: Logger, contex
                 form_position_ids.append(int(key.replace(SLT_SELECT, "")))
         for pid in form_position_ids:
             assignment = ReplacePositionAssignments(
-                org_id=int(region_record.org_id),
+                org_id=org_id,
                 position_id=pid,
                 user_ids=mapping.get(pid, []),
             )
-            print(f"Dispatching assignment update: {assignment}")
             handler.handle(assignment)
     except ValueError as e:
         logger.error(f"Failed to update position assignments via DDD path: {e}")

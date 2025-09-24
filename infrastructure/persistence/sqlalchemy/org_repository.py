@@ -48,15 +48,20 @@ class SqlAlchemyOrgRepository(OrgRepository):
     _GLOBAL_TTL_SEC: int = int(os.environ.get("ORG_GLOBAL_CATALOG_TTL", "300"))
 
     @classmethod
-    def _get_global_catalog(cls) -> Tuple[Set[str], Set[str], Set[str], Dict[Optional[str], Set[str]]]:
+    def _get_global_catalog(
+        cls,
+    ) -> Tuple[Set[str], Set[str], Set[str], Dict[Optional[str], Set[str]], Dict[int, Position]]:
         now = time.time()
+        # Fast path: return cached 5‑tuple (includes global position domain objects)
         if now < float(cls._GLOBAL_CACHE.get("expires", 0)):
             return (
                 set(cls._GLOBAL_CACHE.get("type_names", set())),
                 set(cls._GLOBAL_CACHE.get("type_acros", set())),
                 set(cls._GLOBAL_CACHE.get("tag_names", set())),
                 dict(cls._GLOBAL_CACHE.get("position_names_by_type", {})),
+                dict(cls._GLOBAL_CACHE.get("global_positions", {})),
             )
+
         # Fetch active global (specific_org_id is NULL) types/tags
         type_filters = [SAEventType.specific_org_id.is_(None)]
         if hasattr(SAEventType, "is_active"):
@@ -66,18 +71,22 @@ class SqlAlchemyOrgRepository(OrgRepository):
             tag_filters.append(SAEventTag.is_active.is_(True))
         global_types = DbManager.find_records(SAEventType, type_filters)
         global_tags = DbManager.find_records(SAEventTag, tag_filters)
+
         # Global positions are those with org_id is NULL
         pos_filters = [SAPosition.org_id.is_(None)]
-        global_positions = DbManager.find_records(SAPosition, pos_filters)
+        global_position_rows = DbManager.find_records(SAPosition, pos_filters)
+
         type_names = {str(getattr(t, "name", "")).strip().lower() for t in global_types if getattr(t, "name", None)}
         type_acros = {
             (str(getattr(t, "acronym", None)) or str(getattr(t, "name", ""))[:2]).strip().upper() for t in global_types
         }
         tag_names = {str(getattr(t, "name", "")).strip().lower() for t in global_tags if getattr(t, "name", None)}
+
         # Build map of org_type -> set of names (normalized lower)
         pos_map: Dict[Optional[str], Set[str]] = {}
-        for p in global_positions:
-            key = None
+        global_position_map: Dict[int, Position] = {}
+        for p in global_position_rows:
+            key: Optional[str] = None
             ot = getattr(p, "org_type", None)
             if ot is not None:
                 try:
@@ -85,17 +94,28 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 except Exception:
                     key = str(ot).strip().lower()
             bucket = pos_map.setdefault(key, set())
-            nm = str(getattr(p, "name", "")).strip().lower()
+            raw_name = str(getattr(p, "name", "")).strip()
+            nm = raw_name.lower()
             if nm:
                 bucket.add(nm)
+            # Build domain Position (treat all global as active)
+            global_position_map[p.id] = Position(
+                id=PositionId(p.id),
+                name=PositionName(raw_name),
+                org_type=key,
+                description=getattr(p, "description", None),
+                is_active=True,
+            )
+
         cls._GLOBAL_CACHE = {
             "expires": now + cls._GLOBAL_TTL_SEC,
             "type_names": type_names,
             "type_acros": type_acros,
             "tag_names": tag_names,
             "position_names_by_type": pos_map,
+            "global_positions": global_position_map,
         }
-        return set(type_names), set(type_acros), set(tag_names), pos_map
+        return set(type_names), set(type_acros), set(tag_names), pos_map, global_position_map
 
     def get(self, org_id: OrgId) -> Optional[Org]:
         sa_org: SAOrg = DbManager.get(SAOrg, org_id)
@@ -184,9 +204,10 @@ class SqlAlchemyOrgRepository(OrgRepository):
             if rec.id and rec.id > max_loc_id:
                 max_loc_id = rec.id
         # load positions for this org (no is_active column; treat all as active)
-        position_records = DbManager.find_records(SAPosition, [SAPosition.org_id == sa_org.id])
+        position_records = DbManager.find_records(SAPosition, [True])
+        org_position_records = [p for p in position_records if p.org_id == sa_org.id]
         max_pos_id = 0
-        for rec in position_records:
+        for rec in org_position_records:
             # Map SA Org_Type enum to lower-case string key
             ot = getattr(rec, "org_type", None)
             org_type_key: Optional[str] = None
@@ -208,12 +229,13 @@ class SqlAlchemyOrgRepository(OrgRepository):
         org.rebuild_indexes()
         # set global catalogs for invariant checks (cached)
         try:
-            type_names, type_acros, tag_names, pos_map = self._get_global_catalog()
+            type_names, type_acros, tag_names, pos_map, global_positions = self._get_global_catalog()
             org.set_global_catalog(
                 event_type_names=type_names,
                 event_type_acronyms=type_acros,
                 event_tag_names=tag_names,
                 position_names_by_type=pos_map,
+                positions=global_positions,
             )
         except Exception:
             # best-effort; continue without global catalogs if lookup fails

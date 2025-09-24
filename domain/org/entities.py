@@ -151,6 +151,8 @@ class Org:
     _global_event_tag_names: set[str] = field(default_factory=set, init=False)
     # global catalog for positions by org_type
     _global_position_names_by_type: Dict[Optional[str], set[str]] = field(default_factory=dict, init=False)
+    # read-only injected global positions (not persisted with the Org aggregate)
+    _global_positions: Dict[PositionId, Position] = field(default_factory=dict, init=False)
 
     # --- domain behavior ---
     def record(self, event):
@@ -349,7 +351,7 @@ class Org:
     def assign_user_to_position(
         self, position_id: PositionId, user_id: UserId, triggered_by: Optional[UserId] = None
     ) -> None:
-        p = self.positions.get(position_id)
+        p = self.get_position(position_id)
         if not p or not p.is_active:
             raise ValueError("Position not found")
         bucket = self.position_assignments.setdefault(position_id, set())
@@ -370,7 +372,7 @@ class Org:
     def replace_position_assignments(
         self, position_id: PositionId, user_ids: List[UserId], triggered_by: Optional[UserId] = None
     ) -> None:
-        p = self.positions.get(position_id)
+        p = self.get_position(position_id)
         if not p or not p.is_active:
             raise ValueError("Position not found")
         # Current assignments
@@ -391,6 +393,7 @@ class Org:
         event_type_acronyms: Optional[set[str]] = None,
         event_tag_names: Optional[set[str]] = None,
         position_names_by_type: Optional[Dict[Optional[str], set[str]]] = None,
+        positions: Optional[Dict[PositionId, Position]] = None,
     ) -> "Org":
         self._global_event_type_names = {x.strip().lower() for x in (event_type_names or set())}
         self._global_event_type_acronyms = {x.strip().upper() for x in (event_type_acronyms or set())}
@@ -402,7 +405,31 @@ class Org:
                 normk = k if k is None else str(k).strip().lower() or None
                 pos_map[normk] = {x.strip().lower() for x in (v or set())}
         self._global_position_names_by_type = pos_map
+        if positions:
+            self._global_positions = dict(positions)
         return self
+
+    # --- Position lookup helpers (local + global fallback) ---
+    def get_position(self, position_id: PositionId) -> Optional[Position]:
+        p = self.positions.get(position_id)
+        if p:
+            return p
+        return self._global_positions.get(position_id)
+
+    def iter_all_positions(self, *, include_inactive: bool = True) -> List[Position]:
+        """Return combined list of local + global positions, with local overriding
+        any global of same normalized name/org_type. Currently all positions are active.
+        """
+        combined: Dict[tuple[str, Optional[str]], Position] = {}
+        for gp in self._global_positions.values():
+            key = (_normalize_position_name(gp.name.value), gp.org_type)
+            combined[key] = gp
+        for lp in self.positions.values():
+            if not lp.is_active and not include_inactive:
+                continue
+            key = (_normalize_position_name(lp.name.value), lp.org_type)
+            combined[key] = lp
+        return sorted(combined.values(), key=lambda p: _normalize_position_name(p.name.value))
 
     # Locations
     def add_location(
@@ -601,6 +628,7 @@ class Org:
         triggered_by: Optional[UserId] = None,
         allow_global_duplicate: bool = False,
     ) -> Position:
+        # Only local positions are mutable; global catalog entries are read-only
         p = self.positions.get(position_id)
         if not p or not p.is_active:
             raise ValueError("Position not found")
@@ -651,6 +679,7 @@ class Org:
         return p
 
     def soft_delete_position(self, position_id: PositionId, triggered_by: Optional[UserId]):
+        # Only local positions can be soft-deleted
         p = self.positions.get(position_id)
         if not p or not p.is_active:
             raise ValueError("Position not found")
