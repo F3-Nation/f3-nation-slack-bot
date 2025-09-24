@@ -24,6 +24,31 @@ class FakeOrgRepo(OrgRepository):
         # No children modeling here; return empty
         return []
 
+    # --- Added abstract method implementations (minimal for unit tests) ---
+    def get_locations(self, org_id, *, only_active: bool = True):  # type: ignore[override]
+        org = self.get(org_id)
+        if not org:
+            return []
+        return [loc for loc in org.locations.values() if (loc.is_active or not only_active)]
+
+    def get_event_types(self, org_id, *, include_global: bool = True, only_active: bool = True):  # type: ignore[override]
+        org = self.get(org_id)
+        if not org:
+            return []
+        return [et for et in org.event_types.values() if (et.is_active or not only_active)]
+
+    def get_event_tags(self, org_id, *, include_global: bool = True, only_active: bool = True):  # type: ignore[override]
+        org = self.get(org_id)
+        if not org:
+            return []
+        return [t for t in org.event_tags.values() if (t.is_active or not only_active)]
+
+    def get_positions(self, org_id, *, include_global: bool = True):  # type: ignore[override]
+        org = self.get(org_id)
+        if not org:
+            return []
+        return list(org.positions.values())
+
 
 @pytest.fixture()
 def handler_and_repo():

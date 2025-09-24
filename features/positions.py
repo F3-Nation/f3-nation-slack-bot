@@ -57,6 +57,7 @@ def build_config_slt_form(
             element=blocks.StaticSelectElement(
                 options=as_selector_options(**level_options),
                 initial_value="0" if org_id == region_record.org_id else str(org_id),
+                action_id=SLT_LEVEL_SELECT,
             ),
             dispatch_action=True,
         ),
@@ -71,6 +72,7 @@ def build_config_slt_form(
                 element=blocks.UserMultiSelectElement(
                     placeholder="Select SLT Members...",
                     initial_value=[u.slack_id for u in p.slack_users if u is not None],
+                    action_id=SLT_SELECT + str(p.position.id),
                 ),
                 hint=p.position.description,
             )
@@ -79,7 +81,7 @@ def build_config_slt_form(
     block_list.append(
         blocks.ActionsBlock(
             elements=[
-                blocks.ButtonElement(label=":heavy_plus_sign: New Position", action_id=CONFIG_NEW_POSITION),
+                blocks.ButtonElement(text=":heavy_plus_sign: New Position", action_id=CONFIG_NEW_POSITION),
                 # Future: possible button to clone from global catalog (global positions already appear in list)
             ]
         )
@@ -200,12 +202,12 @@ def handle_config_slt_post(body: dict, client: WebClient, logger: Logger, contex
             if key.startswith(SLT_SELECT):
                 form_position_ids.append(int(key.replace(SLT_SELECT, "")))
         for pid in form_position_ids:
-            handler.handle(
-                ReplacePositionAssignments(
-                    org_id=int(region_record.org_id),
-                    position_id=pid,
-                    user_ids=mapping.get(pid, []),
-                )
+            assignment = ReplacePositionAssignments(
+                org_id=int(region_record.org_id),
+                position_id=pid,
+                user_ids=mapping.get(pid, []),
             )
+            print(f"Dispatching assignment update: {assignment}")
+            handler.handle(assignment)
     except ValueError as e:
         logger.error(f"Failed to update position assignments via DDD path: {e}")

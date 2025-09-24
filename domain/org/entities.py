@@ -34,6 +34,20 @@ from .value_objects import (
 )
 
 
+def _normalize_position_name(name: str) -> str:
+    """Normalize position names so global and local uniqueness treat
+    underscores and spaces equivalently and collapse multiple spaces.
+    E.g. 'Weasel  Shaker' -> 'weasel_shaker', 'Weasel-Shaker' stays separate.
+    """
+    if not name:
+        return ""
+    # Replace consecutive whitespace with single space then convert spaces to underscore
+    import re
+
+    collapsed = re.sub(r"\s+", " ", name.strip())
+    return collapsed.lower().replace(" ", "_")
+
+
 # Simple in-memory id generation placeholders (will be replaced by persistence layer mapping)
 class _IdSeq:
     def __init__(self):
@@ -545,15 +559,18 @@ class Org:
         triggered_by: Optional[UserId] = None,
         allow_global_duplicate: bool = False,
     ) -> Position:
-        norm = (name or "").strip().lower()
+        # Normalize so that spaces / underscores (and multiple spaces) are equivalent
+        norm = _normalize_position_name(name)
         if not norm:
             raise ValueError("Position name cannot be empty")
-        # Local conflict check
-        if self._conflicts_with_position_name(norm, org_type):
+        # Check local buckets separately from global so allow_global_duplicate can skip global-only conflicts
+        key = org_type.strip().lower() if isinstance(org_type, str) else None
+        local_exact = self._position_names_by_type.get(key, set())
+        local_all = self._position_names_by_type.get(None, set())
+        if norm in local_exact or norm in local_all:
             raise ValueError("Duplicate position name for this org level")
-        # Global catalog check (unless allowed)
+        # Global conflict check unless allowed
         if not allow_global_duplicate:
-            key = org_type.strip().lower() if isinstance(org_type, str) else None
             if norm in self._global_position_names_by_type.get(
                 key, set()
             ) or norm in self._global_position_names_by_type.get(None, set()):
@@ -588,28 +605,23 @@ class Org:
         if not p or not p.is_active:
             raise ValueError("Position not found")
         changes: Dict[str, object] = {}
-        new_name_norm = p.name.value.lower()
+        current_norm = _normalize_position_name(p.name.value)
+        new_name_norm = current_norm
         new_type_norm: Optional[str] = p.org_type
         # Compute prospective values
         if name is not None:
             n = (name or "").strip()
             if not n:
                 raise ValueError("Position name cannot be empty")
-            new_name_norm = n.lower()
+            new_name_norm = _normalize_position_name(n)
         if org_type is not None:
-            t = org_type.strip().lower() if isinstance(org_type, str) else None
-            new_type_norm = t
-        # Conflict if changed name or type collides locally or globally
-        if (new_name_norm != p.name.value.lower()) or (new_type_norm != p.org_type):
-            # Remove existing from index temporarily
-            # Check local conflicts excluding current name in its bucket
-            # We'll simulate exclusion by passing exclude_name_norm if bucket is same type;
-            # but also need to remove from old bucket when type changes
-            # For simplicity, check conflicts in target buckets ignoring our own current entry
+            new_type_norm = org_type.strip().lower() if isinstance(org_type, str) else None
+        # Conflict if changed name or type
+        if (new_name_norm != current_norm) or (new_type_norm != p.org_type):
             if self._conflicts_with_position_name(
                 new_name_norm,
                 new_type_norm,
-                exclude_name_norm=p.name.value.lower() if new_type_norm == p.org_type else None,
+                exclude_name_norm=current_norm if new_type_norm == p.org_type else None,
             ):
                 raise ValueError("Duplicate position name for this org level")
             if not allow_global_duplicate:
@@ -618,9 +630,8 @@ class Org:
                 ) or new_name_norm in self._global_position_names_by_type.get(None, set()):
                     raise ValueError("Duplicate position name (conflicts with global for this org level)")
         # Apply changes and update indexes
-        # Remove old index entry
         old_bucket = self._position_names_by_type.setdefault(p.org_type, set())
-        old_bucket.discard(p.name.value.lower())
+        old_bucket.discard(current_norm)
         if name is not None:
             p.name = PositionName(name)
             changes["name"] = p.name.value
@@ -628,12 +639,13 @@ class Org:
             p.description = description
             changes["description"] = description
         if org_type is not None:
-            p.org_type = org_type.strip().lower() if isinstance(org_type, str) else None
+            p.org_type = new_type_norm
             changes["org_type"] = p.org_type
-        # Add new index entry
+        # Add new
         new_bucket = self._position_names_by_type.setdefault(p.org_type, set())
-        new_bucket.add(p.name.value.lower())
-        self._position_names.add(p.name.value.lower())
+        new_norm_final = _normalize_position_name(p.name.value)
+        new_bucket.add(new_norm_final)
+        self._position_names.add(new_norm_final)
         if changes:
             self.record(PositionUpdated.create(self.id, position_id, changes, triggered_by))
         return p
