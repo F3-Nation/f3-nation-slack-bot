@@ -19,7 +19,7 @@ from features import (
 from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
 from scripts.q_lineups import handle_lineup_signup
-from utilities import announcements, builders, options
+from utilities import builders, options
 from utilities.slack import actions
 
 # Required arguments for handler functions:
@@ -36,7 +36,6 @@ COMMAND_MAPPER = {
     "/preblast": (event_preblast.preblast_middleware, True),
     "/f3-nation-settings": (config.build_config_form, True),
     "/tag-achievement": (weaselbot.build_achievement_form, True),
-    "/send-announcement": (announcements.send, False),
     "/f3-calendar": (home.build_home_form, True),
 }
 
@@ -57,16 +56,16 @@ VIEW_MAPPER = {
     actions.CUSTOM_FIELD_MENU_CALLBACK_ID: (custom_fields.handle_custom_field_menu, False),
     actions.ACHIEVEMENT_CALLBACK_ID: (weaselbot.handle_achievements_tag, False),
     actions.WEASELBOT_CONFIG_CALLBACK_ID: (weaselbot.handle_config_form, False),
-    actions.ADD_LOCATION_CALLBACK_ID: (location.handle_location_add, False),
+    location.ADD_LOCATION_CALLBACK_ID: (location.handle_location_add, False),
     actions.ADD_AO_CALLBACK_ID: (ao.handle_ao_add, False),
     actions.ADD_SERIES_CALLBACK_ID: (series.handle_series_add, False),
     actions.EVENT_PREBLAST_CALLBACK_ID: (event_preblast.handle_event_preblast_edit, False),
-    actions.CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID: (event_type.handle_event_type_add, False),
+    event_type.CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID: (event_type.handle_event_type_add, False),
     actions.EVENT_PREBLAST_POST_CALLBACK_ID: (event_preblast.handle_event_preblast_edit, False),
-    actions.REGION_CALLBACK_ID: (region.handle_region_edit, False),
+    region.REGION_CALLBACK_ID: (region.handle_region_edit, False),
     actions.SPECIAL_EVENTS_CALLBACK_ID: (special_events.handle_special_settings_edit, False),
-    actions.CONFIG_SLT_CALLBACK_ID: (positions.handle_config_slt_post, False),
-    actions.NEW_POSITION_CALLBACK_ID: (positions.handle_new_position_post, False),
+    positions.CONFIG_SLT_CALLBACK_ID: (positions.handle_config_slt_post, False),
+    positions.NEW_POSITION_CALLBACK_ID: (positions.handle_new_position_post, False),
     connect.CONNECT_EXISTING_REGION_CALLBACK_ID: (connect.handle_existing_region_selection, False),
     connect.CREATE_NEW_REGION_CALLBACK_ID: (connect.handle_new_region_creation, False),
     actions.CALENDAR_CONFIG_GENERAL_CALLBACK_ID: (calendar_config.handle_calendar_config_general, False),
@@ -98,8 +97,8 @@ ACTION_MAPPER = {
     actions.CONFIG_CALENDAR: (calendar_config.build_calendar_config_form, False),
     actions.CALENDAR_ADD_SERIES_AO: (series.build_series_add_form, False),
     actions.SERIES_EDIT_DELETE: (series.handle_series_edit_delete, False),
-    actions.LOCATION_EDIT_DELETE: (location.handle_location_edit_delete, False),
-    actions.AO_EDIT_DELETE: (ao.handle_ao_edit_delete, False),
+    location.LOCATION_EDIT_DELETE: (location.handle_location_edit_delete, False),
+    ao.AO_EDIT_DELETE: (ao.handle_ao_edit_delete, False),
     actions.CALENDAR_ADD_EVENT_AO: (series.build_series_add_form, False),
     actions.CALENDAR_MANAGE_LOCATIONS: (location.manage_locations, False),
     actions.CALENDAR_MANAGE_AOS: (ao.manage_aos, False),
@@ -132,8 +131,8 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_CALENDAR_IMAGES: (db_admin.handle_calendar_image_refresh, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION: (db_admin.handle_paxminer_migration, False),
     actions.CONFIG_SLT: (positions.build_config_slt_form, False),
-    actions.SLT_LEVEL_SELECT: (positions.build_config_slt_form, False),
-    actions.CONFIG_NEW_POSITION: (positions.build_new_position_form, False),
+    positions.SLT_LEVEL_SELECT: (positions.build_config_slt_form, False),
+    positions.CONFIG_NEW_POSITION: (positions.build_new_position_form, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION_ALL: (db_admin.handle_paxminer_migration_all, False),
     actions.CONFIG_CONNECT: (connect.build_connect_options_form, False),
     connect.CONNECT_EXISTING_REGION: (connect.build_existing_region_form, False),
@@ -155,7 +154,7 @@ ACTION_MAPPER = {
     event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_AO: (event_instance.build_event_instance_list_form, False),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE_DATE: (event_instance.build_event_instance_list_form, False),
-    actions.EVENT_TYPE_EDIT_DELETE: (event_type.handle_event_type_edit_delete, False),
+    event_type.EVENT_TYPE_EDIT_DELETE: (event_type.handle_event_type_edit_delete, False),
     actions.OPEN_CALENDAR_IMAGE_BUTTON: (home.build_calendar_image_form, False),
     event_tag.EVENT_TAG_EDIT_DELETE: (event_tag.handle_event_tag_edit_delete, False),
     event_tag.CALENDAR_MANAGE_EVENT_TAGS: (event_tag.manage_event_tags, False),
@@ -169,13 +168,13 @@ ACTION_MAPPER = {
 ACTION_PREFIXES = [
     actions.STRAVA_ACTIVITY_BUTTON,
     actions.SERIES_EDIT_DELETE,
-    actions.LOCATION_EDIT_DELETE,
-    actions.AO_EDIT_DELETE,
+    location.LOCATION_EDIT_DELETE,
+    ao.AO_EDIT_DELETE,
     actions.CALENDAR_HOME_EVENT,
     actions.BACKBLAST_FILL_SELECT,
     actions.LINEUP_SIGNUP_BUTTON,
     actions.EVENT_INSTANCE_EDIT_DELETE,
-    actions.EVENT_TYPE_EDIT_DELETE,
+    event_type.EVENT_TYPE_EDIT_DELETE,
     event_tag.EVENT_TAG_EDIT_DELETE,
 ]
 
