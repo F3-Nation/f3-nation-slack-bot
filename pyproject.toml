@@ -57,6 +57,7 @@ pre-commit = "^4.2.0"
 sqlalchemy-schemadisplay = "^2.0"
 graphviz = "^0.20.3"
 pytest = "^8.3.0"
+pytest-cov = "^5.0.0"
 
 [build-system]
 requires = ["poetry-core"]
@@ -67,3 +68,17 @@ build-backend = "poetry.core.masonry.api"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
+addopts = "--cov=domain --cov=application --cov=infrastructure --cov=utilities --cov-branch --cov-report=term-missing:skip-covered"
+
+[tool.coverage.run]
+branch = true
+source = ["domain", "application", "infrastructure", "utilities"]
+omit = [
+    "tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+precision = 1
+sort = "Cover"
