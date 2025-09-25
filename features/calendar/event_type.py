@@ -59,7 +59,7 @@ def build_event_type_form(
     if not selection_event_types:
         form.blocks.pop(0)
         form.blocks.pop(0)
-        form.blocks[0].label = "Create a new event type"
+        form.blocks[0].text = "Create a new event type"
 
     form.set_options(
         {
@@ -75,16 +75,19 @@ def build_event_type_form(
     )
 
     if edit_event_type:
+        category = getattr(edit_event_type, "category", None)
+        category = category.name if isinstance(category, Event_Category) else category
         form.set_initial_values(
             {
                 CALENDAR_ADD_EVENT_TYPE_NEW: getattr(edit_event_type, "name", None),
-                CALENDAR_ADD_EVENT_TYPE_CATEGORY: getattr(edit_event_type, "category", None),
+                CALENDAR_ADD_EVENT_TYPE_CATEGORY: category,
                 CALENDAR_ADD_EVENT_TYPE_ACRONYM: getattr(edit_event_type, "acronym", None),
             }
         )
         form.blocks.pop(0)
-        form.blocks[0].label = "Edit Event Type"
-        form.blocks[0].element.placeholder = "Edit Event Type"
+        form.blocks.pop(0)
+        form.blocks.pop(0)
+        form.blocks[0].label = blocks.PlainTextObject(text="Edit Event Type")
         title_text = "Edit an Event Type"
         metadata = {"edit_event_type_id": getattr(edit_event_type, "id", None)}
     else:
@@ -94,7 +97,9 @@ def build_event_type_form(
     event_type_labels = [
         f" - {dto.name}: {dto.acronym or (dto.name[:2] if dto.name else '')}" for dto in event_types_in_org
     ]
-    form.blocks[-1].label = "Event types in use:\n\n" + "\n".join(event_type_labels)
+    text = "Event types in use:\n\n" + "\n".join(event_type_labels)
+    form.blocks[-1].text = blocks.MarkdownTextObject(text=text)
+    # form.blocks[-1].text = text
 
     form.post_modal(
         client=client,
@@ -154,15 +159,20 @@ def build_event_type_list_form(
 
     blocks_list = [
         blocks.ContextBlock(
-            element=blocks.TextObject("Only region-specific event types can be edited or deleted."),
+            elements=[
+                blocks.TextObject(
+                    text="Only region-specific event types can be edited or deleted.",
+                    type="mrkdwn",
+                )
+            ],
         )
     ]
     for s in event_types_in_org:
         blocks_list.append(
             blocks.SectionBlock(
-                label=s.name,
+                text=s.name,
                 block_id=f"{EVENT_TYPE_EDIT_DELETE}_{s.id}",
-                element=blocks.StaticSelectElement(
+                accessory=blocks.StaticSelectElement(
                     placeholder="Edit or Delete",
                     action_id=f"{EVENT_TYPE_EDIT_DELETE}_{s.id}",
                     options=as_selector_options(names=["Edit", "Delete"]),
@@ -220,7 +230,7 @@ def handle_event_type_edit_delete(
 EVENT_TYPE_FORM = SdkBlockView(
     blocks=[
         blocks.SectionBlock(
-            label="Note: Event Types are used to describe what you'll be doing at an event. They are different from Event Tags, which are used to give context to an event but do not change what you'll be doing at the event (e.g. 'VQ', 'Convergence', etc.).",  # noqa
+            text="Note: Event Types are used to describe what you'll be doing at an event. They are different from Event Tags, which are used to give context to an event but do not change what you'll be doing at the event (e.g. 'VQ', 'Convergence', etc.).",  # noqa
         ),
         blocks.InputBlock(
             label="Select from commonly used event types",
@@ -250,7 +260,7 @@ EVENT_TYPE_FORM = SdkBlockView(
             hint="This is used for the calendar view to save on space. Defaults to first two letters of event type name. Make sure it's unique!",  # noqa
         ),
         blocks.SectionBlock(
-            label="Event types in use:\n\n",
+            text="Event types in use:\n\n",
             block_id=CALENDAR_ADD_EVENT_TYPE_LIST,
         ),
     ]
