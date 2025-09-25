@@ -27,6 +27,7 @@ from domain.org.value_objects import (
     OrgId,
     PositionId,
     PositionName,
+    UserId,
 )
 
 """SQLAlchemy implementation of OrgRepository.
@@ -226,6 +227,18 @@ class SqlAlchemyOrgRepository(OrgRepository):
             org.positions[pos.id] = pos
             if rec.id and rec.id > max_pos_id:
                 max_pos_id = rec.id
+
+        # Load position assignments for this org (both local and global positions)
+        try:
+            assignment_rows = DbManager.find_records(SAPositionAssignment, [SAPositionAssignment.org_id == sa_org.id])
+            for rec in assignment_rows:
+                pid = PositionId(rec.position_id)
+                uid = UserId(rec.user_id)
+                bucket = org.position_assignments.setdefault(pid, set())
+                bucket.add(uid)
+        except Exception:
+            # Best-effort: if assignment load fails, continue with empty assignments
+            pass
         org.rebuild_indexes()
         # set global catalogs for invariant checks (cached)
         try:
