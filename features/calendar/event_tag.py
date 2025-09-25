@@ -126,7 +126,7 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
         all_tags = qs.get_event_tags(region_record.org_id, include_global=True)
         org_ids = {t.id for t in org_tags}
         available_tags = [t for t in all_tags if t.id not in org_ids]
-        form = views.build_add_tag_modal(available_tags, org_tags)
+        form = views.build_add_tag_modal(available_tags, all_tags)
         form.post_modal(
             client=client,
             trigger_id=safe_get(body, "trigger_id"),
@@ -190,12 +190,12 @@ def handle_event_tag_edit_delete(
     qs = OrgQueryService(repo)
 
     if action == "Edit":
-        org_tags = qs.get_event_tags(region_record.org_id, include_global=False)
-        event_tag = next((t for t in org_tags if int(t.id) == int(event_tag_id)), None)
+        all_tags = qs.get_event_tags(region_record.org_id, include_global=True)
+        event_tag = next((t for t in all_tags if int(t.id) == int(event_tag_id) and t.scope == "region"), None)
         if not event_tag:
             logger.error("Event tag not found for edit")
             return
-        form = views.build_edit_tag_modal(event_tag, org_tags)
+        form = views.build_edit_tag_modal(event_tag, all_tags)
         form.post_modal(
             client=client,
             trigger_id=safe_get(body, "trigger_id"),

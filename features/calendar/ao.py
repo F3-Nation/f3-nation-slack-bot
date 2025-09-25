@@ -221,24 +221,37 @@ AO_FORM = SdkBlockView(
     blocks=[
         blocks.InputBlock(
             label="AO Title",
-            element=blocks.PlainTextInputElement(placeholder="Enter the AO name"),
+            element=blocks.PlainTextInputElement(
+                placeholder="Enter the AO name",
+                action_id=CALENDAR_ADD_AO_NAME,
+            ),
             block_id=CALENDAR_ADD_AO_NAME,
             optional=False,
         ),
         blocks.InputBlock(
             label="Description",
-            element=blocks.PlainTextInputElement(placeholder="Enter a description for the AO", multiline=True),
+            element=blocks.PlainTextInputElement(
+                placeholder="Enter a description for the AO",
+                multiline=True,
+                action_id=CALENDAR_ADD_AO_DESCRIPTION,
+            ),  # noqa
             block_id=CALENDAR_ADD_AO_DESCRIPTION,
         ),
         blocks.InputBlock(
             label="Channel associated with this AO:",
-            element=blocks.ChannelSelectElement(placeholder="Select a channel"),
+            element=blocks.ChannelSelectElement(
+                placeholder="Select a channel",
+                action_id=CALENDAR_ADD_AO_CHANNEL,
+            ),
             block_id=CALENDAR_ADD_AO_CHANNEL,
             optional=False,
         ),
         blocks.InputBlock(
             label="Default Location",
-            element=blocks.StaticSelectElement(placeholder="Select a location"),
+            element=blocks.StaticSelectElement(
+                placeholder="Select a location",
+                action_id=CALENDAR_ADD_AO_LOCATION,
+            ),
             block_id=CALENDAR_ADD_AO_LOCATION,
         ),
         blocks.ActionsBlock(
@@ -255,6 +268,7 @@ AO_FORM = SdkBlockView(
             block_id=CALENDAR_ADD_AO_LOGO,
             optional=True,
             element=blocks.block_elements.FileInputElement(
+                action_id=CALENDAR_ADD_AO_LOGO,
                 max_files=1,
                 file_types=[
                     "png",
