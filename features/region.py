@@ -66,7 +66,7 @@ def build_region_form(
                 REGION_FACEBOOK: getattr(org_record, "facebook", None),
                 REGION_INSTAGRAM: getattr(org_record, "instagram", None),
                 REGION_ADMINS: admin_slack_user_ids,
-                REGION_ADMINS_NON_SLACK: non_slack,
+                actions.USER_OPTION_LOAD: non_slack,
             }
         )
 
@@ -129,8 +129,10 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     admin_users = [get_user(user_id, region_record, client, logger) for user_id in admin_users_slack]
     admin_user_ids = [u.user_id for u in admin_users if u is not None]
 
-    admin_users_non_slack = safe_get(form_data, REGION_ADMINS_NON_SLACK) or []
-    admin_user_ids += [int(u["value"]) for u in admin_users_non_slack]
+    admin_users_non_slack = safe_get(form_data, actions.USER_OPTION_LOAD) or []
+    admin_user_ids += [int(u) for u in admin_users_non_slack]
+
+    print(f"Setting region admins to user IDs: {admin_user_ids}")
 
     cmd.admin_user_ids = admin_user_ids
     handler.handle(cmd)
@@ -173,12 +175,13 @@ REGION_FORM = SdkBlockView(
         ),
         blocks.InputBlock(
             label="Region Admins (non-Slack users)",
-            block_id="region_admins_non_slack",
+            block_id=actions.USER_OPTION_LOAD,
             element=blocks.ExternalDataMultiSelectElement(
                 placeholder="Enter the names of non-Slack users",
                 min_query_length=3,
                 action_id=actions.USER_OPTION_LOAD,
             ),
+            optional=True,
         ),
         blocks.InputBlock(
             label="Region Website",

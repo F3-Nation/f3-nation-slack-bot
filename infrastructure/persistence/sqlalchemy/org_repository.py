@@ -11,6 +11,8 @@ from f3_data_models.models import Org as SAOrg  # type: ignore
 from f3_data_models.models import Org_Type as SAOrgType  # type: ignore
 from f3_data_models.models import Position as SAPosition  # type: ignore
 from f3_data_models.models import Position_x_Org_x_User as SAPositionAssignment  # type: ignore
+from f3_data_models.models import Role as SARole  # type: ignore
+from f3_data_models.models import Role_x_User_x_Org as SARoleAssignment  # type: ignore
 from f3_data_models.utils import DbManager
 
 from domain.org import entities as domain_entities
@@ -240,15 +242,52 @@ class SqlAlchemyOrgRepository(OrgRepository):
             # Best-effort: if assignment load fails, continue with empty assignments
             pass
         org.rebuild_indexes()
-        # set global catalogs for invariant checks (cached)
+        # set global catalogs for invariant checks (cached) and augment with parent-region positions
         try:
             type_names, type_acros, tag_names, pos_map, global_positions = self._get_global_catalog()
+            # Copy so we can safely augment without mutating cache
+            combined_pos_map = {k: set(v) for k, v in (pos_map or {}).items()}
+            combined_global_positions: Dict[int, Position] = dict(global_positions or {})
+
+            # If this org has a parent (e.g., AO under a region), make the parent's
+            # custom positions visible for lookups/assignments. This allows AOs to
+            # assign members to region-defined positions (org_type='ao') like "Site Q".
+            if org.parent_id is not None:
+                try:
+                    parent_positions = DbManager.find_records(SAPosition, [SAPosition.org_id == int(org.parent_id)])
+                    for p in parent_positions:
+                        # Map SA Org_Type enum/name to normalized string key
+                        ot = getattr(p, "org_type", None)
+                        key = None
+                        if ot is not None:
+                            try:
+                                key = str(ot.name).strip().lower()
+                            except Exception:
+                                key = str(ot).strip().lower()
+                        # Add name to inherited/global name buckets
+                        bucket = combined_pos_map.setdefault(key, set())
+                        raw_name = str(getattr(p, "name", "")).strip()
+                        if raw_name:
+                            bucket.add(raw_name.lower())
+                        # Expose parent's position object as read-only/global for this org
+                        if p.id not in combined_global_positions:
+                            combined_global_positions[p.id] = Position(
+                                id=PositionId(p.id),
+                                name=PositionName(raw_name),
+                                org_type=key,
+                                description=getattr(p, "description", None),
+                                is_active=True,
+                            )
+                except Exception:
+                    # best-effort: if augmenting with parent positions fails, continue with globals only
+                    pass
+
             org.set_global_catalog(
                 event_type_names=type_names,
                 event_type_acronyms=type_acros,
                 event_tag_names=tag_names,
-                position_names_by_type=pos_map,
-                positions=global_positions,
+                position_names_by_type=combined_pos_map,
+                positions=combined_global_positions,
             )
         except Exception:
             # best-effort; continue without global catalogs if lookup fails
@@ -303,6 +342,25 @@ class SqlAlchemyOrgRepository(OrgRepository):
             if hasattr(SAOrg, attr):
                 base_fields[getattr(SAOrg, attr)] = getattr(org, attr)
         DbManager.update_record(SAOrg, org.id, base_fields)
+
+        # persist region admins
+        if org.type == "region" and org.admin_user_ids is not None:
+            # Find admin role ID
+            admin_role = DbManager.find_records(SARole, [SARole.name == "admin"])
+            if not admin_role:
+                raise ValueError("Admin role not found in database")
+            admin_role_id = admin_role[0].id
+            # Delete existing assignments for this region
+            DbManager.delete_records(
+                SARoleAssignment,
+                [
+                    SARoleAssignment.org_id == org.id,
+                    SARoleAssignment.role_id == admin_role_id,
+                ],
+            )
+            # Insert new assignments for admin users
+            for uid in org.admin_user_ids:
+                DbManager.create_record(SARoleAssignment(role_id=admin_role_id, org_id=org.id, user_id=int(uid)))
 
         # event type changes
         existing_types = {

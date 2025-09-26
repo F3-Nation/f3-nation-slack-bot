@@ -52,6 +52,8 @@ class SdkBlockView:
         NOTE: This has limited support and works best with InputBlocks.
         """
         for block in self.blocks:
+            if safe_get(values, block.block_id) is None:
+                continue
             if isinstance(block, InputBlock) and block.block_id in values:
                 if hasattr(block.element, "initial_value"):
                     if block.element.type == "number_input":
@@ -84,6 +86,8 @@ class SdkBlockView:
                     }
                 elif block.element.type == "multi_external_select":
                     for value in values[block.block_id]:
+                        if block.element.initial_options is None:
+                            block.element.initial_options = []
                         block.element.initial_options.append(
                             {
                                 "text": {"type": "plain_text", "text": value.get("text", "")},

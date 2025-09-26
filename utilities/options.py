@@ -35,7 +35,7 @@ def handle_request(
                 display_name += f" ({user.home_region_org.name})"
             options.append(
                 {
-                    "text": {"type": "plain_text", "text": display_name},
+                    "text": {"type": "plain_text", "text": display_name[:40]},
                     "value": str(user.id),
                 }
             )
