@@ -6,7 +6,14 @@ from logging import Logger
 from typing import List
 
 import requests
-from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, EventType, Org, Org_Type
+from f3_data_models.models import (
+    Attendance,
+    Attendance_x_AttendanceType,
+    EventInstance,
+    EventType,
+    Org,
+    Org_Type,
+)
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
@@ -467,6 +474,26 @@ def handle_assign_q_form(
     co_qs_user_ids = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs_slack_ids]
 
     # Existing attendance records
+    existing_attendance_records = DbManager.find_records(
+        Attendance,
+        filters=[Attendance.event_instance_id == event_instance_id],
+        joinedloads=[Attendance.slack_users, Attendance.attendance_types],
+    )
+
+    # Assign existing Q / Co-Qs to "HC"
+    for ea in existing_attendance_records:
+        if any(at.type in ["Q", "Co-Q"] for at in ea.attendance_types):
+            if 1 not in [at.id for at in ea.attendance_types]:
+                DbManager.create_record(Attendance_x_AttendanceType(attendance_id=ea.id, attendance_type_id=1))
+            DbManager.delete_records(
+                cls=Attendance_x_AttendanceType,
+                filters=[
+                    Attendance_x_AttendanceType.attendance_id == ea.id,
+                    Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]),
+                ],
+            )
+
+    # Existing attendance records again (probably a better way to do this)
     existing_attendance_records = DbManager.find_records(
         Attendance,
         filters=[Attendance.event_instance_id == event_instance_id],
