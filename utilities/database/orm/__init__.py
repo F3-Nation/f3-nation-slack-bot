@@ -52,3 +52,6 @@ class SlackSettings:
     paxminer_schema: Optional[str] = None
     send_q_lineups: Optional[bool] = None
     migration_date: Optional[str] = None
+    reporting_region_leaderboard_enabled: Optional[bool] = None
+    reporting_region_leaderboard_channel: Optional[str] = None
+    reporting_ao_leaderboard_enabled: Optional[bool] = None
