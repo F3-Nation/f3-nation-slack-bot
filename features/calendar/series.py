@@ -465,7 +465,7 @@ def build_series_list_form(
         Event,
         Org,
         [
-            or_((Event.org_id == region_record.org_id) or (Org.parent_id == region_record.org_id)),
+            or_((Event.org_id == region_record.org_id), (Org.parent_id == region_record.org_id)),
             Event.is_active,
         ],
     )
