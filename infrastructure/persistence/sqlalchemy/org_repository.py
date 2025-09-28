@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import os
 import time
 from typing import Dict, List, Optional, Set, Tuple
@@ -69,6 +70,46 @@ class SqlAlchemyOrgRepository(OrgRepository):
         "position_names_by_type": {},
     }
     _GLOBAL_TTL_SEC: int = int(os.environ.get("ORG_GLOBAL_CATALOG_TTL", "300"))
+
+    # Per-org aggregate cache (short TTL, deep-copied to avoid shared mutations)
+    _ORG_CACHE: Dict[int, Tuple[float, Org]] = {}
+    _ORG_TTL_SEC: int = int(os.environ.get("ORG_AGGREGATE_CACHE_TTL", "60"))
+
+    @classmethod
+    def _get_cached_org(cls, org_id: OrgId) -> Optional[Org]:
+        """Return a deep-copied cached Org if present and not expired."""
+        try:
+            if cls._ORG_TTL_SEC <= 0:
+                return None
+            key = int(org_id)
+            entry = cls._ORG_CACHE.get(key)
+            if not entry:
+                return None
+            expires, org = entry
+            if time.time() >= float(expires):
+                cls._ORG_CACHE.pop(key, None)
+                return None
+            return copy.deepcopy(org)
+        except Exception:
+            return None
+
+    @classmethod
+    def _put_cached_org(cls, org: Org) -> None:
+        """Store a deep copy of Org with TTL; no-op if TTL disabled."""
+        try:
+            if cls._ORG_TTL_SEC <= 0:
+                return
+            key = int(org.id)
+            cls._ORG_CACHE[key] = (time.time() + cls._ORG_TTL_SEC, copy.deepcopy(org))
+        except Exception:
+            pass
+
+    @classmethod
+    def _invalidate_cached_org(cls, org_id: OrgId) -> None:
+        try:
+            cls._ORG_CACHE.pop(int(org_id), None)
+        except Exception:
+            pass
 
     @staticmethod
     def _to_sa_org_type(key: Optional[str]):
@@ -151,6 +192,10 @@ class SqlAlchemyOrgRepository(OrgRepository):
         return set(type_names), set(type_acros), set(tag_names), pos_map, global_position_map
 
     def get(self, org_id: OrgId) -> Optional[Org]:
+        # Fast path: use cached aggregate if available
+        cached = self._get_cached_org(org_id)
+        if cached is not None:
+            return cached
         sa_org: SAOrg = DbManager.get(SAOrg, org_id)
         if not sa_org:
             return None
@@ -333,7 +378,12 @@ class SqlAlchemyOrgRepository(OrgRepository):
                 domain_entities._position_seq._v = max(domain_entities._position_seq._v, int(max_pos_id))
         except Exception:  # pragma: no cover - best-effort safety
             pass
-        return org
+        # Cache the freshly hydrated aggregate and return a deep copy
+        try:
+            self._put_cached_org(org)
+        except Exception:
+            pass
+        return copy.deepcopy(org)
 
     def list_children(self, parent_id: OrgId, include_inactive: bool = False) -> List[Org]:
         # fetch child orgs (AOs) with this parent
@@ -635,6 +685,11 @@ class SqlAlchemyOrgRepository(OrgRepository):
         # Clear processed domain events
         try:
             org._events.clear()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        # Invalidate per-org cache after persistence to ensure coherence
+        try:
+            self._invalidate_cached_org(org.id)
         except Exception:
             pass
 
