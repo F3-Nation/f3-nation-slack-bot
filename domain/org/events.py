@@ -20,6 +20,60 @@ class DomainEvent:
     payload: Dict[str, Any]
 
 
+# Org profile events
+@dataclass
+class OrgProfileUpdated(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, fields: Dict[str, Any], triggered_by: Optional[UserId]):
+        return OrgProfileUpdated(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="OrgProfileUpdated",
+            payload={"fields": dict(fields or {})},
+        )
+
+
+# Admin events
+@dataclass
+class OrgAdminAssigned(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, user_id: UserId, triggered_by: Optional[UserId]):
+        return OrgAdminAssigned(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="OrgAdminAssigned",
+            payload={"user_id": user_id},
+        )
+
+
+@dataclass
+class OrgAdminRevoked(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, user_id: UserId, triggered_by: Optional[UserId]):
+        return OrgAdminRevoked(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="OrgAdminRevoked",
+            payload={"user_id": user_id},
+        )
+
+
+@dataclass
+class OrgAdminsReplaced(DomainEvent):
+    @staticmethod
+    def create(org_id: OrgId, user_ids: list[UserId], triggered_by: Optional[UserId]):
+        return OrgAdminsReplaced(
+            org_id=org_id,
+            occurred_at=_ts(),
+            triggered_by=triggered_by,
+            name="OrgAdminsReplaced",
+            payload={"user_ids": list(user_ids or [])},
+        )
+
+
 # Concrete events
 @dataclass
 class EventTypeCreated(DomainEvent):

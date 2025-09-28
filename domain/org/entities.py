@@ -13,6 +13,10 @@ from .events import (
     LocationCreated,
     LocationDeleted,
     LocationUpdated,
+    OrgAdminAssigned,
+    OrgAdminRevoked,
+    OrgAdminsReplaced,
+    OrgProfileUpdated,
     PositionAssigned,
     PositionCreated,
     PositionDeleted,
@@ -308,20 +312,23 @@ class Org:
         self.record(EventTagDeleted.create(self.id, event_tag_id, triggered_by))
 
     # Admin management
-    def assign_admin(self, user_id: UserId):
+    def assign_admin(self, user_id: UserId, *, triggered_by: Optional[UserId] = None):
         if user_id not in self.admin_user_ids:
             self.admin_user_ids.append(user_id)
+            self.record(OrgAdminAssigned.create(self.id, user_id, triggered_by))
 
-    def revoke_admin(self, user_id: UserId):
+    def revoke_admin(self, user_id: UserId, *, triggered_by: Optional[UserId] = None):
         if user_id in self.admin_user_ids:
             if len(self.admin_user_ids) == 1:
                 raise ValueError("Cannot remove last admin")
             self.admin_user_ids.remove(user_id)
+            self.record(OrgAdminRevoked.create(self.id, user_id, triggered_by))
 
-    def replace_admins(self, new_admin_user_ids: List[UserId]):
+    def replace_admins(self, new_admin_user_ids: List[UserId], *, triggered_by: Optional[UserId] = None):
         if not new_admin_user_ids:
             raise ValueError("At least one admin required")
         self.admin_user_ids = list(dict.fromkeys(new_admin_user_ids))  # preserve order, remove dups
+        self.record(OrgAdminsReplaced.create(self.id, list(self.admin_user_ids), triggered_by))
 
     # bootstrap indexes (for reconstitution from persistence)
     def rebuild_indexes(self):
@@ -346,6 +353,48 @@ class Org:
             if loc.is_active and not getattr(loc, "legacy_blank_name", False)
         }
         return self
+
+    # --- Org profile updates ---
+    def update_profile(
+        self,
+        *,
+        name: Optional[str] = None,
+        description: Optional[str] = None,
+        website: Optional[str] = None,
+        email: Optional[str] = None,
+        twitter: Optional[str] = None,
+        facebook: Optional[str] = None,
+        instagram: Optional[str] = None,
+        logo_url: Optional[str] = None,
+        triggered_by: Optional[UserId] = None,
+    ) -> None:
+        changes: Dict[str, object] = {}
+        if name is not None and name != self.name:
+            self.name = name
+            changes["name"] = name
+        if description is not None and description != self.description:
+            self.description = description
+            changes["description"] = description
+        if website is not None and website != self.website:
+            self.website = website
+            changes["website"] = website
+        if email is not None and email != self.email:
+            self.email = email
+            changes["email"] = email
+        if twitter is not None and twitter != self.twitter:
+            self.twitter = twitter
+            changes["twitter"] = twitter
+        if facebook is not None and facebook != self.facebook:
+            self.facebook = facebook
+            changes["facebook"] = facebook
+        if instagram is not None and instagram != self.instagram:
+            self.instagram = instagram
+            changes["instagram"] = instagram
+        if logo_url is not None and logo_url != self.logo_url:
+            self.logo_url = logo_url
+            changes["logo_url"] = logo_url
+        if changes:
+            self.record(OrgProfileUpdated.create(self.id, changes, triggered_by))
 
     # --- Position assignments ---
     def assign_user_to_position(

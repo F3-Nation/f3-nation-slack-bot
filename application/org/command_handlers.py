@@ -88,16 +88,23 @@ class OrgCommandHandler:
         # Sentinel value for unset fields
         SENTINEL = getattr(cmd, "SENTINEL", object())
 
-        # Update fields only if not SENTINEL
-        for attr in ["name", "description", "website", "email", "twitter", "facebook", "instagram", "logo_url"]:
-            val = getattr(cmd, attr, SENTINEL)
-            if val is not SENTINEL:
-                setattr(org, attr, val)
+        # Update profile fields only if set on command (event-driven)
+        org.update_profile(
+            name=None if getattr(cmd, "name", SENTINEL) is SENTINEL else cmd.name,
+            description=None if getattr(cmd, "description", SENTINEL) is SENTINEL else cmd.description,
+            website=None if getattr(cmd, "website", SENTINEL) is SENTINEL else cmd.website,
+            email=None if getattr(cmd, "email", SENTINEL) is SENTINEL else cmd.email,
+            twitter=None if getattr(cmd, "twitter", SENTINEL) is SENTINEL else cmd.twitter,
+            facebook=None if getattr(cmd, "facebook", SENTINEL) is SENTINEL else cmd.facebook,
+            instagram=None if getattr(cmd, "instagram", SENTINEL) is SENTINEL else cmd.instagram,
+            logo_url=None if getattr(cmd, "logo_url", SENTINEL) is SENTINEL else cmd.logo_url,
+            triggered_by=None,
+        )
 
         if getattr(cmd, "admin_user_ids", SENTINEL) is not SENTINEL:
             # Only replace if a non-None list is provided; empty list should still raise (domain rule)
             if cmd.admin_user_ids is not None:
-                org.replace_admins([int(u) for u in cmd.admin_user_ids])
+                org.replace_admins(cmd.admin_user_ids)
 
         org.version += 1
         self.repo.save(org)

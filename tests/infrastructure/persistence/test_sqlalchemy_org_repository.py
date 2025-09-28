@@ -41,7 +41,8 @@ def test_repository_load_and_update(org_id):
     assert org is not None, "Expected existing Org for provided ORG_REPO_TEST_ORG_ID"
     original_name = org.name
     new_name = f"{original_name}-ut-{uuid.uuid4().hex[:6]}"
-    org.name = new_name
+    # org.name = new_name
+    org.update_profile(name=new_name, triggered_by=None)
     repo.save(org)
 
     # reload and verify persistence

@@ -17,6 +17,26 @@ from f3_data_models.utils import DbManager
 
 from domain.org import entities as domain_entities
 from domain.org.entities import EventTag, EventType, Location, Org, Position
+from domain.org.events import (
+    EventTagCreated,
+    EventTagDeleted,
+    EventTagUpdated,
+    EventTypeCreated,
+    EventTypeDeleted,
+    EventTypeUpdated,
+    LocationCreated,
+    LocationDeleted,
+    LocationUpdated,
+    OrgAdminAssigned,
+    OrgAdminRevoked,
+    OrgAdminsReplaced,
+    OrgProfileUpdated,
+    PositionAssigned,
+    PositionCreated,
+    PositionDeleted,
+    PositionUnassigned,
+    PositionUpdated,
+)
 from domain.org.repository import OrgRepository
 from domain.org.value_objects import (
     Acronym,
@@ -49,6 +69,16 @@ class SqlAlchemyOrgRepository(OrgRepository):
         "position_names_by_type": {},
     }
     _GLOBAL_TTL_SEC: int = int(os.environ.get("ORG_GLOBAL_CATALOG_TTL", "300"))
+
+    @staticmethod
+    def _to_sa_org_type(key: Optional[str]):
+        """Map normalized org_type key (e.g., 'region', 'ao') to SA enum if available."""
+        if not key:
+            return None
+        try:
+            return SAOrgType[key]
+        except Exception:
+            return None
 
     @classmethod
     def _get_global_catalog(
@@ -207,8 +237,7 @@ class SqlAlchemyOrgRepository(OrgRepository):
             if rec.id and rec.id > max_loc_id:
                 max_loc_id = rec.id
         # load positions for this org (no is_active column; treat all as active)
-        position_records = DbManager.find_records(SAPosition, [True])
-        org_position_records = [p for p in position_records if p.org_id == sa_org.id]
+        org_position_records = DbManager.find_records(SAPosition, [SAPosition.org_id == sa_org.id])
         max_pos_id = 0
         for rec in org_position_records:
             # Map SA Org_Type enum to lower-case string key
@@ -336,208 +365,276 @@ class SqlAlchemyOrgRepository(OrgRepository):
         return results
 
     def save(self, org: Org) -> None:
-        # persist simple scalar changes for org
-        base_fields = {SAOrg.name: org.name, SAOrg.description: org.description}
-        for attr in ["website", "email", "twitter", "facebook", "instagram", "logo_url"]:
-            if hasattr(SAOrg, attr):
-                base_fields[getattr(SAOrg, attr)] = getattr(org, attr)
-        DbManager.update_record(SAOrg, org.id, base_fields)
-
-        # persist region admins
-        if org.type == "region" and org.admin_user_ids is not None:
-            # Find admin role ID
-            admin_role = DbManager.find_records(SARole, [SARole.name == "admin"])
-            if not admin_role:
-                raise ValueError("Admin role not found in database")
-            admin_role_id = admin_role[0].id
-            # Delete existing assignments for this region
-            DbManager.delete_records(
-                SARoleAssignment,
-                [
-                    SARoleAssignment.org_id == org.id,
-                    SARoleAssignment.role_id == admin_role_id,
-                ],
-            )
-            # Insert new assignments for admin users
-            for uid in org.admin_user_ids:
-                DbManager.create_record(SARoleAssignment(role_id=admin_role_id, org_id=org.id, user_id=int(uid)))
-
-        # event type changes
-        existing_types = {
-            rec.id: rec for rec in DbManager.find_records(SAEventType, [SAEventType.specific_org_id == org.id])
-        }
-        for et in list(org.event_types.values()):
-            if et.id not in existing_types:
-                sa_obj = DbManager.create_record(
-                    SAEventType(
-                        name=et.name.value,
-                        event_category=et.category,
-                        acronym=et.acronym.value,
-                        specific_org_id=org.id,
-                        is_active=et.is_active,
-                    )
-                )
-                if sa_obj.id != et.id:
-                    old_id = et.id
-                    et.id = EventTypeId(sa_obj.id)
-                    org.event_types[et.id] = et
-                    org.event_types.pop(old_id, None)
-            else:
-                DbManager.update_record(
-                    SAEventType,
-                    et.id,
-                    {
-                        SAEventType.name: et.name.value,
-                        SAEventType.acronym: et.acronym.value,
-                        SAEventType.event_category: et.category,
-                        SAEventType.is_active: et.is_active,
-                    },
-                )
-
-        # event tag changes
-        existing_tags = {
-            rec.id: rec for rec in DbManager.find_records(SAEventTag, [SAEventTag.specific_org_id == org.id])
-        }
-        for tag in list(org.event_tags.values()):
-            if tag.id not in existing_tags:
-                sa_obj = DbManager.create_record(
-                    SAEventTag(
-                        name=tag.name.value,
-                        color=tag.color,
-                        specific_org_id=org.id,
-                        is_active=tag.is_active,
-                    )
-                )
-                if sa_obj.id != tag.id:
-                    old_id = tag.id
-                    tag.id = EventTagId(sa_obj.id)
-                    org.event_tags[tag.id] = tag
-                    org.event_tags.pop(old_id, None)
-            else:
-                DbManager.update_record(
-                    SAEventTag,
-                    tag.id,
-                    {
-                        SAEventTag.name: tag.name.value,
-                        SAEventTag.color: tag.color,
-                        SAEventTag.is_active: tag.is_active,
-                    },
-                )
-
-        # location changes
-        existing_locations = {rec.id: rec for rec in DbManager.find_records(SALocation, [SALocation.org_id == org.id])}
-        for loc in list(org.locations.values()):
-            if loc.id not in existing_locations:
-                sa_obj = DbManager.create_record(
-                    SALocation(
-                        name=loc.name.value,
-                        description=loc.description,
-                        is_active=loc.is_active,
-                        latitude=loc.latitude,
-                        longitude=loc.longitude,
-                        address_street=loc.address_street,
-                        address_street2=loc.address_street2,
-                        address_city=loc.address_city,
-                        address_state=loc.address_state,
-                        address_zip=loc.address_zip,
-                        address_country=loc.address_country,
-                        org_id=org.id,
-                    )
-                )
-                if sa_obj.id != loc.id:
-                    old_id = loc.id
-                    loc.id = LocationId(sa_obj.id)
-                    org.locations[loc.id] = loc
-                    org.locations.pop(old_id, None)
-            else:
-                # If this is a legacy blank-name location and hasn't been explicitly
-                # renamed (legacy_blank_name still True), persist blank string for name
-                name_to_persist = loc.name.value if not getattr(loc, "legacy_blank_name", False) else ""
-                DbManager.update_record(
-                    SALocation,
-                    loc.id,
-                    {
-                        SALocation.name: name_to_persist,
-                        SALocation.description: loc.description,
-                        SALocation.is_active: loc.is_active,
-                        SALocation.latitude: loc.latitude,
-                        SALocation.longitude: loc.longitude,
-                        SALocation.address_street: loc.address_street,
-                        SALocation.address_street2: loc.address_street2,
-                        SALocation.address_city: loc.address_city,
-                        SALocation.address_state: loc.address_state,
-                        SALocation.address_zip: loc.address_zip,
-                        SALocation.address_country: loc.address_country,
-                    },
-                )
-
-        # position changes (simple upsert; no soft-delete tracking available)
-        existing_positions = {rec.id: rec for rec in DbManager.find_records(SAPosition, [SAPosition.org_id == org.id])}
-        for pos in list(org.positions.values()):
-            # Persist only positions that belong to this org (org-level custom positions)
-            if pos.id not in existing_positions:
-                # Map org_type key (str) back to SA enum by name
-                sa_org_type = None
-                try:
-                    sa_org_type = SAOrgType[pos.org_type] if pos.org_type else None
-                except Exception:
-                    sa_org_type = None
-                sa_obj = DbManager.create_record(
-                    SAPosition(
-                        name=pos.name.value,
-                        description=pos.description,
-                        org_type=sa_org_type,
-                        org_id=org.id,
-                    )
-                )
-                if sa_obj.id != pos.id:
-                    old_id = pos.id
-                    pos.id = PositionId(sa_obj.id)
-                    org.positions[pos.id] = pos
-                    org.positions.pop(old_id, None)
-            else:
-                # Update name/description/org_type
-                try:
-                    sa_org_type = SAOrgType[pos.org_type] if pos.org_type else None
-                except Exception:
-                    sa_org_type = None
-                fields = {
-                    SAPosition.name: pos.name.value,
-                    SAPosition.description: pos.description,
-                    SAPosition.org_type: sa_org_type,
-                    SAPosition.org_id: org.id,
-                }
-                DbManager.update_record(SAPosition, pos.id, fields)
-
-        # Invalidate global position cache if any positions were added/updated that might affect cloning uniqueness
-        # Simplistic approach: always expire cache after any position persistence for now.
-        try:  # pragma: no cover - cache invalidation best-effort
-            self._GLOBAL_CACHE["expires"] = 0.0
-        except Exception:
-            pass
-
-        # Persist position assignments (replace strategy per position)
-        try:  # pragma: no cover - best-effort for now
-            existing_assignments = DbManager.find_records(SAPositionAssignment, [SAPositionAssignment.org_id == org.id])
-            # Build current mapping: position_id -> set[user_id]
-            current_map: Dict[int, set[int]] = {}
-            for rec in existing_assignments:
-                current_map.setdefault(rec.position_id, set()).add(rec.user_id)
-            # Desired state from aggregate
-            for pos_id, user_set in org.position_assignments.items():
-                pid_int = int(pos_id)  # type: ignore[arg-type]
-                desired = {int(u) for u in user_set}
-                existing = current_map.get(pid_int, set())
-                if desired == existing:
+        # Event-driven persistence for aggregate changes
+        for evt in org.events:
+            # Event Types
+            match evt:
+                case OrgProfileUpdated():
+                    fields = evt.payload.get("fields", {})  # type: ignore[assignment]
+                    mapped = {}
+                    # list of allowed scalar fields on SAOrg
+                    field_map = {
+                        "name": SAOrg.name,
+                        "description": SAOrg.description,
+                        "website": getattr(SAOrg, "website", None),
+                        "email": getattr(SAOrg, "email", None),
+                        "twitter": getattr(SAOrg, "twitter", None),
+                        "facebook": getattr(SAOrg, "facebook", None),
+                        "instagram": getattr(SAOrg, "instagram", None),
+                        "logo_url": getattr(SAOrg, "logo_url", None),
+                    }
+                    for k, v in fields.items():
+                        sa_col = field_map.get(k)
+                        if sa_col is not None:
+                            mapped[sa_col] = v
+                    if mapped:
+                        DbManager.update_record(SAOrg, org.id, mapped)
                     continue
-                # Remove existing rows for this position/org
-                DbManager.delete_records(
-                    SAPositionAssignment,
-                    filters=[SAPositionAssignment.org_id == org.id, SAPositionAssignment.position_id == pid_int],
-                )
-                # Insert desired
-                for uid in desired:
-                    DbManager.create_record(SAPositionAssignment(org_id=org.id, position_id=pid_int, user_id=uid))
+                # Admins
+                case OrgAdminsReplaced():
+                    if org.type == "region":
+                        admin_role = DbManager.find_records(SARole, [SARole.name == "admin"])
+                        if not admin_role:
+                            raise ValueError("Admin role not found in database")
+                        admin_role_id = admin_role[0].id
+                        # replace = delete all then insert provided
+                        DbManager.delete_records(
+                            SARoleAssignment,
+                            [SARoleAssignment.org_id == org.id, SARoleAssignment.role_id == admin_role_id],
+                        )
+                        for uid in evt.payload.get("user_ids", []) or []:  # type: ignore[union-attr]
+                            DbManager.create_record(
+                                SARoleAssignment(role_id=admin_role_id, org_id=org.id, user_id=int(uid))
+                            )
+                    continue
+                case OrgAdminAssigned():
+                    if org.type == "region":
+                        admin_role = DbManager.find_records(SARole, [SARole.name == "admin"])
+                        if not admin_role:
+                            raise ValueError("Admin role not found in database")
+                        admin_role_id = admin_role[0].id
+                        uid = int(evt.payload.get("user_id"))  # type: ignore[arg-type]
+                        existing = DbManager.find_records(
+                            SARoleAssignment,
+                            [
+                                SARoleAssignment.org_id == org.id,
+                                SARoleAssignment.role_id == admin_role_id,
+                                SARoleAssignment.user_id == uid,
+                            ],
+                        )
+                        if not existing:
+                            DbManager.create_record(SARoleAssignment(role_id=admin_role_id, org_id=org.id, user_id=uid))
+                    continue
+                case OrgAdminRevoked():
+                    if org.type == "region":
+                        admin_role = DbManager.find_records(SARole, [SARole.name == "admin"])
+                        if not admin_role:
+                            raise ValueError("Admin role not found in database")
+                        admin_role_id = admin_role[0].id
+                        uid = int(evt.payload.get("user_id"))  # type: ignore[arg-type]
+                        DbManager.delete_records(
+                            SARoleAssignment,
+                            [
+                                SARoleAssignment.org_id == org.id,
+                                SARoleAssignment.role_id == admin_role_id,
+                                SARoleAssignment.user_id == uid,
+                            ],
+                        )
+                    continue
+                case EventTypeCreated():
+                    et = org.event_types.get(evt.payload["event_type_id"])  # type: ignore[index]
+                    if et is None:
+                        continue
+                    sa_obj = DbManager.create_record(
+                        SAEventType(
+                            name=et.name.value,
+                            event_category=et.category,
+                            acronym=et.acronym.value,
+                            specific_org_id=org.id,
+                            is_active=et.is_active,
+                        )
+                    )
+                    if sa_obj.id != et.id:
+                        old_id = et.id
+                        et.id = EventTypeId(sa_obj.id)
+                        org.event_types[et.id] = et
+                        org.event_types.pop(old_id, None)
+                case EventTypeUpdated():
+                    et = org.event_types.get(evt.payload["event_type_id"])  # type: ignore[index]
+                    if et is None:
+                        continue
+                    DbManager.update_record(
+                        SAEventType,
+                        et.id,
+                        {
+                            SAEventType.name: et.name.value,
+                            SAEventType.acronym: et.acronym.value,
+                            SAEventType.event_category: et.category,
+                            SAEventType.is_active: et.is_active,
+                        },
+                    )
+                case EventTypeDeleted():
+                    et_id = evt.payload["event_type_id"]  # type: ignore[index]
+                    DbManager.update_record(SAEventType, et_id, {SAEventType.is_active: False})
+
+                # Event Tags
+                case EventTagCreated():
+                    tag = org.event_tags.get(evt.payload["event_tag_id"])  # type: ignore[index]
+                    if tag is None:
+                        continue
+                    sa_obj = DbManager.create_record(
+                        SAEventTag(
+                            name=tag.name.value,
+                            color=tag.color,
+                            specific_org_id=org.id,
+                            is_active=tag.is_active,
+                        )
+                    )
+                    if sa_obj.id != tag.id:
+                        old_id = tag.id
+                        tag.id = EventTagId(sa_obj.id)
+                        org.event_tags[tag.id] = tag
+                        org.event_tags.pop(old_id, None)
+                case EventTagUpdated():
+                    tag = org.event_tags.get(evt.payload["event_tag_id"])  # type: ignore[index]
+                    if tag is None:
+                        continue
+                    DbManager.update_record(
+                        SAEventTag,
+                        tag.id,
+                        {
+                            SAEventTag.name: tag.name.value,
+                            SAEventTag.color: tag.color,
+                            SAEventTag.is_active: tag.is_active,
+                        },
+                    )
+                case EventTagDeleted():
+                    tag_id = evt.payload["event_tag_id"]  # type: ignore[index]
+                    DbManager.update_record(SAEventTag, tag_id, {SAEventTag.is_active: False})
+
+                # Locations
+                case LocationCreated():
+                    loc = org.locations.get(evt.payload["location_id"])  # type: ignore[index]
+                    if loc is None:
+                        continue
+                    sa_obj = DbManager.create_record(
+                        SALocation(
+                            name=loc.name.value,
+                            description=loc.description,
+                            is_active=loc.is_active,
+                            latitude=loc.latitude,
+                            longitude=loc.longitude,
+                            address_street=loc.address_street,
+                            address_street2=loc.address_street2,
+                            address_city=loc.address_city,
+                            address_state=loc.address_state,
+                            address_zip=loc.address_zip,
+                            address_country=loc.address_country,
+                            org_id=org.id,
+                        )
+                    )
+                    if sa_obj.id != loc.id:
+                        old_id = loc.id
+                        loc.id = LocationId(sa_obj.id)
+                        org.locations[loc.id] = loc
+                        org.locations.pop(old_id, None)
+                case LocationUpdated():
+                    loc = org.locations.get(evt.payload["location_id"])  # type: ignore[index]
+                    if loc is None:
+                        continue
+                    name_to_persist = loc.name.value if not getattr(loc, "legacy_blank_name", False) else ""
+                    DbManager.update_record(
+                        SALocation,
+                        loc.id,
+                        {
+                            SALocation.name: name_to_persist,
+                            SALocation.description: loc.description,
+                            SALocation.is_active: loc.is_active,
+                            SALocation.latitude: loc.latitude,
+                            SALocation.longitude: loc.longitude,
+                            SALocation.address_street: loc.address_street,
+                            SALocation.address_street2: loc.address_street2,
+                            SALocation.address_city: loc.address_city,
+                            SALocation.address_state: loc.address_state,
+                            SALocation.address_zip: loc.address_zip,
+                            SALocation.address_country: loc.address_country,
+                        },
+                    )
+                case LocationDeleted():
+                    loc_id = evt.payload["location_id"]  # type: ignore[index]
+                    DbManager.update_record(SALocation, loc_id, {SALocation.is_active: False})
+
+                # Positions
+                case PositionCreated():
+                    pos = org.positions.get(evt.payload["position_id"])  # type: ignore[index]
+                    if pos is None:
+                        continue
+                    sa_org_type = self._to_sa_org_type(pos.org_type)
+                    sa_obj = DbManager.create_record(
+                        SAPosition(
+                            name=pos.name.value,
+                            description=pos.description,
+                            org_type=sa_org_type,
+                            org_id=org.id,
+                        )
+                    )
+                    if sa_obj.id != pos.id:
+                        old_id = pos.id
+                        pos.id = PositionId(sa_obj.id)
+                        org.positions[pos.id] = pos
+                        org.positions.pop(old_id, None)
+                case PositionUpdated():
+                    pos = org.positions.get(evt.payload["position_id"])  # type: ignore[index]
+                    if pos is None:
+                        continue
+                    sa_org_type = self._to_sa_org_type(pos.org_type)
+                    DbManager.update_record(
+                        SAPosition,
+                        pos.id,
+                        {
+                            SAPosition.name: pos.name.value,
+                            SAPosition.description: pos.description,
+                            SAPosition.org_type: sa_org_type,
+                            SAPosition.org_id: org.id,
+                        },
+                    )
+                case PositionDeleted():
+                    # No soft-delete column on positions; best-effort: remove assignments for this position
+                    pid = evt.payload["position_id"]  # type: ignore[index]
+                    DbManager.delete_records(
+                        SAPositionAssignment,
+                        [SAPositionAssignment.org_id == org.id, SAPositionAssignment.position_id == int(pid)],
+                    )
+
+                # Assignments
+                case PositionAssigned():
+                    pid = int(evt.payload["position_id"])  # type: ignore[index]
+                    uid = int(evt.payload["user_id"])  # type: ignore[index]
+                    existing = DbManager.find_records(
+                        SAPositionAssignment,
+                        [
+                            SAPositionAssignment.org_id == org.id,
+                            SAPositionAssignment.position_id == pid,
+                            SAPositionAssignment.user_id == uid,
+                        ],
+                    )
+                    if not existing:
+                        DbManager.create_record(SAPositionAssignment(org_id=org.id, position_id=pid, user_id=uid))
+                case PositionUnassigned():
+                    pid = int(evt.payload["position_id"])  # type: ignore[index]
+                    uid = int(evt.payload["user_id"])  # type: ignore[index]
+                    DbManager.delete_records(
+                        SAPositionAssignment,
+                        [
+                            SAPositionAssignment.org_id == org.id,
+                            SAPositionAssignment.position_id == pid,
+                            SAPositionAssignment.user_id == uid,
+                        ],
+                    )
+
+        # Clear processed domain events
+        try:
+            org._events.clear()  # type: ignore[attr-defined]
         except Exception:
             pass
 
