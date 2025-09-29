@@ -3,7 +3,7 @@ from __future__ import annotations
 import copy
 import os
 import time
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from f3_data_models.models import EventTag as SAEventTag  # type: ignore
 from f3_data_models.models import EventType as SAEventType  # type: ignore
@@ -53,6 +53,8 @@ from domain.org.value_objects import (
     UserId,
 )
 
+from .global_catalog import GlobalCatalogProvider, InMemorySqlAlchemyGlobalCatalog
+
 """SQLAlchemy implementation of OrgRepository.
 
 This is a placeholder that adapts the existing DbManager / f3_data_models models.
@@ -61,19 +63,13 @@ Later we can optimize queries and handle version checking.
 
 
 class SqlAlchemyOrgRepository(OrgRepository):
-    # Simple in-process TTL cache for global catalogs to avoid frequent DB hits
-    _GLOBAL_CACHE: dict = {
-        "expires": 0.0,
-        "type_names": set(),
-        "type_acros": set(),
-        "tag_names": set(),
-        "position_names_by_type": {},
-    }
-    _GLOBAL_TTL_SEC: int = int(os.environ.get("ORG_GLOBAL_CATALOG_TTL", "300"))
-
     # Per-org aggregate cache (short TTL, deep-copied to avoid shared mutations)
     _ORG_CACHE: Dict[int, Tuple[float, Org]] = {}
     _ORG_TTL_SEC: int = int(os.environ.get("ORG_AGGREGATE_CACHE_TTL", "60"))
+
+    def __init__(self, catalog_provider: Optional[GlobalCatalogProvider] = None) -> None:
+        # Provider for global catalogs (types, tags, global positions)
+        self._catalog_provider: GlobalCatalogProvider = catalog_provider or InMemorySqlAlchemyGlobalCatalog()
 
     @classmethod
     def _get_cached_org(cls, org_id: OrgId) -> Optional[Org]:
@@ -120,76 +116,6 @@ class SqlAlchemyOrgRepository(OrgRepository):
             return SAOrgType[key]
         except Exception:
             return None
-
-    @classmethod
-    def _get_global_catalog(
-        cls,
-    ) -> Tuple[Set[str], Set[str], Set[str], Dict[Optional[str], Set[str]], Dict[int, Position]]:
-        now = time.time()
-        # Fast path: return cached 5‑tuple (includes global position domain objects)
-        if now < float(cls._GLOBAL_CACHE.get("expires", 0)):
-            return (
-                set(cls._GLOBAL_CACHE.get("type_names", set())),
-                set(cls._GLOBAL_CACHE.get("type_acros", set())),
-                set(cls._GLOBAL_CACHE.get("tag_names", set())),
-                dict(cls._GLOBAL_CACHE.get("position_names_by_type", {})),
-                dict(cls._GLOBAL_CACHE.get("global_positions", {})),
-            )
-
-        # Fetch active global (specific_org_id is NULL) types/tags
-        type_filters = [SAEventType.specific_org_id.is_(None)]
-        if hasattr(SAEventType, "is_active"):
-            type_filters.append(SAEventType.is_active.is_(True))
-        tag_filters = [SAEventTag.specific_org_id.is_(None)]
-        if hasattr(SAEventTag, "is_active"):
-            tag_filters.append(SAEventTag.is_active.is_(True))
-        global_types = DbManager.find_records(SAEventType, type_filters)
-        global_tags = DbManager.find_records(SAEventTag, tag_filters)
-
-        # Global positions are those with org_id is NULL
-        pos_filters = [SAPosition.org_id.is_(None)]
-        global_position_rows = DbManager.find_records(SAPosition, pos_filters)
-
-        type_names = {str(getattr(t, "name", "")).strip().lower() for t in global_types if getattr(t, "name", None)}
-        type_acros = {
-            (str(getattr(t, "acronym", None)) or str(getattr(t, "name", ""))[:2]).strip().upper() for t in global_types
-        }
-        tag_names = {str(getattr(t, "name", "")).strip().lower() for t in global_tags if getattr(t, "name", None)}
-
-        # Build map of org_type -> set of names (normalized lower)
-        pos_map: Dict[Optional[str], Set[str]] = {}
-        global_position_map: Dict[int, Position] = {}
-        for p in global_position_rows:
-            key: Optional[str] = None
-            ot = getattr(p, "org_type", None)
-            if ot is not None:
-                try:
-                    key = str(ot.name).strip().lower()
-                except Exception:
-                    key = str(ot).strip().lower()
-            bucket = pos_map.setdefault(key, set())
-            raw_name = str(getattr(p, "name", "")).strip()
-            nm = raw_name.lower()
-            if nm:
-                bucket.add(nm)
-            # Build domain Position (treat all global as active)
-            global_position_map[p.id] = Position(
-                id=PositionId(p.id),
-                name=PositionName(raw_name),
-                org_type=key,
-                description=getattr(p, "description", None),
-                is_active=True,
-            )
-
-        cls._GLOBAL_CACHE = {
-            "expires": now + cls._GLOBAL_TTL_SEC,
-            "type_names": type_names,
-            "type_acros": type_acros,
-            "tag_names": tag_names,
-            "position_names_by_type": pos_map,
-            "global_positions": global_position_map,
-        }
-        return set(type_names), set(type_acros), set(tag_names), pos_map, global_position_map
 
     def get(self, org_id: OrgId) -> Optional[Org]:
         # Fast path: use cached aggregate if available
@@ -318,7 +244,7 @@ class SqlAlchemyOrgRepository(OrgRepository):
         org.rebuild_indexes()
         # set global catalogs for invariant checks (cached) and augment with parent-region positions
         try:
-            type_names, type_acros, tag_names, pos_map, global_positions = self._get_global_catalog()
+            type_names, type_acros, tag_names, pos_map, global_positions = self._catalog_provider.get_global_catalog()
             # Copy so we can safely augment without mutating cache
             combined_pos_map = {k: set(v) for k, v in (pos_map or {}).items()}
             combined_global_positions: Dict[int, Position] = dict(global_positions or {})
@@ -694,77 +620,6 @@ class SqlAlchemyOrgRepository(OrgRepository):
             pass
 
     # --- Query helpers (DDD read adapters) ---
-    def get_locations_and_event_types(
-        self,
-        org_id: OrgId,
-        *,
-        include_global_event_types: bool = True,
-        only_active: bool = True,
-    ) -> Tuple[List[Location], List[EventType]]:
-        """Return (locations, event_types) for a region org.
-
-        include_global_event_types: if True, prepend active global (specific_org_id NULL) event types.
-        only_active: if True filter out inactive rows.
-        Order: alphabetical by name.
-        """
-        # Locations tied to org_id
-        loc_filters = [SALocation.org_id == int(org_id)]
-        if only_active and hasattr(SALocation, "is_active"):
-            loc_filters.append(SALocation.is_active.is_(True))  # type: ignore[attr-defined]
-        sa_locs = DbManager.find_records(SALocation, loc_filters)
-        locs: List[Location] = []
-        for rec in sa_locs:
-            raw_name = rec.name or ""
-            display_name = (
-                raw_name.strip()
-                or (rec.description or rec.address_street or rec.address_city or rec.address_state or rec.address_zip)
-                or "Unnamed Location"
-            )
-            locs.append(
-                Location(
-                    id=LocationId(rec.id),
-                    name=LocationName(display_name),
-                    description=rec.description,
-                    latitude=rec.latitude,
-                    longitude=rec.longitude,
-                    address_street=rec.address_street,
-                    address_street2=rec.address_street2,
-                    address_city=rec.address_city,
-                    address_state=rec.address_state,
-                    address_zip=rec.address_zip,
-                    address_country=rec.address_country,
-                    is_active=rec.is_active,
-                    legacy_blank_name=(raw_name.strip() == ""),
-                )
-            )
-        # Event types: custom + optional globals
-        et_filters = [SAEventType.specific_org_id == int(org_id)]
-        if only_active and hasattr(SAEventType, "is_active"):
-            et_filters.append(SAEventType.is_active.is_(True))  # type: ignore[attr-defined]
-        sa_custom_types = DbManager.find_records(SAEventType, et_filters)
-        sa_global_types: List[SAEventType] = []
-        if include_global_event_types:
-            g_filters = [SAEventType.specific_org_id.is_(None)]
-            if only_active and hasattr(SAEventType, "is_active"):
-                g_filters.append(SAEventType.is_active.is_(True))  # type: ignore[attr-defined]
-            sa_global_types = DbManager.find_records(SAEventType, g_filters)
-        event_types: List[EventType] = []
-        # First global, then custom (will sort later)
-        for rec in list(sa_global_types) + list(sa_custom_types):
-            event_types.append(
-                EventType(
-                    id=EventTypeId(rec.id),
-                    name=EventTypeName(rec.name),
-                    acronym=Acronym(rec.acronym or rec.name[:2]),
-                    category=getattr(rec, "event_category", "first_f"),
-                    is_active=getattr(rec, "is_active", True),
-                )
-            )
-        # Sort alpha by name
-        locs.sort(key=lambda loc: loc.name.value.lower())
-        event_types.sort(key=lambda et: et.name.value.lower())
-        return locs, event_types
-
     def get_locations(self, org_id: OrgId, *, only_active: bool = True) -> List[Location]:
         loc_filters = [SALocation.org_id == int(org_id)]
         if only_active and hasattr(SALocation, "is_active"):
