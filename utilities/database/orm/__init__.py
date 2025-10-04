@@ -51,7 +51,12 @@ class SlackSettings:
     canvas_channel: Optional[str] = None
     paxminer_schema: Optional[str] = None
     send_q_lineups: Optional[bool] = None
+    send_q_lineups_method: Optional[str] = None
+    send_q_lineups_channel: Optional[str] = None
     migration_date: Optional[str] = None
     reporting_region_leaderboard_enabled: Optional[bool] = None
     reporting_region_leaderboard_channel: Optional[str] = None
     reporting_ao_leaderboard_enabled: Optional[bool] = None
+    q_image_posting_enabled: Optional[bool] = None
+    q_image_posting_channel: Optional[str] = None
+    q_image_posting_ts: Optional[str] = None

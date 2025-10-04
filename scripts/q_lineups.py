@@ -54,12 +54,22 @@ def send_lineups(force: bool = False):
         for event in event_list.items:
             event_org_list.setdefault(event.org.id, []).append(event)
 
+        combined_lineup_orgs: Dict[int, List[BaseBlock]] = {}
         for org in event_org_list:
             org_events = event_org_list[org]
             org_record = org_events[0].org
             slack_settings = org_events[0].slack_settings
             if slack_settings.send_q_lineups:
-                blocks = build_lineup_blocks(org_events, org_record)
+                if slack_settings.send_q_lineups_method == "yes_per_ao":
+                    blocks = build_lineup_blocks(org_events, org_record)
+                    combined_lineup_orgs[org_record.id] = blocks
+                else:
+                    blocks = build_lineup_blocks(org_events, org_record)
+                    # Check if we already have this org in the combined list
+                    if safe_get(combined_lineup_orgs, slack_settings.org_id):
+                        combined_lineup_orgs[slack_settings.org_id].extend(blocks)  # skip intro and outro blocks
+                    else:
+                        combined_lineup_orgs[slack_settings.org_id] = blocks
                 # Send the Q Lineup message to the Slack channel
                 try:
                     send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
