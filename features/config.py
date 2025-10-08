@@ -226,18 +226,20 @@ def build_config_slt_form(
     ]
 
     for p in position_users:
+        slack_user_ids = [u.slack_id for u in p.slack_users if u is not None]
         blocks.append(
             orm.InputBlock(
                 label=p.position.name,
-                action=actions.SLT_SELECT + str(p.position.id),
+                action=actions.SLT_SELECT + str(p.position.id) + "_" + str(org_id),
                 optional=True,
                 element=orm.MultiUsersSelectElement(
                     placeholder="Select SLT Members...",
-                    initial_value=[u.slack_id for u in p.slack_users if u is not None],
                 ),
                 hint=p.position.description,
             )
         )
+        if slack_user_ids:
+            blocks[-1].element.initial_value = slack_user_ids
 
     blocks.append(
         orm.ActionsBlock(
@@ -323,15 +325,12 @@ def handle_new_position_post(
 
 def handle_config_slt_post(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form_data = body["view"]["state"]["values"]
-    org_id = safe_convert(
-        safe_get(form_data, actions.SLT_LEVEL_SELECT, actions.SLT_LEVEL_SELECT, "selected_option", "value"), int
-    )
-    org_id = org_id if org_id != 0 else region_record.org_id
     new_assignments: List[Position_x_Org_x_User] = []
 
     for key, value in form_data.items():
         if key.startswith(actions.SLT_SELECT):
-            position_id = int(key.replace(actions.SLT_SELECT, ""))
+            position_id, org_id = map(int, key.replace(actions.SLT_SELECT, "").split("_"))
+            org_id = org_id if org_id != 0 else region_record.org_id
             users = [get_user(u, region_record, client, logger) for u in value[key]["selected_users"]]
 
             for u in users:
