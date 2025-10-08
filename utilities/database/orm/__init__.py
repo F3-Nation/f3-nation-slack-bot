@@ -53,5 +53,6 @@ class SlackSettings:
     send_q_lineups: Optional[bool] = None
     migration_date: Optional[str] = None
     reporting_region_leaderboard_enabled: Optional[bool] = None
-    reporting_region_leaderboard_channel: Optional[str] = None
+    reporting_region_channel: Optional[str] = None
+    reporting_region_monthly_summary_enabled: Optional[bool] = None
     reporting_ao_leaderboard_enabled: Optional[bool] = None
