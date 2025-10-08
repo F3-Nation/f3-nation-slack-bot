@@ -27,8 +27,11 @@ def build_region_form(
     if not org_record:
         connect.build_connect_options_form(body, client, logger, context)
     else:
+        # Get current admin users, only those with slack ids
         admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
-        admin_user_ids = [u[1].slack_id for u in admin_users]
+        admin_user_ids = [u[1].slack_id for u in admin_users if safe_get(u[1], "slack_id")]
+        print("Admin user ids:", admin_user_ids)
+        print("Admin users:", admin_users)
 
         form.set_initial_values(
             {
@@ -109,11 +112,15 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
         for user_id in admin_user_ids
     ]
 
+    # pull existing admin users, only delete those that have slack users (other admins should be managed in maps)
+    existing_admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+    existing_admin_users_ids = [u[1].user_id for u in existing_admin_users if safe_get(u[1], "user_id")]
     DbManager.delete_records(
         Role_x_User_x_Org,
         filters=[
             Role_x_User_x_Org.org_id == region_record.org_id,
             Role_x_User_x_Org.role_id == admin_role_id,
+            Role_x_User_x_Org.user_id.in_(existing_admin_users_ids),
         ],
     )
     DbManager.create_records(admin_records)
