@@ -116,6 +116,7 @@ CONFIG_CONNECT = "config_connect"
 CALENDAR_CONFIG_Q_LINEUP = "calendar_config_q_lineup"
 CALENDAR_CONFIG_GENERAL_CALLBACK_ID = "calendar-config-general-id"
 CONFIG_USER_SETTINGS = "user_settings"
+CONFIG_REPORTING = "reporting"
 
 WELCOME_MESSAGE_CONFIG_CALLBACK_ID = "welcome-message-config-id"
 WELCOME_DM_TEMPLATE = "welcome-dm-template"

@@ -206,6 +206,10 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.CONFIG_WEASELBOT,
                 ),
                 orm.ButtonElement(
+                    label=":chart_with_upwards_trend: Reporting Settings",
+                    action=actions.CONFIG_REPORTING,
+                ),
+                orm.ButtonElement(
                     label=":newspaper: Region Canvas Settings",
                     action=actions.CONFIG_SPECIAL_EVENTS,
                 ),

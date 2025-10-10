@@ -92,6 +92,21 @@ def upload_files_to_slack(file_paths: List[str], settings: SlackSettings):
         print(f"Error uploading file to Slack: {e.response['error']}")
 
 
+def run_reporting_single_org(body: dict, client: WebClient, logger: any, context: dict, region_record: SlackSettings):
+    org_leaderboard_dict = pull_org_leaderboard_data()
+    monthly_summary_dict = pull_org_summary_data()
+    upload_files = []
+    if region_record.org_id:
+        if region_record.org_id in org_leaderboard_dict:
+            if region_record.reporting_region_leaderboard_enabled and region_record.reporting_region_channel:
+                upload_files.append(create_post_leaders_plot(org_leaderboard_dict[region_record.org_id]))
+        if region_record.reporting_region_monthly_summary_enabled:
+            if region_record.org_id in monthly_summary_dict:
+                upload_files.append(create_org_monthly_summary(monthly_summary_dict[region_record.org_id]))
+        # Upload all files for the org
+        upload_files_to_slack(upload_files, region_record)
+
+
 def cycle_all_orgs(run_org_id: int = None):
     records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[True])
     region_orgs: List[Org] = [r[1] for r in records]

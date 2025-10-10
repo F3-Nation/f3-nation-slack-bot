@@ -9,6 +9,7 @@ from features import (
     preblast,
     preblast_legacy,
     region,
+    reporting,
     special_events,
     strava,
     user,
@@ -17,6 +18,7 @@ from features import (
 )
 from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
+from scripts.monthly_reporting import run_reporting_single_org
 from scripts.q_lineups import handle_lineup_signup
 from utilities import announcements, builders, options
 from utilities.slack import actions
@@ -74,6 +76,7 @@ VIEW_MAPPER = {
     event_tag.CALENDAR_ADD_EVENT_TAG_CALLBACK_ID: (event_tag.handle_event_tag_add, False),
     actions.HOME_ASSIGN_Q_CALLBACK_ID: (home.handle_assign_q_form, False),
     actions.DB_ADMIN_CALLBACK_ID: (db_admin.handle_send_admin_announcement, False),
+    reporting.REPORTING_CALLBACK_ID: (reporting.handle_reporting_edit, False),
 }
 
 ACTION_MAPPER = {
@@ -163,6 +166,8 @@ ACTION_MAPPER = {
     connect.DENY_CONNECTION: (connect.handle_deny_connection, False),
     connect.APPROVE_CONNECTION: (connect.handle_approve_connection, False),
     user.IGNORE_EVENT: (builders.ignore_event, False),
+    actions.CONFIG_REPORTING: (reporting.build_reporting_form, False),
+    reporting.RUN_MONTHLY_REPORTS_NOW: (run_reporting_single_org, False),
 }
 
 ACTION_PREFIXES = [
