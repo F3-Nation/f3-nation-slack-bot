@@ -28,8 +28,13 @@ def update_slack_users(force=False):
         region_org_record = slack_space_record[1]
         client = WebClient(token=slack_space.bot_token)
         try:
-            response = client.users_list()  # TODO: Add pagination handling if needed
+            users: list[dict] = []
+
+            response = client.users_list()
             users = response["members"]
+            while response.get("response_metadata", {}).get("next_cursor"):
+                response = client.users_list(cursor=response["response_metadata"]["next_cursor"])
+                users.extend(response["members"])
 
             for user in users:
                 if user["is_bot"] or user["id"] == "USLACKBOT":
