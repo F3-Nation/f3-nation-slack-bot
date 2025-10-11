@@ -8,6 +8,7 @@ from scripts import (
     auto_preblast_send,
     backblast_reminders,
     calendar_images,
+    monthly_reporting,
     preblast_reminders,
     q_lineups,
     update_slack_users,
@@ -61,6 +62,11 @@ def handle(request: Request) -> Response:
                     update_slack_users.update_slack_users()
                 except Exception as e:
                     print(f"Error updating Slack users: {e}")
+                print("Running monthly reporting")
+                try:
+                    monthly_reporting.cycle_all_orgs()
+                except Exception as e:
+                    print(f"Error running monthly reporting: {e}")
                 print("Hourly scripts complete")
 
             # Start scripts in background thread

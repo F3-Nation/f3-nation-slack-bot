@@ -56,3 +56,4 @@ class SlackSettings:
     reporting_region_channel: Optional[str] = None
     reporting_region_monthly_summary_enabled: Optional[bool] = None
     reporting_ao_leaderboard_enabled: Optional[bool] = None
+    reporting_ao_monthly_summary_enabled: Optional[bool] = None

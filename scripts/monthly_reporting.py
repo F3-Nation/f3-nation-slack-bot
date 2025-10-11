@@ -2,6 +2,8 @@ import os
 import ssl
 import sys
 
+import pytz
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
@@ -62,8 +64,8 @@ DEFAULT_IMAGE_HEIGHT = 800
 DEFAULT_IMAGE_SCALE = 3
 
 
-def upload_files_to_slack(file_paths: List[str], settings: SlackSettings):
-    if not settings.bot_token or not settings.reporting_region_channel or not file_paths:
+def upload_files_to_slack(file_paths: List[str], settings: SlackSettings, text: str, channel: str):
+    if not settings.bot_token or not file_paths or not channel:
         print("Slack bot token or reporting channel not configured; skipping upload")
         return
 
@@ -83,9 +85,9 @@ def upload_files_to_slack(file_paths: List[str], settings: SlackSettings):
         file_list.append(file)
     try:
         response = client.files_upload_v2(
-            channel=settings.reporting_region_channel,
+            channel=channel,
             files_upload=file_list,
-            initial_comment="Here are this month's reports!",
+            initial_comment=text or "F3 Nation Reports",
         )
         assert response["file"]  # the uploaded file
     except SlackApiError as e:
@@ -97,37 +99,86 @@ def run_reporting_single_org(body: dict, client: WebClient, logger: any, context
     monthly_summary_dict = pull_org_summary_data()
     upload_files = []
     if region_record.org_id:
-        if region_record.org_id in org_leaderboard_dict:
-            if region_record.reporting_region_leaderboard_enabled and region_record.reporting_region_channel:
+        if region_record.reporting_region_leaderboard_enabled and region_record.reporting_region_channel:
+            if region_record.org_id in org_leaderboard_dict:
                 upload_files.append(create_post_leaders_plot(org_leaderboard_dict[region_record.org_id]))
         if region_record.reporting_region_monthly_summary_enabled:
             if region_record.org_id in monthly_summary_dict:
                 upload_files.append(create_org_monthly_summary(monthly_summary_dict[region_record.org_id]))
-        # Upload all files for the org
-        upload_files_to_slack(upload_files, region_record)
+        # Upload all files for the region
+        upload_files_to_slack(
+            upload_files,
+            region_record,
+            text="Here are your region's monthly reports!",
+            channel=region_record.reporting_region_channel,
+        )
+    if region_record.reporting_ao_leaderboard_enabled or region_record.reporting_ao_monthly_summary_enabled:
+        # AO reports
+        ao_orgs = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id, Org.is_active])
+        for ao in ao_orgs:
+            upload_files = []
+            if ao.id in org_leaderboard_dict and region_record.reporting_ao_leaderboard_enabled:
+                channel = ao.meta.get("slack_channel_id") or region_record.backblast_destination_channel
+                upload_files.append(create_post_leaders_plot(org_leaderboard_dict[ao.id]))
+            if ao.id in monthly_summary_dict and region_record.reporting_ao_monthly_summary_enabled:
+                upload_files.append(create_org_monthly_summary(monthly_summary_dict[ao.id]))
+            upload_files_to_slack(
+                upload_files,
+                region_record,
+                text=f"Here are your ({ao.name}) monthly reports!",
+                channel=channel,
+            )
 
 
 def cycle_all_orgs(run_org_id: int = None):
-    records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[True])
-    region_orgs: List[Org] = [r[1] for r in records]
-    slack_spaces: List[SlackSpace] = [r[2] for r in records]
-    org_leaderboard_dict = pull_org_leaderboard_data()
-    monthly_summary_dict = pull_org_summary_data()
+    current_time = datetime.now(pytz.timezone("US/Central"))
+    if run_org_id or (current_time.day == 2 and current_time.hour == 20):
+        records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[Org.is_active])
+        region_orgs: List[Org] = [r[1] for r in records]
+        slack_spaces: List[SlackSpace] = [r[2] for r in records]
+        org_leaderboard_dict = pull_org_leaderboard_data()
+        monthly_summary_dict = pull_org_summary_data()
 
-    if run_org_id is None:
-        # Region reports
-        for org, slack in zip(region_orgs, slack_spaces):
-            settings = SlackSettings(**slack.settings)
-            upload_files = []
-            if settings.reporting_region_leaderboard_enabled and settings.reporting_region_channel:
-                upload_files.append(create_post_leaders_plot(org_leaderboard_dict[org.id]))
-            if settings.reporting_region_monthly_summary_enabled:
-                if org.id in monthly_summary_dict:
-                    upload_files.append(create_org_monthly_summary(monthly_summary_dict[org.id]))
-            # Upload all files for the org
-            upload_files_to_slack(upload_files, settings)
-    else:
-        create_post_leaders_plot(org_leaderboard_dict[run_org_id])
+        if run_org_id is None:
+            # Region reports
+            for org, slack in zip(region_orgs, slack_spaces):
+                try:
+                    settings = SlackSettings(**slack.settings)
+                    upload_files = []
+                    if org.id in org_leaderboard_dict:
+                        if settings.reporting_region_leaderboard_enabled and settings.reporting_region_channel:
+                            upload_files.append(create_post_leaders_plot(org_leaderboard_dict[org.id]))
+                    if org.id in monthly_summary_dict:
+                        if settings.reporting_region_monthly_summary_enabled:
+                            upload_files.append(create_org_monthly_summary(monthly_summary_dict[org.id]))
+                    # Upload all files for the region
+                    upload_files_to_slack(
+                        upload_files,
+                        settings,
+                        text="Here are your region's monthly reports!",
+                        channel=settings.reporting_region_channel,
+                    )
+
+                    if settings.reporting_ao_leaderboard_enabled or settings.reporting_ao_monthly_summary_enabled:
+                        # AO reports
+                        ao_orgs = DbManager.find_records(Org, filters=[Org.parent_id == org.id, Org.is_active])
+                        for ao in ao_orgs:
+                            upload_files = []
+                            if ao.id in org_leaderboard_dict and settings.reporting_ao_leaderboard_enabled:
+                                channel = ao.meta.get("slack_channel_id") or settings.backblast_destination_channel
+                                upload_files.append(create_post_leaders_plot(org_leaderboard_dict[ao.id]))
+                            if ao.id in monthly_summary_dict and settings.reporting_ao_monthly_summary_enabled:
+                                upload_files.append(create_org_monthly_summary(monthly_summary_dict[ao.id]))
+                            upload_files_to_slack(
+                                upload_files,
+                                settings,
+                                text=f"Here are your ({ao.name}) monthly reports!",
+                                channel=channel,
+                            )
+                except Exception as e:
+                    print(f"Error processing org {org.name} ({org.id}): {e}")
+        else:
+            create_post_leaders_plot(org_leaderboard_dict[run_org_id])
 
 
 def pull_org_leaderboard_data() -> Dict[int, List[OrgUserLeaderboard]]:
