@@ -140,15 +140,17 @@ def handle_config_email_post(
             ).decode()
         else:
             email_password_encrypted = None
+    else:
+        email_password_encrypted = None
 
-        region_record.email_enabled = 1 if safe_get(config_data, actions.CONFIG_EMAIL_ENABLE) == "enable" else 0
-        region_record.email_option_show = 1 if safe_get(config_data, actions.CONFIG_EMAIL_SHOW_OPTION) == "yes" else 0
-        region_record.email_server = safe_get(config_data, actions.CONFIG_EMAIL_SERVER)
-        region_record.email_server_port = safe_convert(safe_get(config_data, actions.CONFIG_EMAIL_PORT), int)
-        region_record.email_user = safe_get(config_data, actions.CONFIG_EMAIL_FROM)
-        region_record.email_to = safe_get(config_data, actions.CONFIG_EMAIL_TO)
-        region_record.email_password = email_password_encrypted
-        region_record.postie_format = 1 if safe_get(config_data, actions.CONFIG_POSTIE_ENABLE) == "yes" else 0
+    region_record.email_enabled = 1 if safe_get(config_data, actions.CONFIG_EMAIL_ENABLE) == "enable" else 0
+    region_record.email_option_show = 1 if safe_get(config_data, actions.CONFIG_EMAIL_SHOW_OPTION) == "yes" else 0
+    region_record.email_server = safe_get(config_data, actions.CONFIG_EMAIL_SERVER)
+    region_record.email_server_port = safe_convert(safe_get(config_data, actions.CONFIG_EMAIL_PORT), int)
+    region_record.email_user = safe_get(config_data, actions.CONFIG_EMAIL_FROM)
+    region_record.email_to = safe_get(config_data, actions.CONFIG_EMAIL_TO)
+    region_record.email_password = email_password_encrypted
+    region_record.postie_format = 1 if safe_get(config_data, actions.CONFIG_POSTIE_ENABLE) == "yes" else 0
 
     DbManager.update_records(
         cls=SlackSpace,
