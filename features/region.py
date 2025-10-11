@@ -105,11 +105,12 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     admin_role_id = DbManager.find_first_record(Role, filters=[Role.name == "admin"]).id
     admin_records = [
         Role_x_User_x_Org(
-            role_id=admin_role_id,  # Admin role, need to get dynamically
+            role_id=admin_role_id,
             org_id=region_record.org_id,
             user_id=user_id,
         )
         for user_id in admin_user_ids
+        if user_id
     ]
 
     # pull existing admin users, only delete those that have slack users (other admins should be managed in maps)
