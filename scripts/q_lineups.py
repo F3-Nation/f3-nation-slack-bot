@@ -9,7 +9,7 @@ import pytz
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import date, datetime, timedelta
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, Org
 from f3_data_models.utils import DbManager
@@ -54,27 +54,36 @@ def send_lineups(force: bool = False):
         for event in event_list.items:
             event_org_list.setdefault(event.org.id, []).append(event)
 
-        combined_lineup_orgs: Dict[int, List[BaseBlock]] = {}
+        combined_lineup_orgs: Dict[int, Tuple[List[BaseBlock], Dict, Org]] = {}
         for org in event_org_list:
             org_events = event_org_list[org]
             org_record = org_events[0].org
             slack_settings = org_events[0].slack_settings
-            if slack_settings.send_q_lineups:
-                if slack_settings.send_q_lineups_method == "yes_per_ao":
-                    blocks = build_lineup_blocks(org_events, org_record)
-                    combined_lineup_orgs[org_record.id] = blocks
+            send_day = slack_settings.send_q_lineups_day or 6
+            send_hour = slack_settings.send_q_lineups_hour_cst or 17
+            if slack_settings.send_q_lineups and send_day == current_time.weekday() and send_hour == current_time.hour:  # type: ignore # noqa
+                blocks = build_lineup_blocks(org_events, org_record)
+                if slack_settings.send_q_lineups_method == "yes_per_ao" or not safe_get(
+                    combined_lineup_orgs, slack_settings.org_id
+                ):
+                    org = (
+                        org_record if slack_settings.send_q_lineups_method == "yes_per_ao" else org_events[0].parent_org
+                    )
+                    combined_lineup_orgs[org.id] = (blocks, slack_settings, org)
                 else:
-                    blocks = build_lineup_blocks(org_events, org_record)
-                    # Check if we already have this org in the combined list
-                    if safe_get(combined_lineup_orgs, slack_settings.org_id):
-                        combined_lineup_orgs[slack_settings.org_id].extend(blocks)  # skip intro and outro blocks
-                    else:
-                        combined_lineup_orgs[slack_settings.org_id] = blocks
-                # Send the Q Lineup message to the Slack channel
-                try:
-                    send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
-                except Exception as e:
-                    print(f"Error sending Q Lineup message for org {org}: {e}")
+                    combined_lineup_orgs[slack_settings.org_id][0].extend(blocks)
+        for org in combined_lineup_orgs:
+            blocks, slack_settings, org_record = combined_lineup_orgs[org]
+            header_blocks = HEADER_BLOCKS.copy()
+            header_blocks[
+                0
+            ].label = f"Hello HIMs of *{org_record.name}!* Here is your Q lineup for the week\n\n*Weekly Q Lineup:*"  # noqa
+            # Send the Q Lineup message to the Slack channel
+            try:
+                blocks = header_blocks + blocks
+                send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
+            except Exception as e:
+                print(f"Error sending Q Lineup message for org {org}: {e}")
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
@@ -82,10 +91,7 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
         key=lambda x: x.event.start_date
         + timedelta(hours=safe_convert(x.event.start_time[:2] if x.event.start_time else "0", int))
     )
-    blocks: List[BaseBlock] = [
-        SectionBlock(label=f"Hello HIMs of {org.name}! Here is your Q lineup for the week\n\n*Weekly Q Lineup:*"),
-        DividerBlock(),
-    ]
+    blocks: List[BaseBlock] = []
 
     for event in org_events:
         if event.q_name:
@@ -124,13 +130,20 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
     return [b.as_form_field() for b in blocks]
 
 
+HEADER_BLOCKS: List[BaseBlock] = [
+    SectionBlock(label="Here is your Q lineup for the week\n\n*Weekly Q Lineup:*"),
+    DividerBlock(),
+]
+
+
 def send_q_lineup_message(
     org: Org,
     blocks: List[dict],
     slack_settings: SlackSettings,
     week_start: date = None,
     week_end: date = None,
-    update: bool = False,
+    update_channel_id: str = None,
+    update_ts: str = None,
 ):
     slack_bot_token = slack_settings.bot_token
     metadata = Metadata(event_type="q_lineup", event_payload={})
@@ -142,12 +155,12 @@ def send_q_lineup_message(
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         slack_client = WebClient(slack_bot_token, ssl=ssl_context)
-        if safe_get(org.meta, "slack_channel_id"):
-            if update and safe_get(org.meta, "q_lineup_ts"):
+        if safe_get(org.meta, "slack_channel_id") or update_channel_id:
+            if update_channel_id and update_ts:
                 # Update the existing message
                 slack_client.chat_update(
-                    channel=org.meta.get("slack_channel_id"),
-                    ts=org.meta["q_lineup_ts"],
+                    channel=update_channel_id,
+                    ts=update_ts,
                     text="Q Lineup",
                     blocks=blocks,
                     metadata=metadata,
@@ -223,7 +236,13 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
     )
     blocks = build_lineup_blocks(org_info.items, event_info.org)
     send_q_lineup_message(
-        event_info.org, blocks, region_record, update=True, week_start=this_week_start, week_end=this_week_end
+        event_info.org,
+        blocks,
+        region_record,
+        week_start=this_week_start,
+        week_end=this_week_end,
+        update_channel_id=slack_channel_id,
+        update_ts=body["message"]["ts"],
     )
 
 

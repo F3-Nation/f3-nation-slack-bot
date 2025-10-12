@@ -53,6 +53,8 @@ class SlackSettings:
     send_q_lineups: Optional[bool] = None
     send_q_lineups_method: Optional[str] = None
     send_q_lineups_channel: Optional[str] = None
+    send_q_lineups_day: Optional[int] = None
+    send_q_lineups_hour_cst: Optional[int] = None
     migration_date: Optional[str] = None
     reporting_region_leaderboard_enabled: Optional[bool] = None
     reporting_region_leaderboard_channel: Optional[str] = None
