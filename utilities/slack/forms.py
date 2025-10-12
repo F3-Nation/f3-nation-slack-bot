@@ -201,18 +201,18 @@ CONFIG_FORM = orm.BlockView(
                     label=":speech_balloon: Welcomebot Settings",
                     action=actions.CONFIG_WELCOME_MESSAGE,
                 ),
-                orm.ButtonElement(
-                    label=":sports_medal: Achievement Settings",
-                    action=actions.CONFIG_WEASELBOT,
-                ),
+                # orm.ButtonElement(
+                #     label=":sports_medal: Achievement Settings",
+                #     action=actions.CONFIG_WEASELBOT,
+                # ),
                 orm.ButtonElement(
                     label=":chart_with_upwards_trend: Reporting Settings",
                     action=actions.CONFIG_REPORTING,
                 ),
-                orm.ButtonElement(
-                    label=":newspaper: Region Canvas Settings",
-                    action=actions.CONFIG_SPECIAL_EVENTS,
-                ),
+                # orm.ButtonElement(
+                #     label=":newspaper: Region Canvas Settings",
+                #     action=actions.CONFIG_SPECIAL_EVENTS,
+                # ),
                 orm.ButtonElement(
                     label=":classical_building: SLT Settings",
                     action=actions.CONFIG_SLT,
