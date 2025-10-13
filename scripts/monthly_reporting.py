@@ -13,7 +13,6 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import mplcyberpunk  # noqa: F401 needed for plt.style.
 import plotly.graph_objects as go
-import plotly.io as pio
 from f3_data_models.models import (
     AttendanceExpanded,
     EventInstanceExpanded,
@@ -51,9 +50,6 @@ class OrgUserLeaderboard:
     post_count: int
     total_qs: int
 
-
-pio.renderers.default = "browser"
-pio.templates.default = "plotly_dark"
 
 # Create the horizontal bar chart (dark + neon styling)
 # neon_colors = ["#00F5D4", "#7B2FF7", "#F72585"]  # aqua, purple, magenta
