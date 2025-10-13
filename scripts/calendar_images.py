@@ -27,11 +27,14 @@ from f3_data_models.models import (
 
 # import dataframe_image as dfi
 from f3_data_models.utils import get_session
+from slack_sdk import WebClient
+from slack_sdk.models import blocks
 from sqlalchemy import and_, case, func, select
 from sqlalchemy.orm import aliased, joinedload
 
-from utilities.constants import EVENT_TAG_COLORS, LOCAL_DEVELOPMENT
+from utilities.constants import EVENT_TAG_COLORS, GCP_IMAGE_URL, LOCAL_DEVELOPMENT
 from utilities.helper_functions import current_date_cst, safe_get, update_local_region_records
+from utilities.slack import actions
 
 
 def time_int_to_str(time: int) -> str:
@@ -349,9 +352,66 @@ def generate_calendar_images(force: bool = False):
                                         os.remove(f"/mnt/calendar-images/{existing_file}")
                                     except Exception as e:
                                         print(f"Error deleting old file {existing_file} from local storage: {e}")
+                            slack_app_settings[f"calendar_image_{week}"] = filename
+
+                            # post to slack channel if enabled
+                            if slack_app_settings.get("q_image_posting_enabled") and slack_app_settings.get(
+                                "q_image_posting_channel" and slack_app_settings.get("bot_token")
+                            ):
+                                client = WebClient(token=slack_app_settings["bot_token"])
+                                block_list = []
+                                if slack_app_settings.get("calendar_image_current"):
+                                    block_list.append(
+                                        blocks.ImageBlock(
+                                            image_url=GCP_IMAGE_URL.format(
+                                                bucket="f3nation-calendar-images",
+                                                image_name="default.png",
+                                            ),
+                                            alt_text="This Week's Q Sheet",
+                                        )
+                                    )
+                                if slack_app_settings.get("calendar_image_next"):
+                                    block_list.append(
+                                        blocks.ImageBlock(
+                                            image_url=GCP_IMAGE_URL.format(
+                                                bucket="f3nation-calendar-images",
+                                                image_name="default.png",
+                                            ),
+                                            alt_text="Next Week's Q Sheet",
+                                        )
+                                    )
+                                block_list.append(
+                                    blocks.ActionsBlock(
+                                        elements=[
+                                            blocks.ButtonElement(
+                                                text="Open Full Calendar",
+                                                action_id=actions.OPEN_CALENDAR_BUTTON,
+                                            ),
+                                        ]
+                                    )
+                                )
+                                try:
+                                    if slack_app_settings.get("q_image_posting_ts") and (
+                                        not first_sunday_run or week == "next"
+                                    ):
+                                        client.chat_update(
+                                            channel=slack_app_settings["q_image_posting_channel"],
+                                            ts=slack_app_settings["q_image_posting_ts"],
+                                            blocks=block_list,
+                                            text="Q Sheet",
+                                        )
+                                    else:
+                                        response = client.chat_postMessage(
+                                            channel=slack_app_settings["q_image_posting_channel"],
+                                            text="Q Sheet",
+                                            blocks=block_list,
+                                        )
+                                        if response["ok"]:
+                                            slack_app_settings["q_image_posting_ts"] = response["ts"]
+                                except Exception as e:
+                                    print(f"Error posting to Slack channel: {e}")
 
                             # update org record with new filename
-                            slack_app_settings[f"calendar_image_{week}"] = filename
                             session.query(SlackSpace).filter(
                                 SlackSpace.team_id == slack_app_settings["team_id"]
                             ).update({"settings": slack_app_settings})
