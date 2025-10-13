@@ -1034,13 +1034,13 @@ tests = ["asttokens (>=2.1.0)", "coverage", "coverage-enable-subprocess", "ipyth
 
 [[package]]
 name = "f3-data-models"
-version = "0.7.2"
+version = "0.7.3"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 files = [
-    {file = "f3_data_models-0.7.2-py3-none-any.whl", hash = "sha256:7160cfdaebf08cdbb8a8bd586013efe269eae7c9cbe002b41ae4dcc82db022f0"},
-    {file = "f3_data_models-0.7.2.tar.gz", hash = "sha256:d97570a048c3940742347b1a930032d6bdafaef8d7886da1c1455672342b3bc8"},
+    {file = "f3_data_models-0.7.3-py3-none-any.whl", hash = "sha256:83ddba8b3eac1b0f5f7b997f370807e029c7e3e813ce413b3cade0a7b63c494a"},
+    {file = "f3_data_models-0.7.3.tar.gz", hash = "sha256:960c07a89ce358b3a732a05451b62ab5095def78bb5023ada840a84aeb8e6980"},
 ]
 
 [package.dependencies]
