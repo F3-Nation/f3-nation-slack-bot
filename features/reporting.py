@@ -14,7 +14,7 @@ MONTHLY_REPORTS_ENABLED = "monthly_reports_enabled"
 REGION_REPORTING_CHANNEL = "region_reporting_channel"
 REPORTING_CALLBACK_ID = "reporting_settings"
 MONTHLY_REPORT_OPTIONS = {
-    "monthly_summary": "Monthly Region Summary",
+    "monthly_summary": "Region Monthly Summary",
     "region_leaderboard": "Region Leaderboard",
     "ao_monthly_summary": "AO Monthly Summary",
     "ao_leaderboard": "AO Leaderboard",

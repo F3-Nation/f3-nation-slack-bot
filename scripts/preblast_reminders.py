@@ -58,7 +58,7 @@ class PreblastList:
         firstq_subquery = (
             select(
                 Attendance.event_instance_id,
-                User.f3_name.label("q_name"),
+                func.coalesce(SlackUser.user_name, User.f3_name).label("q_name"),
                 SlackUser.slack_id,
                 func.coalesce(User.avatar_url, SlackUser.avatar_url).label("q_avatar_url"),
                 func.row_number()

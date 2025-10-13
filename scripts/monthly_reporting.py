@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List
 
+import kaleido
 import matplotlib.pyplot as plt
 import mplcyberpunk  # noqa: F401 needed for plt.style.
 import plotly.graph_objects as go
@@ -27,6 +28,8 @@ from slack_sdk.errors import SlackApiError
 from sqlalchemy import and_, func, literal, select, union_all
 
 from utilities.database.orm import SlackSettings
+
+kaleido.get_chrome_sync()
 
 
 @dataclass
@@ -80,12 +83,11 @@ def upload_files_to_slack(file_paths: List[str], settings: SlackSettings, text: 
         }
         file_list.append(file)
     try:
-        response = client.files_upload_v2(
+        _ = client.files_upload_v2(
             channel=channel,
-            files_upload=file_list,
+            file_uploads=file_list,
             initial_comment=text or "F3 Nation Reports",
         )
-        assert response["file"]  # the uploaded file
     except SlackApiError as e:
         print(f"Error uploading file to Slack: {e.response['error']}")
 
@@ -486,7 +488,7 @@ def stitch_2x2(
     return out_path
 
 
-def create_org_monthly_summary(records: List[OrgMonthlySummary]):
+def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     # Build three subplots (Posts, Unique PAX, FNGs) with paired series for current and prior year.
     # Only plot points for months that had events (use None for missing months).
     import calendar
@@ -606,6 +608,8 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]):
     plt.tight_layout(rect=[0, 0, 1, 0.97])
     plt.savefig("org_monthly_attendance.png", dpi=300)
     plt.close()
+
+    return "org_monthly_attendance.png"
 
 
 def pull_org_summary_data() -> Dict[int, List[OrgMonthlySummary]]:
