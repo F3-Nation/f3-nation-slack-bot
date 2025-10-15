@@ -4,6 +4,8 @@ import sys
 
 import pytz
 
+from utilities.helper_functions import safe_get
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
@@ -89,7 +91,18 @@ def upload_files_to_slack(file_paths: List[str], settings: SlackSettings, text: 
             initial_comment=text or "F3 Nation Reports",
         )
     except SlackApiError as e:
-        print(f"Error uploading file to Slack: {e.response['error']}")
+        if e.response["error"] == "not_in_channel":
+            try:
+                client.conversations_join(channel=channel)
+                _ = client.files_upload_v2(
+                    channel=channel,
+                    file_uploads=file_list,
+                    initial_comment=text or "F3 Nation Reports",
+                )
+            except SlackApiError as e2:
+                print(f"Error joining channel or uploading file to Slack: {e2.response['error']}")
+        else:
+            print(f"Error uploading file to Slack: {e.response['error']}")
 
 
 def run_reporting_single_org(body: dict, client: WebClient, logger: any, context: dict, region_record: SlackSettings):
@@ -115,8 +128,8 @@ def run_reporting_single_org(body: dict, client: WebClient, logger: any, context
         ao_orgs = DbManager.find_records(Org, filters=[Org.parent_id == region_record.org_id, Org.is_active])
         for ao in ao_orgs:
             upload_files = []
+            channel = safe_get(ao.meta, "slack_channel_id") or region_record.backblast_destination_channel
             if ao.id in org_leaderboard_dict and region_record.reporting_ao_leaderboard_enabled:
-                channel = ao.meta.get("slack_channel_id") or region_record.backblast_destination_channel
                 upload_files.append(create_post_leaders_plot(org_leaderboard_dict[ao.id]))
             if ao.id in monthly_summary_dict and region_record.reporting_ao_monthly_summary_enabled:
                 upload_files.append(create_org_monthly_summary(monthly_summary_dict[ao.id]))
