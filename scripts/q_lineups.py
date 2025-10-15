@@ -5,6 +5,7 @@ import sys
 from logging import Logger
 
 import pytz
+from sqlalchemy import or_
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
@@ -18,7 +19,13 @@ from slack_sdk.models.metadata import Metadata
 
 from scripts.preblast_reminders import PreblastItem, PreblastList
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get
+from utilities.helper_functions import (
+    REGION_RECORDS,
+    current_date_cst,
+    get_user,
+    safe_convert,
+    safe_get,
+)
 from utilities.slack import actions
 from utilities.slack.orm import (
     ActionsBlock,
@@ -33,8 +40,18 @@ from utilities.slack.orm import (
 def send_lineups(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
-    # check if the current time is between 5:00 PM and 6:00 PM on Sundays, eventually configurable
-    if (current_time.hour == 17 and current_time.weekday() == 6) or force:
+
+    # find all slack settings where send_q_lineups is True and the current time matches the configured day and hour
+    include_region_orgs = [
+        r.org_id
+        for r in REGION_RECORDS.values()
+        if r.send_q_lineups
+        and (
+            (r.send_q_lineups_day == current_time.weekday() and r.send_q_lineups_hour_cst == current_time.hour) or force
+        )
+    ]
+
+    if include_region_orgs:
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
         current_date = current_date_cst()
@@ -47,6 +64,7 @@ def send_lineups(force: bool = False):
                 EventInstance.start_date >= this_week_start,
                 EventInstance.start_date <= this_week_end,
                 EventInstance.is_active,  # not canceled
+                or_(Org.id.in_(include_region_orgs), Org.parent_id.in_(include_region_orgs)),
                 # may want to filter out pre-events?
             ]
         )

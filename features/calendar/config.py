@@ -7,13 +7,15 @@ from slack_sdk.web import WebClient
 
 from features.calendar import event_instance, event_tag
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import safe_get
+from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
 
 CALENDAR_CONFIG_POST_CALENDAR_IMAGE = "calendar_config_post_calendar_image"
 CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL = "calendar_config_calendar_image_channel"
 CALENDAR_CONFIG_Q_LINEUP_METHOD = "calendar_config_q_lineup_method"
 CALENDAR_CONFIG_Q_LINEUP_CHANNEL = "calendar_config_q_lineup_channel"
+CALENDAR_CONFIG_Q_LINEUP_DAY = "calendar_config_q_lineup_day"
+CALENDAR_CONFIG_Q_LINEUP_TIME = "calendar_config_q_lineup_time"
 
 
 def build_calendar_config_form(
@@ -33,6 +35,7 @@ def build_calendar_general_config_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     form = copy.deepcopy(CALENDAR_CONFIG_GENERAL_FORM)
+    q_lineups_time = f"{region_record.send_q_lineups_hour_cst}:00" if region_record.send_q_lineups_hour_cst else "17:00"
     form.set_initial_values(
         {
             actions.CALENDAR_CONFIG_Q_LINEUP: "yes" if region_record.send_q_lineups else "no",
@@ -40,6 +43,8 @@ def build_calendar_general_config_form(
             CALENDAR_CONFIG_Q_LINEUP_CHANNEL: region_record.send_q_lineups_channel,
             CALENDAR_CONFIG_POST_CALENDAR_IMAGE: "yes" if region_record.q_image_posting_enabled else "no",
             CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL: region_record.q_image_posting_channel,
+            CALENDAR_CONFIG_Q_LINEUP_DAY: safe_convert(region_record.send_q_lineups_day, str) or "6",
+            CALENDAR_CONFIG_Q_LINEUP_TIME: q_lineups_time,
         }
     )
     form.post_modal(
@@ -61,6 +66,11 @@ def handle_calendar_config_general(
     region_record.send_q_lineups_channel = safe_get(values, CALENDAR_CONFIG_Q_LINEUP_CHANNEL)
     region_record.q_image_posting_enabled = safe_get(values, CALENDAR_CONFIG_POST_CALENDAR_IMAGE) == "yes"
     region_record.q_image_posting_channel = safe_get(values, CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL)
+    region_record.send_q_lineups_day = safe_convert(safe_get(values, CALENDAR_CONFIG_Q_LINEUP_DAY), int)
+    send_q_lineups_time = safe_convert(safe_get(values, CALENDAR_CONFIG_Q_LINEUP_TIME), str)
+    region_record.send_q_lineups_hour_cst = (
+        safe_convert(send_q_lineups_time.split(":")[0], int) if send_q_lineups_time else 17
+    )
     DbManager.update_records(
         cls=SlackSpace,
         filters=[SlackSpace.team_id == region_record.team_id],
@@ -101,6 +111,25 @@ CALENDAR_CONFIG_GENERAL_FORM = orm.BlockView(
             element=orm.ChannelsSelectElement(placeholder="Select a channel"),
             optional=True,
             hint="This setting only applies if 'Send Q Lineups' is set to 'Yes' and 'How should they be sent?' is set to 'One For All AOs'.",  # noqa
+        ),
+        orm.InputBlock(
+            label="Region Q Lineup Day",
+            action=CALENDAR_CONFIG_Q_LINEUP_DAY,
+            element=orm.StaticSelectElement(
+                options=orm.as_selector_options(
+                    names=["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+                    values=["0", "1", "2", "3", "4", "5", "6"],
+                ),
+                initial_value="6",
+            ),
+            optional=False,
+        ),
+        orm.InputBlock(
+            label="Region Q Lineup Time (CST)",
+            action=CALENDAR_CONFIG_Q_LINEUP_TIME,
+            element=orm.TimepickerElement(initial_value="17:00"),
+            optional=False,
+            hint="These settings only applies if 'Send Q Lineups' is set to 'Yes'.",
         ),
         # orm.DividerBlock(),
         # orm.InputBlock(

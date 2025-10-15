@@ -265,7 +265,8 @@ def update_local_slack_users() -> None:
     print("Updating local slack users...")
     slack_users: List[SlackUser] = DbManager.find_records(SlackUser, filters=[True])
     global SLACK_USERS
-    SLACK_USERS = {slack_user.slack_id: slack_user for slack_user in slack_users}
+    SLACK_USERS.clear()
+    SLACK_USERS.update({slack_user.slack_id: slack_user for slack_user in slack_users})
 
 
 def get_region_record(team_id: str, body, context, client, logger) -> SlackSettings:
@@ -439,7 +440,8 @@ def update_local_region_records() -> None:
     slack_space_records: List[SlackSpace] = DbManager.find_records(SlackSpace, filters=[True])
     region_records = [SlackSettings(**s.settings) for s in slack_space_records]
     global REGION_RECORDS
-    REGION_RECORDS = {region.team_id: region for region in region_records}
+    REGION_RECORDS.clear()
+    REGION_RECORDS.update({region.team_id: region for region in region_records})
 
 
 def parse_rich_block(
