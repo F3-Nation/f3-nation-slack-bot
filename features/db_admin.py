@@ -332,20 +332,21 @@ def handle_send_admin_announcement(
             admin_users = get_admin_users(org_x_slack_space.org_id, slack_space.team_id)
             for admin_user in admin_users:
                 slack_user = admin_user[1]
-                try:
-                    ssl_context = ssl.create_default_context()
-                    ssl_context.check_hostname = False
-                    ssl_context.verify_mode = ssl.CERT_NONE
-                    slack_client = WebClient(slack_space.bot_token, ssl=ssl_context)
-                    slack_client.chat_postMessage(
-                        channel=slack_user.slack_id,
-                        blocks=[announcement_text],
-                        text="Admin Announcement",
-                    )
-                except Exception as e:
-                    logger.error(
-                        f"Failed to send admin announcement to {slack_user.user_name} in {slack_space.workspace_name}: {e}"  # noqa: E501
-                    )
+                if safe_get(slack_user, "slack_id"):
+                    try:
+                        ssl_context = ssl.create_default_context()
+                        ssl_context.check_hostname = False
+                        ssl_context.verify_mode = ssl.CERT_NONE
+                        slack_client = WebClient(slack_space.bot_token, ssl=ssl_context)
+                        slack_client.chat_postMessage(
+                            channel=slack_user.slack_id,
+                            blocks=[announcement_text],
+                            text="Admin Announcement",
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed to send admin announcement to {slack_user.user_name} in {slack_space.workspace_name}: {e}"  # noqa: E501
+                        )
 
 
 DB_ADMIN_FORM = orm.BlockView(
