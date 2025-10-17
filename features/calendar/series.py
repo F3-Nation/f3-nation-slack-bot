@@ -319,14 +319,29 @@ def update_from_map(request: Request) -> Response:
                 action=safe_get(request.json, "action"),
                 data=map_update_data,
             )
-            print(map_update)
-            if map_update.action in ["map.updated", "map.created"] and map_update.data.eventId:
-                series: Event = DbManager.get(Event, map_update.data.eventId, joinedloads="all")
-                # TODO: only recreate instances if certain things have changed (ie not just the description)
-                create_events([series], clear_first=True)
-            # TODO: handle location updates
-            elif map_update.action == "map.deleted" and map_update.data.eventId:
-                pass
+            if map_update.data.orgId:
+                if map_update.action in ["map.deleted"]:
+                    DbManager.update_records(
+                        Event,
+                        filters=[Event.org_id == map_update.data.orgId],
+                        fields={Event.is_active: False},
+                    )
+                    DbManager.update_records(
+                        EventInstance,
+                        filters=[EventInstance.org_id == map_update.data.orgId],
+                        fields={EventInstance.is_active: False},
+                    )
+            elif map_update.data.eventId:
+                if map_update.action in ["map.updated", "map.created"]:
+                    series: Event = DbManager.get(Event, map_update.data.eventId, joinedloads="all")
+                    # TODO: only recreate instances if certain things have changed (ie not just the description)
+                    create_events([series], clear_first=True)
+                elif map_update.action == "map.deleted":
+                    DbManager.update_records(
+                        EventInstance,
+                        filters=[EventInstance.series_id == map_update.data.eventId],
+                        fields={EventInstance.is_active: False},
+                    )
         except Exception as e:
             print(f"Error parsing map update data: {e}")
             return Response("Invalid data", status=400)
