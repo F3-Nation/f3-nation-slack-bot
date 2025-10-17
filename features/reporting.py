@@ -15,9 +15,9 @@ REGION_REPORTING_CHANNEL = "region_reporting_channel"
 REPORTING_CALLBACK_ID = "reporting_settings"
 MONTHLY_REPORT_OPTIONS = {
     "monthly_summary": "Region Monthly Summary",
-    # "region_leaderboard": "Region Leaderboard",
+    "region_leaderboard": "Region Leaderboard",
     "ao_monthly_summary": "AO Monthly Summary",
-    # "ao_leaderboard": "AO Leaderboard",
+    "ao_leaderboard": "AO Leaderboard",
 }
 RUN_MONTHLY_REPORTS_NOW = "run_monthly_reports_now"
 

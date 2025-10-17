@@ -2,10 +2,6 @@ import os
 import ssl
 import sys
 
-import pytz
-
-from utilities.helper_functions import safe_get
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass
@@ -15,7 +11,7 @@ from typing import Dict, List
 import kaleido
 import matplotlib.pyplot as plt
 import mplcyberpunk  # noqa: F401 needed for plt.style.
-import plotly.graph_objects as go
+import pytz
 from f3_data_models.models import (
     AttendanceExpanded,
     EventInstanceExpanded,
@@ -30,6 +26,7 @@ from slack_sdk.errors import SlackApiError
 from sqlalchemy import and_, func, literal, select, union_all
 
 from utilities.database.orm import SlackSettings
+from utilities.helper_functions import safe_get
 
 kaleido.get_chrome_sync()
 
@@ -262,7 +259,51 @@ def create_post_leaders_plot(records: List[OrgUserLeaderboard]) -> str:
         print("No records to plot")
         return
 
-    # sort by post_count descending and take the top_n
+    from io import BytesIO
+
+    import matplotlib.pyplot as plt
+    import matplotlib.transforms as mtransforms
+    import requests
+    from matplotlib.offsetbox import AnnotationBbox, OffsetImage
+    from PIL import Image
+
+    # Matplotlib export settings to mirror prior pixel density
+    DPI = 300
+    PX_W = DEFAULT_IMAGE_WIDTH * DEFAULT_IMAGE_SCALE  # e.g., 2400
+    PX_H = DEFAULT_IMAGE_HEIGHT * DEFAULT_IMAGE_SCALE
+    FIG_W_IN = PX_W / DPI
+    FIG_H_IN = PX_H / DPI
+
+    # Avatar/text tuning (in pixels for avatar; text in points)
+    AVATAR_PX = 60  # down from 100 so it fits inside bars
+    AVATAR_ZOOM = 1.0
+    AVATAR_MARGIN_PX = 300  # gap between avatar and username
+    USERNAME_FONTSIZE = 24  # slightly smaller to avoid overlap
+    VALUE_FONTSIZE = 28  # slightly smaller numbers
+
+    def _fetch_image(url: str) -> Image.Image | None:
+        if not url:
+            return None
+        try:
+            resp = requests.get(url, timeout=6)
+            resp.raise_for_status()
+            return Image.open(BytesIO(resp.content)).convert("RGBA")
+        except Exception:
+            return None
+
+    def _prepare_avatar(im: Image.Image, target_px: int = AVATAR_PX) -> Image.Image:
+        """Center-crop to square and resize to a consistent pixel size to avoid giant avatars."""
+        if im is None:
+            return None
+        w, h = im.size
+        side = min(w, h)
+        left = (w - side) // 2
+        top = (h - side) // 2
+        im = im.crop((left, top, left + side, top + side))
+        # hard cap so nothing is huge; consistent across all images
+        im = im.resize((target_px, target_px), Image.LANCZOS)
+        return im
+
     def create_post_leaders_chart(
         records: List[OrgUserLeaderboard],
         top_n: int = 5,
@@ -271,116 +312,44 @@ def create_post_leaders_plot(records: List[OrgUserLeaderboard]) -> str:
         label: str = "Posts",
         bar_color: str = NEON_GREEN,
     ):
+        # filter and sort
         sorted_records = [r for r in records if r.basis == basis]
         sorted_records = sorted(sorted_records, key=lambda r: getattr(r, value_field), reverse=True)[:top_n]
         categories = [r.f3_name for r in sorted_records]
-        values = [getattr(r, value_field) for r in sorted_records]
+        raw_values = [getattr(r, value_field) for r in sorted_records]
         images = [r.avatar_url for r in sorted_records]
 
-        fig = go.Figure(
-            go.Bar(
-                x=values,
-                y=categories,
-                orientation="h",
-                marker={"color": bar_color},
-                hovertemplate="%{y}: %{x}<extra></extra>",
-            )
-        )
-
-        # Lock avatar positions using paper coordinates so they don't scale with bar length.
-        # Place the category labels (user names) as annotations immediately to the right
-        # of the avatar (also positioned in paper coords). Numeric labels (post counts)
-        # are still placed using data x-coordinates so they line up with the bar value.
-        avatar_x_paper = 0.025
-        avatar_sizex_paper = 0.07
-        avatar_sizey = 0.5
-
-        # Determine maximum value to compute a small padding so numeric labels
-        # don't sit flush against the end of the bar. Use a percentage of the
-        # largest value but enforce a sensible minimum so very-small-value
-        # series get readable padding too.
-        try:
-            max_value = max([float(v) if v is not None else 0.0 for v in values] + [1.0])
-        except Exception:
-            max_value = 1.0
-        pad = max(max_value * 0.02, 0.3)
-
-        for i, img_url in enumerate(images):
-            # raw value may be int, None, or decimal.Decimal from SQL; normalize to float for math
-            raw_val = values[i] if i < len(values) else 0
+        # normalize numeric values
+        values: List[float] = []
+        for v in raw_values:
             try:
-                numeric = float(raw_val) if raw_val is not None else 0.0
+                values.append(float(v) if v is not None else 0.0)
             except Exception:
-                numeric = 0.0
+                values.append(0.0)
 
-            # Prepare a display label: prefer integer-looking values without a decimal point
-            if float(numeric).is_integer():
-                display_label = str(int(numeric))
-            else:
-                display_label = str(numeric)
+        # padding logic similar to original
+        max_value = max(values + [1.0])
+        pad = max(max_value * 0.02, 0.3)
+        right_pad = pad * 2
 
-            # Add avatar (fixed on the left in paper coordinates)
-            if img_url:
-                fig.add_layout_image(
-                    {
-                        "source": img_url,
-                        "x": avatar_x_paper,
-                        "y": categories[i],
-                        "xref": "paper",
-                        "yref": "y",
-                        "sizex": avatar_sizex_paper,
-                        "sizey": avatar_sizey,
-                        "xanchor": "left",
-                        "yanchor": "middle",
-                        "opacity": 0.95,
-                        "layer": "above",
-                    }
-                )
+        # figure/axes setup
+        fig, ax = plt.subplots(figsize=(FIG_W_IN, FIG_H_IN), dpi=DPI)
+        bg = "#0B1220"
+        fig.patch.set_facecolor(bg)
+        ax.set_facecolor(bg)
 
-            # Add category label (user name) to the right of the avatar, also in paper coords
-            name_x_paper = avatar_x_paper + avatar_sizex_paper + 0.01
-            fig.add_annotation(
-                x=name_x_paper,
-                y=categories[i],
-                xref="paper",
-                yref="y",
-                text=categories[i],
-                showarrow=False,
-                font={"color": "#0B1220", "size": 40},
-                align="left",
-                xanchor="left",
-                yanchor="middle",
-            )
+        y_pos = list(range(len(categories)))
+        bar_height = 0.8
+        ax.barh(y_pos, values, color=bar_color, height=bar_height, zorder=1)
+        ax.invert_yaxis()  # highest value at the top
 
-            # Numeric label (post count) placed using the data x coordinate so it reflects bar length.
-            # Compute a small padding (in data units) and place the label slightly inside
-            # the bar end. Right-align the label so its right edge lines up with the
-            # padded x position which keeps the text clear of the bar edge.
-            if numeric > pad:
-                numeric_x = numeric - pad
-                numeric_x_anchor = "right"
-            else:
-                # For very small values, place the label to the right so it remains readable
-                numeric_x = numeric + pad
-                numeric_x_anchor = "left"
-            # Ensure numeric_x is non-negative
-            if numeric_x < 0:
-                numeric_x = 0
+        # Style: hide ticks/spines/grid
+        ax.xaxis.set_ticks([])
+        ax.yaxis.set_ticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
 
-            fig.add_annotation(
-                x=numeric_x,
-                y=categories[i],
-                xref="x",
-                yref="y",
-                text=display_label,
-                showarrow=False,
-                font={"color": "#0B1220", "size": 40, "family": "Arial Bold"},
-                align="left",
-                xanchor=numeric_x_anchor,
-                yanchor="middle",
-            )
-
-        # Update layout for better appearance
+        # Title text (org + month/YTD + label)
         org_name = sorted_records[0].org_name + " " if sorted_records else ""
         if basis == "year":
             prior_month_name = "YTD"
@@ -390,50 +359,100 @@ def create_post_leaders_plot(records: List[OrgUserLeaderboard]) -> str:
                 if datetime.now().month > 1
                 else datetime(datetime.now().year - 1, 12, 1).strftime("%B")
             )
-        fig.update_layout(
-            template="plotly_dark",
-            title={
-                "text": f"{org_name}{prior_month_name} {label} Leaders",
-                "font": {"color": "#FFFFFF", "size": 30},
-                "x": 0.5,
-                "xanchor": "center",
-            },
-            # Remove x-axis ticks and labels (we're showing numeric annotations on bars instead)
-            xaxis={
-                "showticklabels": False,
-                "showgrid": False,
-                "zeroline": False,
-                "ticks": "",
-            },
-            # xaxis={
-            #     "title": {"text": "Posts", "font": {"color": "#A0AEC0", "size": 18}},
-            #     "gridcolor": "rgba(0,245,212,0.15)",
-            #     "zerolinecolor": "rgba(0,245,212,0.25)",
-            #     "tickfont": {"color": "#E2E8F0", "size": 18},
-            # },
-            yaxis={
-                "gridcolor": "rgba(123,47,247,0.12)",
-                "tickfont": {"color": "#E2E8F0", "size": 18},
-                "showticklabels": False,
-                "autorange": "reversed",
-            },
-            paper_bgcolor="#0B1220",
-            plot_bgcolor="#0B1220",
-            height=800,
-            width=800,
-            margin={"l": 30, "r": 30, "t": 70, "b": 30},
-        )
+        ax.set_title(f"{org_name}{prior_month_name} {label} Leaders", color="#FFFFFF", fontsize=30, pad=20)
 
-        # Be explicit about export pixel dimensions — some renderers ignore layout width/height
-        # unless width/height are passed directly to the image writer. `scale` multiplies
-        # those pixel dimensions (use 1 for exact pixels, >1 for higher DPI).
-        fig.write_image(
-            f"{basis}_{label}_leaders.png",
-            width=DEFAULT_IMAGE_WIDTH,
-            height=DEFAULT_IMAGE_HEIGHT,
-            scale=DEFAULT_IMAGE_SCALE,
-        )
+        # Bars start close to the left edge
+        ax.set_xlim(0, max_value + right_pad)
+        ax.margins(x=0)
 
+        # Place avatars and labels using blended transform (axes-fraction x, data y)
+        # - x as axes fraction keeps consistent insets
+        # - compute name offset from avatar pixel width to prevent overlap
+        trans = mtransforms.blended_transform_factory(ax.transAxes, ax.transData)
+        avatar_x_axes = 0.055  # inside-left
+        # Convert avatar width + margin (pixels) to axes-fraction to place the name safely to the right
+        avatar_width_axes = (AVATAR_PX * AVATAR_ZOOM) / PX_W
+        name_offset_axes = (AVATAR_MARGIN_PX) / PX_W
+        name_x_axes = avatar_x_axes + avatar_width_axes + name_offset_axes
+
+        # thresholds to decide if text fits inside small bars
+        inside_fraction_threshold = 0.16  # if bar < 16% of max, move name/number outside
+
+        for i, (name, val, img_url) in enumerate(zip(categories, values, images)):
+            # avatar image (normalized so none are huge)
+            avatar_im = _fetch_image(img_url) if img_url else None
+            avatar_im = _prepare_avatar(avatar_im, target_px=AVATAR_PX) if avatar_im is not None else None
+            if avatar_im is not None:
+                oi = OffsetImage(avatar_im, zoom=AVATAR_ZOOM)  # fixed pixel size; consistent
+                ab = AnnotationBbox(
+                    oi,
+                    (avatar_x_axes, y_pos[i]),
+                    xycoords=trans,
+                    frameon=False,
+                    box_alignment=(0.0, 0.5),
+                    zorder=2,
+                )
+                ax.add_artist(ab)
+
+            # Decide where to place the username
+            fraction_of_max = (val / max_value) if max_value > 0 else 0
+            name_inside = fraction_of_max >= inside_fraction_threshold
+
+            if name_inside:
+                # inside the bar near left
+                ax.text(
+                    name_x_axes,
+                    y_pos[i],
+                    name,
+                    transform=trans,
+                    va="center",
+                    ha="left",
+                    color="#0B1220",
+                    fontsize=USERNAME_FONTSIZE,  # smaller username
+                    zorder=3,
+                )
+            else:
+                # bar too short; put name just outside right in data coords
+                ax.text(
+                    val + pad,
+                    y_pos[i],
+                    name,
+                    va="center",
+                    ha="left",
+                    color="#FFFFFF",
+                    fontsize=USERNAME_FONTSIZE,
+                    zorder=3,
+                )
+
+            # numeric label near the bar end (slightly smaller)
+            display_label = str(int(val)) if float(val).is_integer() else str(val)
+            if val > pad * 2:
+                nx = val - pad
+                ha = "right"
+                color = "#0B1220" if name_inside else "#FFFFFF"
+            else:
+                nx = val + pad
+                ha = "left"
+                color = "#FFFFFF"
+
+            ax.text(
+                nx,
+                y_pos[i],
+                display_label,
+                va="center",
+                ha=ha,
+                color=color,
+                fontsize=VALUE_FONTSIZE,  # a bit smaller than before
+                fontweight="bold",
+                zorder=3,
+            )
+
+        # save single panel
+        out_file = f"{basis}_{label}_leaders.png"
+        fig.savefig(out_file, dpi=DPI, facecolor=fig.get_facecolor(), bbox_inches="tight", pad_inches=0.3)
+        plt.close(fig)
+
+    # Generate and save the four panels
     create_post_leaders_chart(
         records, top_n=5, basis="month", value_field="post_count", label="Post", bar_color="#39FF14"
     )
@@ -746,4 +765,4 @@ def run_monthly_summaries(run_org_id: int = None):
 
 if __name__ == "__main__":
     # run_monthly_summaries(run_org_id=38451)
-    cycle_all_orgs(run_org_id=38451)
+    cycle_all_orgs(run_org_id=50097)
