@@ -47,7 +47,11 @@ def send_lineups(force: bool = False):
         for r in REGION_RECORDS.values()
         if r.send_q_lineups
         and (
-            (r.send_q_lineups_day == current_time.weekday() and r.send_q_lineups_hour_cst == current_time.hour) or force
+            (
+                (r.send_q_lineups_day or 6) == current_time.weekday()
+                and (r.send_q_lineups_hour_cst or 17) == current_time.hour
+            )
+            or force
         )
     ]
 
