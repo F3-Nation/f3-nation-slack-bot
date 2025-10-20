@@ -8,8 +8,6 @@ import boto3
 import pytz
 import requests
 from cryptography.fernet import Fernet
-from PIL import Image
-from pillow_heif import register_heif_opener
 from slack_sdk.web import WebClient
 
 from utilities import constants, sendmail
@@ -28,8 +26,6 @@ from utilities.helper_functions import (
 )
 from utilities.slack import actions, forms
 from utilities.slack import orm as slack_orm
-
-register_heif_opener()
 
 
 def add_custom_field_blocks(form: slack_orm.BlockView, region_record: SlackSettings) -> slack_orm.BlockView:
@@ -69,7 +65,6 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         context (dict): Slack request context
         region_record (Region): Region record for the requesting region
     """
-
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
     channel_name = safe_get(body, "channel_name") or safe_get(body, "channel", "name")
@@ -271,6 +266,8 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     file_list = []
     file_send_list = []
+    from PIL import Image
+
     for file in files or []:
         try:
             r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})

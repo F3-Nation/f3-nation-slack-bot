@@ -20,7 +20,6 @@ from f3_data_models.models import (
     User,
 )
 from f3_data_models.utils import DbManager
-from PIL import Image
 from slack_bolt.adapter.aws_lambda.lambda_s3_oauth_flow import LambdaS3OAuthFlow
 from slack_bolt.oauth.oauth_settings import OAuthSettings
 from slack_sdk.oauth.installation_store import FileInstallationStore
@@ -639,6 +638,8 @@ def upload_files_to_storage(
     file_send_list = []
     file_ids = [file["id"] for file in files]
     low_res_file_list = []
+    from PIL import Image
+
     for file in files or []:
         try:
             r_full = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
@@ -723,6 +724,8 @@ def upload_files_to_s3(
     file_list = []
     file_send_list = []
     file_ids = [file["id"] for file in files]
+    from PIL import Image
+
     for file in files or []:
         try:
             r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})

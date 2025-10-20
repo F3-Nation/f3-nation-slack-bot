@@ -8,9 +8,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Dict, List
 
-import kaleido
-import matplotlib.pyplot as plt
-import mplcyberpunk  # noqa: F401 needed for plt.style.
 import pytz
 from f3_data_models.models import (
     AttendanceExpanded,
@@ -20,15 +17,12 @@ from f3_data_models.models import (
     SlackSpace,
 )
 from f3_data_models.utils import DbManager, get_session
-from PIL import Image
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 from sqlalchemy import and_, func, literal, select, union_all
 
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
-
-kaleido.get_chrome_sync()
 
 
 @dataclass
@@ -492,6 +486,8 @@ def stitch_2x2(
     If the input images differ in size they will be resized to the size of the
     first image to produce a uniform grid.
     """
+    from PIL import Image
+
     if len(image_paths) != 4:
         raise ValueError("image_paths must contain exactly 4 paths (row-major order)")
 
@@ -524,6 +520,9 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     # Build three subplots (Posts, Unique PAX, FNGs) with paired series for current and prior year.
     # Only plot points for months that had events (use None for missing months).
     import calendar
+
+    import matplotlib.pyplot as plt
+    import mplcyberpunk  # noqa: F401 needed for plt.style.
 
     plt.style.use("cyberpunk")
     fig, axs = plt.subplots(nrows=3, ncols=1, figsize=(12, 10), sharex=True)

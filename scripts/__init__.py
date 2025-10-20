@@ -3,16 +3,7 @@ import json
 
 from flask import Request, Response
 
-from features import canvas
-from scripts import (
-    auto_preblast_send,
-    backblast_reminders,
-    calendar_images,
-    monthly_reporting,
-    preblast_reminders,
-    q_lineups,
-    update_slack_users,
-)
+from scripts import hourly_runner
 
 
 def handle(request: Request) -> Response:
@@ -26,48 +17,11 @@ def handle(request: Request) -> Response:
             import threading
 
             def run_scripts():
-                print("Running hourly scripts")
-                print("Running calendar images")
+                # ...existing code...
                 try:
-                    calendar_images.generate_calendar_images()
+                    hourly_runner.run_all_hourly_scripts()
                 except Exception as e:
-                    print(f"Error generating calendar images: {e}")
-                print("Running backblast reminders")
-                try:
-                    backblast_reminders.send_backblast_reminders()
-                except Exception as e:
-                    print(f"Error sending backblast reminders: {e}")
-                print("Running preblast reminders")
-                try:
-                    preblast_reminders.send_preblast_reminders()
-                except Exception as e:
-                    print(f"Error sending preblast reminders: {e}")
-                print("Running automated preblast send")
-                try:
-                    auto_preblast_send.send_automated_preblasts()
-                except Exception as e:
-                    print(f"Error sending automated preblasts: {e}")
-                # update_special_events.update_special_events()
-                print("Running canvas updates")
-                try:
-                    canvas.update_all_canvases()
-                except Exception as e:
-                    print(f"Error updating canvases: {e}")
-                print("Running Q lineups")
-                try:
-                    q_lineups.send_lineups()
-                except Exception as e:
-                    print(f"Error sending Q lineups: {e}")
-                try:
-                    update_slack_users.update_slack_users()
-                except Exception as e:
-                    print(f"Error updating Slack users: {e}")
-                print("Running monthly reporting")
-                try:
-                    monthly_reporting.cycle_all_orgs()
-                except Exception as e:
-                    print(f"Error running monthly reporting: {e}")
-                print("Hourly scripts complete")
+                    print(f"Error running hourly scripts: {e}")
 
             # Start scripts in background thread
             thread = threading.Thread(target=run_scripts)

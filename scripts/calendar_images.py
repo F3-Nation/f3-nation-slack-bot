@@ -7,7 +7,6 @@ import random
 from datetime import datetime, timedelta
 
 import boto3
-import dataframe_image as dfi
 import pandas as pd
 from f3_data_models.models import (
     Attendance,
@@ -76,6 +75,8 @@ def set_text_color(s, color_dict):
 
 
 def generate_calendar_images(force: bool = False):
+    import dataframe_image as dfi
+
     with get_session() as session:
         tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
         current_week_start = current_date_cst() + timedelta(days=-tomorrow_day_of_week + 1)

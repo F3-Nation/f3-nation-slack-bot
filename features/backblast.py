@@ -19,7 +19,6 @@ from f3_data_models.models import (
     User,
 )
 from f3_data_models.utils import DbManager
-from pillow_heif import register_heif_opener
 from slack_sdk.web import WebClient
 from sqlalchemy import not_, or_
 
@@ -40,8 +39,6 @@ from utilities.helper_functions import (
 )
 from utilities.slack import actions, forms
 from utilities.slack import orm as slack_orm
-
-register_heif_opener()
 
 
 def add_custom_field_blocks(
