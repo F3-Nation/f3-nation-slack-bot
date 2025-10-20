@@ -63,6 +63,7 @@ def update_slack_users(force=False):
 
         except SlackApiError as e:
             print(f"Error updating Slack users: {e.response['error']}")
+            continue
 
 
 if __name__ == "__main__":

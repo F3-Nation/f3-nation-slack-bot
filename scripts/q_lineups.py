@@ -108,7 +108,11 @@ def send_lineups(force: bool = False):
                 label=f"Hello HIMs of *{org_record.name}!* Here is your Q lineup for the week:"
             ).as_form_field()
             blocks = [header_block] + blocks
-            send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
+            try:
+                send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
+            except Exception as e:
+                print(f"Error sending Q lineup for org {org_record.name} ({org_record.id}): {e}")
+                continue
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:

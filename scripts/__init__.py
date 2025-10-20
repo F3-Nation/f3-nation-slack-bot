@@ -3,7 +3,7 @@ import json
 
 from flask import Request, Response
 
-from features import canvas
+# from features import canvas
 from scripts import (
     auto_preblast_send,
     backblast_reminders,
@@ -49,10 +49,10 @@ def handle(request: Request) -> Response:
                     print(f"Error sending automated preblasts: {e}")
                 # update_special_events.update_special_events()
                 print("Running canvas updates")
-                try:
-                    canvas.update_all_canvases()
-                except Exception as e:
-                    print(f"Error updating canvases: {e}")
+                # try:
+                #     canvas.update_all_canvases()
+                # except Exception as e:
+                #     print(f"Error updating canvases: {e}")
                 print("Running Q lineups")
                 try:
                     q_lineups.send_lineups()
