@@ -124,7 +124,7 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
             Role_x_User_x_Org.user_id.in_(existing_admin_users_ids),
         ],
     )
-    DbManager.create_records(admin_records)
+    DbManager.create_or_ignore(Role_x_User_x_Org, admin_records)
 
 
 REGION_FORM = orm.BlockView(
