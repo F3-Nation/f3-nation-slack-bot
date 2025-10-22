@@ -42,6 +42,8 @@ def send_lineups(force: bool = False):
     slack_settings_list: List[SlackSettings] = [
         SlackSettings(**s.settings) for s in slack_spaces if safe_get(s.settings, "org_id")
     ]
+    print(f"Found {len(slack_settings_list)} slack settings records")
+    print(f"Current day: {current_time.weekday()}, hour: {current_time.hour}")
 
     # find all slack settings where send_q_lineups is True and the current time matches the configured day and hour
     include_region_orgs = [

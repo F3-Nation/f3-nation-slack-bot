@@ -222,15 +222,15 @@ AO_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_AO_LOCATION,
             element=orm.StaticSelectElement(placeholder="Select a location"),
         ),
-        orm.ActionsBlock(
-            elements=[
-                orm.ButtonElement(
-                    label="Add Location",
-                    action=actions.CALENDAR_ADD_AO_NEW_LOCATION,
-                    value="add",
-                )
-            ],
-        ),
+        # orm.ActionsBlock(
+        #     elements=[
+        #         orm.ButtonElement(
+        #             label="Add Location",
+        #             action=actions.CALENDAR_ADD_AO_NEW_LOCATION,
+        #             value="add",
+        #         )
+        #     ],
+        # ),
         orm.InputBlock(
             label="AO Logo",
             action=actions.CALENDAR_ADD_AO_LOGO,
