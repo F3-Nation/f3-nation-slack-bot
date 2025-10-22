@@ -7,7 +7,6 @@ import random
 from datetime import datetime, timedelta
 
 import boto3
-import pandas as pd
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
@@ -41,6 +40,8 @@ def time_int_to_str(time: int) -> str:
 
 
 def highlight_cells(s, color_dict):
+    import pandas as pd
+
     highlight_cells_list = []
     for cell in s:
         cell_str = str(cell)
@@ -76,6 +77,7 @@ def set_text_color(s, color_dict):
 
 def generate_calendar_images(force: bool = False):
     import dataframe_image as dfi
+    import pandas as pd
 
     with get_session() as session:
         tomorrow_day_of_week = (current_date_cst() + timedelta(days=1)).weekday()
