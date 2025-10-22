@@ -16,7 +16,6 @@ from f3_data_models.models import (
     Org,
 )
 from f3_data_models.utils import DbManager
-from psycopg2.errors import UniqueViolation
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
@@ -308,7 +307,6 @@ def handle_event_preblast_edit(
             cls=Attendance,
             filters=[
                 Attendance.event_instance_id == event_instance_id,
-                Attendance.attendance_x_attendance_types.any(Attendance_x_AttendanceType.attendance_type_id == 3),
                 Attendance.is_planned,
                 Attendance.user_id.in_(user_ids),
             ],
@@ -651,8 +649,10 @@ def handle_event_preblast_action(
                             is_planned=True,
                         )
                     )
-                except UniqueViolation as e:
-                    logger.warning(f"User {user_id} already marked as HC for event {event_instance_id}: {e}")
+                except Exception as e:
+                    logger.warning(
+                        f"User {user_id} already marked as HC for event {event_instance_id} or is duplicate: {e}"
+                    )
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             q_id_list = [
                 r.user.id
