@@ -401,12 +401,12 @@ def create_events(
             current_date += timedelta(days=1)
             if current_date.day == 1:
                 current_index = 0
-    if clear_first:
-        org_ids = {record.org_id for record in records}
+    if clear_first and event_records:
+        series_ids = {record.id for record in records}
         DbManager.delete_records(
             EventInstance,
             filters=[
-                EventInstance.org_id.in_(org_ids),
+                EventInstance.series_id.in_(series_ids),
                 EventInstance.start_date >= datetime.now(),
             ],
         )

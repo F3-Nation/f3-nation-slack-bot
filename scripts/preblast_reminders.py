@@ -167,7 +167,11 @@ def send_preblast_reminders():
                     ),
                 ]
                 blocks = [b.as_form_field() for b in blocks]
-                slack_client.chat_postMessage(channel=preblast.slack_user_id, text=msg, blocks=blocks)
+                try:
+                    slack_client.chat_postMessage(channel=preblast.slack_user_id, text=msg, blocks=blocks)
+                except Exception as e:
+                    print(f"Error sending preblast reminder to {preblast.q_name} ({preblast.slack_user_id}): {e}")
+                    continue
 
 
 if __name__ == "__main__":

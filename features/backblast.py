@@ -137,7 +137,7 @@ def backblast_middleware(
                     placeholder="Select an event",
                     options=slack_orm.as_selector_options(
                         names=[
-                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:75]
+                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:70]
                             for r in event_records
                         ],
                         values=[str(r.id) for r in event_records],

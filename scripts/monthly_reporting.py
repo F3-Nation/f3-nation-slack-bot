@@ -179,6 +179,7 @@ def cycle_all_orgs(run_org_id: int = None):
                             )
                 except Exception as e:
                     print(f"Error processing org {org.name} ({org.id}): {e}")
+                    continue
         else:
             create_post_leaders_plot(org_leaderboard_dict[run_org_id])
 

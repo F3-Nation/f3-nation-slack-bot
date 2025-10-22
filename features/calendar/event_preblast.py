@@ -16,6 +16,7 @@ from f3_data_models.models import (
     Org,
 )
 from f3_data_models.utils import DbManager
+from psycopg2.errors import UniqueViolation
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
@@ -641,14 +642,17 @@ def handle_event_preblast_action(
                     joinedloads=[Attendance.attendance_types],
                 )
             else:
-                DbManager.create_record(
-                    Attendance(
-                        event_instance_id=event_instance_id,
-                        user_id=user_id,
-                        attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
-                        is_planned=True,
+                try:
+                    DbManager.create_record(
+                        Attendance(
+                            event_instance_id=event_instance_id,
+                            user_id=user_id,
+                            attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
+                            is_planned=True,
+                        )
                     )
-                )
+                except UniqueViolation as e:
+                    logger.warning(f"User {user_id} already marked as HC for event {event_instance_id}: {e}")
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             q_id_list = [
                 r.user.id
