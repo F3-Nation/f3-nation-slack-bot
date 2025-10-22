@@ -35,7 +35,11 @@ def build_calendar_general_config_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     form = copy.deepcopy(CALENDAR_CONFIG_GENERAL_FORM)
-    q_lineups_time = f"{region_record.send_q_lineups_hour_cst}:00" if region_record.send_q_lineups_hour_cst else "17:00"
+    q_lineups_time = (
+        f"{str(region_record.send_q_lineups_hour_cst).zfill(2)}:00"
+        if region_record.send_q_lineups_hour_cst
+        else "17:00"
+    )
     form.set_initial_values(
         {
             actions.CALENDAR_CONFIG_Q_LINEUP: "yes" if region_record.send_q_lineups else "no",
