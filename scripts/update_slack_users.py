@@ -62,7 +62,7 @@ def update_slack_users(force=False):
             print("Slack users updated successfully.")
 
         except SlackApiError as e:
-            print(f"Error updating Slack users: {e.response['error']}")
+            print(f"Error updating Slack users for {slack_space.workspace_name}: {e.response['error']}")
             continue
 
 

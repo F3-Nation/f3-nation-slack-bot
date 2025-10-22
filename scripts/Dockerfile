@@ -38,15 +38,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libatspi2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install scripts superset deps
-COPY requirements-scripts.txt ./requirements.txt
+COPY scripts/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Playwright for dataframe_image export
 RUN pip install --no-cache-dir playwright
 RUN python -m playwright install chromium
 
 COPY . ./
 
-# Default command for a Job; can be overridden by Job args
 CMD ["python", "-m", "scripts.hourly_runner"]

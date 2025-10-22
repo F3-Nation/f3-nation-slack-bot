@@ -4,23 +4,21 @@ import ssl
 import sys
 from logging import Logger
 
-import pytz
-from sqlalchemy import or_
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Tuple
 
-from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, Org
+import pytz
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 from slack_sdk.models.metadata import Metadata
+from sqlalchemy import or_
 
 from scripts.preblast_reminders import PreblastItem, PreblastList
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
-    REGION_RECORDS,
     current_date_cst,
     get_user,
     safe_convert,
@@ -40,11 +38,15 @@ from utilities.slack.orm import (
 def send_lineups(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
+    slack_spaces = DbManager.find_records(SlackSpace, filters=[True])
+    slack_settings_list: List[SlackSettings] = [
+        SlackSettings(**s.settings) for s in slack_spaces if safe_get(s.settings, "org_id")
+    ]
 
     # find all slack settings where send_q_lineups is True and the current time matches the configured day and hour
     include_region_orgs = [
         r.org_id
-        for r in REGION_RECORDS.values()
+        for r in slack_settings_list
         if r.send_q_lineups
         and (
             (
@@ -54,6 +56,7 @@ def send_lineups(force: bool = False):
             or force
         )
     ]
+    print(f"Sending Q lineups for orgs: {include_region_orgs}")
 
     if include_region_orgs:
         # Figure out current and next weeks based on current start of day
@@ -80,7 +83,7 @@ def send_lineups(force: bool = False):
         for org in event_org_list:
             org_events = event_org_list[org]
             org_record = org_events[0].org
-            slack_settings = org_events[0].slack_settings
+            slack_settings: SlackSettings = org_events[0].slack_settings
             send_day = slack_settings.send_q_lineups_day or 6
             send_hour = slack_settings.send_q_lineups_hour_cst or 17
             if (

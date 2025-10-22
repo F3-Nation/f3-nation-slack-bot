@@ -2,16 +2,13 @@ import os
 import ssl
 import sys
 
-import pytz
-
-from utilities.helper_functions import current_date_cst
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List
 
+import pytz
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
@@ -31,6 +28,7 @@ from sqlalchemy.orm import aliased
 
 from features.calendar import event_preblast
 from utilities.database.orm import SlackSettings
+from utilities.helper_functions import current_date_cst
 
 
 @dataclass

@@ -2,16 +2,13 @@ import os
 import ssl
 import sys
 
-import pytz
-
-from utilities.helper_functions import current_date_cst
-
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import List
 
+import pytz
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
@@ -30,6 +27,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.orm import aliased
 
 from utilities.database.orm import SlackSettings
+from utilities.helper_functions import current_date_cst
 from utilities.slack import actions, orm
 
 MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa

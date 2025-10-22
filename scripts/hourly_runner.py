@@ -1,6 +1,11 @@
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 import argparse
 
-from features import canvas
+# from features import canvas
 from scripts import (
     auto_preblast_send,
     backblast_reminders,
@@ -39,11 +44,11 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
     except Exception as e:
         print(f"Error sending automated preblasts: {e}")
 
-    print("Running canvas updates")
-    try:
-        canvas.update_all_canvases()
-    except Exception as e:
-        print(f"Error updating canvases: {e}")
+    # print("Running canvas updates")
+    # try:
+    #     canvas.update_all_canvases()
+    # except Exception as e:
+    #     print(f"Error updating canvases: {e}")
 
     print("Running Q lineups")
     try:
