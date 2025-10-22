@@ -7,6 +7,7 @@ import random
 from datetime import datetime, timedelta
 
 import boto3
+import pytz
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
@@ -206,7 +207,8 @@ def generate_calendar_images(force: bool = False):
                     )
                     max_changed = max(max_event_updated, max_q_last_updated)
                     max_changed = datetime(year=1900, month=1, day=1) if pd.isnull(max_changed) else max_changed
-                    first_sunday_run = datetime.now().weekday() == 6 and datetime.now().hour < 1
+                    now_cst = datetime.now(pytz.timezone("US/Central"))
+                    first_sunday_run = now_cst.weekday() == 6 and now_cst.hour < 1
 
                     if (
                         (max_changed > datetime.now() - timedelta(hours=1))
