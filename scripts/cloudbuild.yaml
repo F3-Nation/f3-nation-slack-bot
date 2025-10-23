@@ -1,0 +1,31 @@
+steps:
+  - name: gcr.io/cloud-builders/bash
+    id: prepare-context
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        rm -rf scripts_build_ctx
+        mkdir -p scripts_build_ctx
+        # Copy scripts package
+        rsync -a --delete --exclude '__pycache__' scripts/ scripts_build_ctx/scripts/
+        # Copy shared code needed by scripts (add/remove as needed)
+        rsync -a --delete --exclude '__pycache__' features/ scripts_build_ctx/features/ || true
+        rsync -a --delete --exclude '__pycache__' utilities/ scripts_build_ctx/utilities/ || true
+        rsync -a --delete --exclude '__pycache__' common/ scripts_build_ctx/common/ || true
+
+  - name: gcr.io/cloud-builders/docker
+    id: build-image
+    args:
+      - build
+      - -t
+      - $_IMAGE
+      - -f
+      - scripts_build_ctx/scripts/Dockerfile
+      - scripts_build_ctx
+
+images:
+  - $_IMAGE
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/PROJECT/REPO/f3-bot-scripts:$COMMIT_SHA
