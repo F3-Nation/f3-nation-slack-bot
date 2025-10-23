@@ -1,5 +1,5 @@
 steps:
-  - name: gcr.io/cloud-builders/bash
+  - name: gcr.io/cloud-builders/gcloud
     id: prepare-context
     entrypoint: bash
     args:
@@ -9,11 +9,14 @@ steps:
         rm -rf scripts_build_ctx
         mkdir -p scripts_build_ctx
         # Copy scripts package
-        rsync -a --delete --exclude '__pycache__' scripts/ scripts_build_ctx/scripts/
+        cp -a scripts scripts_build_ctx/
         # Copy shared code needed by scripts (add/remove as needed)
-        rsync -a --delete --exclude '__pycache__' features/ scripts_build_ctx/features/ || true
-        rsync -a --delete --exclude '__pycache__' utilities/ scripts_build_ctx/utilities/ || true
-        rsync -a --delete --exclude '__pycache__' common/ scripts_build_ctx/common/ || true
+        [ -d features ] && cp -a features scripts_build_ctx/ || true
+        [ -d utilities ] && cp -a utilities scripts_build_ctx/ || true
+        [ -d common ] && cp -a common scripts_build_ctx/ || true
+        # Clean Python caches
+        find scripts_build_ctx -type d -name __pycache__ -prune -exec rm -rf {} +
+        find scripts_build_ctx -type f -name '*.pyc' -delete
 
   - name: gcr.io/cloud-builders/docker
     id: build-image
@@ -22,7 +25,7 @@ steps:
       - -t
       - $_IMAGE
       - -f
-      - scripts_build_ctx/scripts/Dockerfile
+      - scripts/Dockerfile
       - scripts_build_ctx
 
 images:
