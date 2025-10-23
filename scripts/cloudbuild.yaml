@@ -29,3 +29,6 @@ images:
   - $_IMAGE
 substitutions:
   _IMAGE: us-central1-docker.pkg.dev/PROJECT/REPO/f3-bot-scripts:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
