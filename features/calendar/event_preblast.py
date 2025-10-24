@@ -613,15 +613,20 @@ def handle_event_preblast_action(
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
             preblast_channel = get_preblast_channel(region_record, preblast_info)
-            client.chat_update(
-                channel=preblast_channel,
-                ts=metadata["preblast_ts"],
-                blocks=blocks,
-                text="Event Preblast",
-                metadata={"event_type": "preblast", "event_payload": metadata},
-                username=f"{q_name} (via F3 Nation)",
-                icon_url=q_url,
-            )
+            try:
+                client.chat_update(
+                    channel=preblast_channel,
+                    ts=metadata["preblast_ts"],
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                    username=f"{q_name} (via F3 Nation)",
+                    icon_url=q_url,
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error updating preblast message after action {action_id} and event_instance_id {event_instance_id}: {e}"  # noqa
+                )
         build_event_preblast_form(
             body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
         )
