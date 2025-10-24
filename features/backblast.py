@@ -137,7 +137,7 @@ def backblast_middleware(
                     placeholder="Select an event",
                     options=slack_orm.as_selector_options(
                         names=[
-                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:70]
+                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
                             for r in event_records
                         ],
                         values=[str(r.id) for r in event_records],
@@ -666,7 +666,7 @@ COUNT: {count}
             attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=attendance_type)],
             is_planned=False,
         )
-        for user, attendance_type in zip(db_users, attendance_types)
+        for user, attendance_type in zip(db_users, attendance_types, strict=False)
     ]
     DbManager.create_records(attendance_records)
 
