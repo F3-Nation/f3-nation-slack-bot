@@ -379,16 +379,21 @@ def send_preblast(
         icon_url = q_url
     preblast_channel = get_preblast_channel(region_record, preblast_info)
 
-    if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts"):
-        client.chat_update(
-            channel=preblast_channel,
-            ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
-            blocks=blocks,
-            text="Event Preblast",
-            metadata={"event_type": "preblast", "event_payload": metadata},
-            username=username,
-            icon_url=icon_url,
-        )
+    if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts") and preblast_channel:
+        try:
+            client.chat_update(
+                channel=preblast_channel,
+                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
+                blocks=blocks,
+                text="Event Preblast",
+                metadata={"event_type": "preblast", "event_payload": metadata},
+                username=username,
+                icon_url=icon_url,
+            )
+        except Exception as e:
+            logger.error(
+                f"Error updating preblast message for event_instance_id {event_instance_id}: {e}"  # noqa
+            )
     else:
         if not preblast_channel:
             preblast_channel = client.chat_postMessage(
