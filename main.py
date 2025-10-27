@@ -59,6 +59,9 @@ def handler(request: Request):
         return slack_handler.handle(request)
     elif request.path == "/map-update":
         return series.update_from_map(request)
+    elif request.path == "/hourly-runner-complete":
+        update_local_region_records()
+        return Response("Hourly runner completion endpoint", status=200)
     else:
         return Response(f"Invalid path: {request.path}", status=404)
 

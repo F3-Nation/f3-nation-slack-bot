@@ -5,6 +5,8 @@ sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
 
+import requests
+
 # from features import canvas
 from scripts import (
     auto_preblast_send,
@@ -15,6 +17,8 @@ from scripts import (
     q_lineups,
     update_slack_users,
 )
+
+APP_URL = os.getenv("APP_URL", "http://localhost:8080")
 
 
 def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, reporting_org_id: int | None = None):
@@ -68,6 +72,12 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
             monthly_reporting.cycle_all_orgs(run_org_id=reporting_org_id)
         except Exception as e:
             print(f"Error running monthly reporting: {e}")
+
+    print("Notifying completion endpoint to update settings cache")
+    try:
+        requests.post(f"{APP_URL}/hourly-runner-complete")
+    except Exception as e:
+        print(f"Error notifying completion endpoint: {e}")
 
     print("Hourly scripts complete")
 
