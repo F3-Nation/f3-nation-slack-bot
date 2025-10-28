@@ -1,4 +1,3 @@
-import json
 import os
 import ssl
 import sys
@@ -7,7 +6,7 @@ from logging import Logger
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 from datetime import date, datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import pytz
 from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, Org, SlackSpace
@@ -42,12 +41,10 @@ def send_lineups(force: bool = False):
     slack_settings_list: List[SlackSettings] = [
         SlackSettings(**s.settings) for s in slack_spaces if safe_get(s.settings, "org_id")
     ]
-    print(f"Found {len(slack_settings_list)} slack settings records")
-    print(f"Current day: {current_time.weekday()}, hour: {current_time.hour}")
 
     # find all slack settings where send_q_lineups is True and the current time matches the configured day and hour
-    include_region_orgs = [
-        r.org_id
+    include_region_orgs = {
+        r.org_id: r
         for r in slack_settings_list
         if r.send_q_lineups
         and (
@@ -57,67 +54,85 @@ def send_lineups(force: bool = False):
             )
             or force
         )
-    ]
-    print(f"Sending Q lineups for orgs: {include_region_orgs}")
+    }
 
     if include_region_orgs:
         # Figure out current and next weeks based on current start of day
         # I have the week start on Monday and end on Sunday - if this is run on Sunday, "current" week will start tomorrow # noqa
         current_date = current_date_cst()
-        tomorrow_day_of_week = (current_date + timedelta(days=1)).weekday()
-        this_week_start = current_date + timedelta(days=1 - tomorrow_day_of_week)
-        this_week_end = current_date + timedelta(days=7 - tomorrow_day_of_week)
+        start_of_next_week = current_date + timedelta(days=7 - current_date.weekday())
+        end_of_next_week = start_of_next_week + timedelta(days=6)
         event_list = PreblastList()
         event_list.pull_data(
             filters=[
-                EventInstance.start_date >= this_week_start,
-                EventInstance.start_date <= this_week_end,
+                EventInstance.start_date >= start_of_next_week,
+                EventInstance.start_date <= end_of_next_week,
                 EventInstance.is_active,  # not canceled
                 or_(Org.id.in_(include_region_orgs), Org.parent_id.in_(include_region_orgs)),
                 # may want to filter out pre-events?
             ]
         )
+
+        # Build the event organization list
         event_org_list: Dict[int, List[PreblastItem]] = {}
         for event in event_list.items:
             event_org_list.setdefault(event.org.id, []).append(event)
 
-        combined_lineup_orgs: Dict[int, Tuple[List[Dict], Dict, Org]] = {}
-        for org in event_org_list:
-            org_events = event_org_list[org]
-            org_record = org_events[0].org
-            slack_settings: SlackSettings = org_events[0].slack_settings
-            send_day = slack_settings.send_q_lineups_day or 6
-            send_hour = slack_settings.send_q_lineups_hour_cst or 17
-            if (
-                slack_settings.send_q_lineups and send_day == current_time.weekday() and send_hour == current_time.hour
-            ) or force:  # type: ignore # noqa
-                blocks = build_lineup_blocks(org_events, org_record)
-                if slack_settings.send_q_lineups_method == "yes_per_ao" or not safe_get(
-                    combined_lineup_orgs, slack_settings.org_id
-                ):
-                    header_blocks = HEADER_BLOCKS.copy()
-                    header_blocks[0].label = f"*{org_record.name}:*"
-                    blocks = [b.as_form_field() for b in header_blocks] + blocks
-                    org = (
-                        org_record if slack_settings.send_q_lineups_method == "yes_per_ao" else org_events[0].parent_org
+        for region_id, slack_settings in include_region_orgs.items():
+            if slack_settings.send_q_lineups_method == "yes_per_ao":
+                # Send per AO
+                for org_id in event_org_list:
+                    org_events = event_org_list[org_id]
+                    org_record = org_events[0].org
+                    if org_record.parent_id == region_id:
+                        blocks = [
+                            SectionBlock(
+                                label=f"*Hello HIMs of {org_record.name}! Here is your Q lineup for the week*"
+                            ).as_form_field(),
+                            DividerBlock().as_form_field(),
+                        ]
+                        blocks.extend(build_lineup_blocks(org_events, org_record))
+                        try:
+                            send_q_lineup_message(
+                                org_record,
+                                blocks,
+                                slack_settings,
+                                start_of_next_week,
+                                end_of_next_week,
+                            )
+                        except Exception:
+                            print(f"Error sending Q lineup for AO {org_record.name} ({org_record.id})")
+                            continue
+            elif slack_settings.send_q_lineups_method == "yes_for_all":
+                # Send combined for region
+                region_record = DbManager.get(Org, region_id)
+                blocks: List[dict] = [
+                    SectionBlock(
+                        label=f"*Hello HIMs of {region_record.name}! Here are your Q lineups for the week*\n\n"
+                    ).as_form_field()
+                ]
+                for org_id in event_org_list:
+                    org_events = event_org_list[org_id]
+                    org_record = org_events[0].org
+                    if org_record.parent_id == region_id:
+                        blocks.extend(
+                            [
+                                SectionBlock(label=f"*{org_record.name}:*").as_form_field(),
+                                DividerBlock().as_form_field(),
+                            ]
+                        )
+                        blocks.extend(build_lineup_blocks(org_events, org_record))
+                try:
+                    send_q_lineup_message(
+                        region_record,
+                        blocks,
+                        slack_settings,
+                        start_of_next_week,
+                        end_of_next_week,
                     )
-                    combined_lineup_orgs[org.id] = (blocks, slack_settings, org)
-                else:
-                    header_blocks = HEADER_BLOCKS.copy()
-                    header_blocks[0].label = f"*{org_record.name}:*"
-                    blocks = [b.as_form_field() for b in header_blocks] + blocks
-                    combined_lineup_orgs[slack_settings.org_id][0].extend(blocks)
-        for org in combined_lineup_orgs:
-            blocks, slack_settings, org_record = combined_lineup_orgs[org]
-            header_block = SectionBlock(
-                label=f"Hello HIMs of *{org_record.name}!* Here is your Q lineup for the week:"
-            ).as_form_field()
-            blocks = [header_block] + blocks
-            try:
-                send_q_lineup_message(org_record, blocks, slack_settings, this_week_start, this_week_end)
-            except Exception as e:
-                print(f"Error sending Q lineup for org {org_record.name} ({org_record.id}): {e}")
-                continue
+                except Exception as e:
+                    print(f"Error sending Q lineup for region {region_record.name} ({region_record.id}): {e}")
+                    continue
 
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
@@ -190,7 +205,9 @@ def send_q_lineup_message(
     blocks.append(calendar_button_block)
 
     slack_bot_token = slack_settings.bot_token
-    metadata = Metadata(event_type="q_lineup", event_payload={})
+    metadata = Metadata(
+        event_type="q_lineup", event_payload={"send_q_lineups_method": slack_settings.send_q_lineups_method}
+    )
     if week_start and week_end:
         metadata.event_payload["week_start"] = week_start.strftime("%y-%m-%d")
         metadata.event_payload["week_end"] = week_end.strftime("%y-%m-%d")
@@ -199,12 +216,14 @@ def send_q_lineup_message(
         ssl_context.check_hostname = False
         ssl_context.verify_mode = ssl.CERT_NONE
         slack_client = WebClient(slack_bot_token, ssl=ssl_context)
+        if update_channel_id:
+            channel_id = update_channel_id
         if slack_settings.send_q_lineups_method == "yes_per_ao" and safe_get(org.meta, "slack_channel_id"):
             channel_id = org.meta.get("slack_channel_id")
         elif slack_settings.send_q_lineups_method == "yes_for_all" and slack_settings.send_q_lineups_channel:
             channel_id = slack_settings.send_q_lineups_channel
         else:
-            channel_id = update_channel_id
+            channel_id = None
         if channel_id:
             if update_channel_id and update_ts:
                 # Update the existing message
@@ -233,9 +252,10 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
     slack_channel_id = body["channel"]["id"]
     user_id = get_user(slack_user_id, region_record, client, logger).user_id
 
-    metadata = safe_convert(safe_get(body, "message", "metadata", "event_payload"), json.loads)
+    metadata = safe_get(body, "message", "metadata", "event_payload")
     week_start = safe_get(metadata, "week_start")
     week_end = safe_get(metadata, "week_end")
+    send_q_lineup_method = safe_get(metadata, "send_q_lineups_method")
     if week_start and week_end:
         this_week_start = datetime.strptime(week_start, "%y-%m-%d").date()
         this_week_end = datetime.strptime(week_end, "%y-%m-%d").date()
@@ -276,25 +296,54 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
                 )
             )
     # Update the Q Lineup
-    org_info = PreblastList()
-    org_info.pull_data(
-        filters=[
-            EventInstance.org_id == event_info.org.id,
-            EventInstance.start_date >= this_week_start,
-            EventInstance.start_date <= this_week_end,
-            EventInstance.is_active,
-        ],
-    )
-    blocks = build_lineup_blocks(org_info.items, event_info.org)
-    send_q_lineup_message(
-        event_info.org,
-        blocks,
-        region_record,
-        week_start=this_week_start,
-        week_end=this_week_end,
-        update_channel_id=slack_channel_id,
-        update_ts=body["message"]["ts"],
-    )
+    if send_q_lineup_method == "yes_per_ao":
+        org_info = PreblastList()
+        org_info.pull_data(
+            filters=[
+                EventInstance.org_id == event_info.org.id,
+                EventInstance.start_date >= this_week_start,
+                EventInstance.start_date <= this_week_end,
+                EventInstance.is_active,
+            ],
+        )
+        blocks = build_lineup_blocks(org_info.items, event_info.org)
+        send_q_lineup_message(
+            event_info.org,
+            blocks,
+            region_record,
+            week_start=this_week_start,
+            week_end=this_week_end,
+            update_channel_id=slack_channel_id,
+            update_ts=body["message"]["ts"],
+        )
+    elif send_q_lineup_method == "yes_for_all":
+        org_info = PreblastList()
+        org_info.pull_data(
+            filters=[
+                Org.parent_id == event_info.org.parent_id,
+                EventInstance.start_date >= this_week_start,
+                EventInstance.start_date <= this_week_end,
+                EventInstance.is_active,
+            ],
+        )
+        blocks = [
+            SectionBlock(label="*Here are your Q lineups for the week*\n\n").as_form_field(),
+            DividerBlock().as_form_field(),
+        ]
+        for org in {e.org for e in org_info.items}:
+            blocks.append(SectionBlock(label=f"*{org.name}:*").as_form_field())
+            blocks.append(DividerBlock().as_form_field())
+            events = [e for e in org_info.items if e.org.id == org.id]
+            blocks.extend(build_lineup_blocks(events, org))
+        send_q_lineup_message(
+            event_info.org,
+            blocks,
+            region_record,
+            week_start=this_week_start,
+            week_end=this_week_end,
+            update_channel_id=slack_channel_id,
+            update_ts=body["message"]["ts"],
+        )
 
 
 if __name__ == "__main__":
