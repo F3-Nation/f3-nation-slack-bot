@@ -47,6 +47,7 @@ CALENDAR_HOME_ASSIGN_Q_USER = "calendar-home-assign-q-user"
 CALENDAR_HOME_ASSIGN_Q_CO_QS = "calendar-home-assign-q-co-qs"
 HOME_ASSIGN_Q_CALLBACK_ID = "home-assign-q-id"
 SECRET_MENU_SEND_ADMIN_ANNOUNCEMENT = "secret-menu-send-admin-announcement"
+CONFIG_HELP_MENU = "help_menu_config"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"

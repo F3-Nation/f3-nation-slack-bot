@@ -128,9 +128,10 @@ def build_event_preblast_select_form(
         ),
     ]
     form = orm.BlockView(blocks=blocks)
+    update_view_id = safe_get(body, "view", "id") or safe_get(body, actions.LOADING_ID)
     form.update_modal(
         client=client,
-        view_id=safe_get(body, actions.LOADING_ID),
+        view_id=update_view_id,
         callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
         title_text="Select Preblast",
         submit_button_text="None",

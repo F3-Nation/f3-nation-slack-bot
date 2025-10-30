@@ -198,6 +198,10 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.CONFIG_USER_SETTINGS,
                 ),
                 orm.ButtonElement(
+                    label=":grey_question: Help Menu",
+                    action=actions.CONFIG_HELP_MENU,
+                ),
+                orm.ButtonElement(
                     label=":speech_balloon: Welcomebot Settings",
                     action=actions.CONFIG_WELCOME_MESSAGE,
                 ),
@@ -678,6 +682,10 @@ CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":bust_in_silhouette: User Settings",
                     action=actions.CONFIG_USER_SETTINGS,
+                ),
+                orm.ButtonElement(
+                    label=":grey_question: Help Menu",
+                    action=actions.CONFIG_HELP_MENU,
                 ),
             ],
         ),

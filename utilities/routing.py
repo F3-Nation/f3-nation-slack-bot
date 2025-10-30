@@ -6,6 +6,7 @@ from features import (
     connect,
     custom_fields,
     db_admin,
+    help,
     preblast,
     preblast_legacy,
     region,
@@ -39,6 +40,7 @@ COMMAND_MAPPER = {
     "/tag-achievement": (weaselbot.build_achievement_form, True),
     "/send-announcement": (announcements.send, False),
     "/f3-calendar": (home.build_home_form, True),
+    "/help": (help.build_help_menu, False),
 }
 
 VIEW_MAPPER = {
@@ -168,6 +170,7 @@ ACTION_MAPPER = {
     user.IGNORE_EVENT: (builders.ignore_event, False),
     actions.CONFIG_REPORTING: (reporting.build_reporting_form, False),
     reporting.RUN_MONTHLY_REPORTS_NOW: (run_reporting_single_org, False),
+    actions.CONFIG_HELP_MENU: (help.build_help_menu, False),
 }
 
 ACTION_PREFIXES = [
