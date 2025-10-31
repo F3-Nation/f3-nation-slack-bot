@@ -1,8 +1,10 @@
+from datetime import datetime
+
+import pytz
 from f3_data_models.utils import get_session
 
 from utilities.database.orm.paxminer import get_pm_engine
 from utilities.database.paxminer_migration import run_paxminer_migration
-from utilities.helper_functions import current_date_cst
 
 
 def check_and_run_paxminer_migration():
@@ -23,8 +25,8 @@ def check_and_run_paxminer_migration():
         and ss.settings->>'migration_date' <= CURRENT_DATE::text
     ;
     """
-    current_hour = current_date_cst().hour
-    if current_hour == 9:
+    current_hour = datetime.now(pytz.timezone("US/Central")).hour
+    if current_hour == 11:
         print("Starting Paxminer migration checks...")
         migrated_paxminer_schemas = set()
         with get_session() as session:
