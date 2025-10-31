@@ -2,6 +2,7 @@ from datetime import datetime
 
 import pytz
 from f3_data_models.utils import get_session
+from sqlalchemy import text
 
 from utilities.database.orm.paxminer import get_pm_engine
 from utilities.database.paxminer_migration import run_paxminer_migration
@@ -26,11 +27,11 @@ def check_and_run_paxminer_migration():
     ;
     """
     current_hour = datetime.now(pytz.timezone("US/Central")).hour
-    if current_hour == 11:
+    if current_hour == 17:
         print("Starting Paxminer migration checks...")
         migrated_paxminer_schemas = set()
         with get_session() as session:
-            result = session.execute(check_paxminer_sql)
+            result = session.execute(text(check_paxminer_sql))
             orgs_to_migrate = result.fetchall()
             for row in orgs_to_migrate:
                 org_id = row["org_id"]
