@@ -27,7 +27,7 @@ def check_and_run_paxminer_migration():
     ;
     """
     current_hour = datetime.now(pytz.timezone("US/Central")).hour
-    if current_hour == 17:
+    if current_hour == 23:
         print("Starting Paxminer migration checks...")
         migrated_paxminer_schemas = set()
         with get_session() as session:
