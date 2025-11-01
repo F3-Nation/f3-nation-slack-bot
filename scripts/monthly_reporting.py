@@ -134,7 +134,7 @@ def run_reporting_single_org(body: dict, client: WebClient, logger: any, context
 
 def cycle_all_orgs(run_org_id: int = None):
     current_time = datetime.now(pytz.timezone("US/Central"))
-    if run_org_id or (current_time.day == 1 and current_time.hour == 8):
+    if run_org_id or (current_time.day == 1 and current_time.hour == 9):
         records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[Org.is_active])
         region_orgs: List[Org] = [r[1] for r in records]
         slack_spaces: List[SlackSpace] = [r[2] for r in records]
