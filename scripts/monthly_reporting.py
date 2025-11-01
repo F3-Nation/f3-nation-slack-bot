@@ -134,7 +134,7 @@ def run_reporting_single_org(body: dict, client: WebClient, logger: any, context
 
 def cycle_all_orgs(run_org_id: int = None):
     current_time = datetime.now(pytz.timezone("US/Central"))
-    if run_org_id or (current_time.day == 2 and current_time.hour == 20):
+    if run_org_id or (current_time.day == 1 and current_time.hour == 8):
         records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[Org.is_active])
         region_orgs: List[Org] = [r[1] for r in records]
         slack_spaces: List[SlackSpace] = [r[2] for r in records]
@@ -143,7 +143,7 @@ def cycle_all_orgs(run_org_id: int = None):
 
         if run_org_id is None:
             # Region reports
-            for org, slack in zip(region_orgs, slack_spaces):
+            for org, slack in zip(region_orgs, slack_spaces, strict=False):
                 try:
                     settings = SlackSettings(**slack.settings)
                     upload_files = []
@@ -373,7 +373,7 @@ def create_post_leaders_plot(records: List[OrgUserLeaderboard]) -> str:
         # thresholds to decide if text fits inside small bars
         inside_fraction_threshold = 0.16  # if bar < 16% of max, move name/number outside
 
-        for i, (name, val, img_url) in enumerate(zip(categories, values, images)):
+        for i, (name, val, img_url) in enumerate(zip(categories, values, images, strict=False)):
             # avatar image (normalized so none are huge)
             avatar_im = _fetch_image(img_url) if img_url else None
             avatar_im = _prepare_avatar(avatar_im, target_px=AVATAR_PX) if avatar_im is not None else None
@@ -509,7 +509,7 @@ def stitch_2x2(
 
     # Positions: (0,0), (base_w+padding,0), (0,base_h+padding), (base_w+padding, base_h+padding)
     positions = [(0, 0), (base_w + padding, 0), (0, base_h + padding), (base_w + padding, base_h + padding)]
-    for im, pos in zip(norm_imgs, positions):
+    for im, pos in zip(norm_imgs, positions, strict=False):
         canvas.paste(im, pos, im)
 
     # Save as RGB (flatten alpha) for compatibility
@@ -583,7 +583,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.set_title("Total Posts", fontsize=14)
     # ax.set_ylabel("Total Posts", fontsize=12)
     ax.legend(loc="upper left")
-    # mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
+    mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 
     # Subplot 2: Unique PAX
     ax = axs[1]
@@ -607,7 +607,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.set_title("Unique PAX", fontsize=14)
     # ax.set_ylabel("Unique PAX", fontsize=12)
     ax.legend(loc="upper left")
-    # mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
+    mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 
     # Subplot 3: FNGs
     ax = axs[2]
@@ -632,7 +632,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.set_title("FNGs", fontsize=14)
     # ax.set_ylabel("FNGs", fontsize=12)
     ax.legend(loc="upper left")
-    # mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
+    mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 
     fig.suptitle(f"Monthly Attendance — {prior_year} vs {current_year}", fontsize=16)
     # axs[-1].set_xlabel("Month", fontsize=14)
@@ -765,4 +765,4 @@ def run_monthly_summaries(run_org_id: int = None):
 
 if __name__ == "__main__":
     # run_monthly_summaries(run_org_id=38451)
-    cycle_all_orgs(run_org_id=50097)
+    cycle_all_orgs(run_org_id=49680)

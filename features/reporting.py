@@ -88,13 +88,13 @@ FORM = SdkBlockView(
             optional=True,
             block_id=MONTHLY_REPORTS_ENABLED,
         ),
-        blocks.ActionsBlock(
-            elements=[
-                blocks.ButtonElement(
-                    text="Run Monthly Reports Now", action_id=RUN_MONTHLY_REPORTS_NOW, style="primary"
-                ),
-            ],
-        ),
+        # blocks.ActionsBlock(
+        #     elements=[
+        #         blocks.ButtonElement(
+        #             text="Run Monthly Reports Now", action_id=RUN_MONTHLY_REPORTS_NOW, style="primary"
+        #         ),
+        #     ],
+        # ),
         blocks.ContextBlock(
             elements=[
                 blocks.MarkdownTextObject(text="Monthly reports are automatically sent on the 2nd of each month.")

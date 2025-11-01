@@ -53,7 +53,9 @@ def check_and_run_paxminer_migration(force: bool = False):
                 for schema in migrated_paxminer_schemas:
                     try:
                         conn.execute(
-                            f"update regions set active = 0, scrape_backblasts = 0, send_pax_charts = 0, send_ao_leaderboard = 0, send_q_charts = 0, send_region_leaderboard = 0 where schema_name = '{schema}';"  # noqa
+                            text(
+                                f"update regions set active = 0, scrape_backblasts = 0, send_pax_charts = 0, send_ao_leaderboard = 0, send_q_charts = 0, send_region_leaderboard = 0 where schema_name = '{schema}';"  # noqa
+                            )
                         )
                         print(f"Deactivated Paxminer schema: {schema}")
                     except Exception as e:
