@@ -1,4 +1,8 @@
+import os
+import sys
 from datetime import datetime
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import pytz
 from f3_data_models.utils import get_session
@@ -8,7 +12,7 @@ from utilities.database.orm.paxminer import get_pm_engine
 from utilities.database.paxminer_migration import run_paxminer_migration
 
 
-def check_and_run_paxminer_migration():
+def check_and_run_paxminer_migration(force: bool = False):
     check_paxminer_sql = """
     select ss.settings->'org_id' as org_id, ss.workspace_name, ss.settings->>'paxminer_schema' as paxminer_schema
     from slack_spaces ss
@@ -27,19 +31,19 @@ def check_and_run_paxminer_migration():
     ;
     """
     current_hour = datetime.now(pytz.timezone("US/Central")).hour
-    if current_hour == 23:
+    if current_hour == 23 or force:
         print("Starting Paxminer migration checks...")
         migrated_paxminer_schemas = set()
         with get_session() as session:
             result = session.execute(text(check_paxminer_sql))
             orgs_to_migrate = result.fetchall()
             for row in orgs_to_migrate:
-                org_id = row["org_id"]
-                workspace_name = row["workspace_name"]
+                org_id = row[0]
+                workspace_name = row[1]
                 print(f"Running Paxminer migration for org_id: {org_id}, workspace: {workspace_name}")
                 try:
-                    run_paxminer_migration(org_id=org_id)
-                    migrated_paxminer_schemas.add(row["paxminer_schema"])
+                    run_paxminer_migration(region_org_id=org_id)
+                    migrated_paxminer_schemas.add(row[2])
                     print(f"Successfully completed Paxminer migration for org_id: {org_id}")
                 except Exception as e:
                     print(f"Error during Paxminer migration for org_id: {org_id}: {e}")
@@ -55,3 +59,7 @@ def check_and_run_paxminer_migration():
                     except Exception as e:
                         print(f"Error deactivating Paxminer schema {schema}: {e}")
         print("Paxminer migration checks complete.")
+
+
+if __name__ == "__main__":
+    check_and_run_paxminer_migration(force=True)
