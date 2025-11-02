@@ -135,25 +135,25 @@ CALENDAR_CONFIG_GENERAL_FORM = orm.BlockView(
             optional=False,
             hint="These settings only applies if 'Send Q Lineups' is set to 'Yes'.",
         ),
-        # orm.DividerBlock(),
-        # orm.InputBlock(
-        #     label="Post Calendar Image",
-        #     action=CALENDAR_CONFIG_POST_CALENDAR_IMAGE,
-        #     element=orm.RadioButtonsElement(
-        #         options=orm.as_selector_options(
-        #             names=["Yes", "No"],
-        #             values=["yes", "no"],
-        #         ),
-        #         initial_value="no",
-        #     ),
-        #     optional=False,
-        # ),
-        # orm.InputBlock(
-        #     label="Calendar Image Channel",
-        #     action=CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL,
-        #     element=orm.ChannelsSelectElement(placeholder="Select a channel"),
-        #     optional=True,
-        # ),
+        orm.DividerBlock(),
+        orm.InputBlock(
+            label="Post Calendar Image",
+            action=CALENDAR_CONFIG_POST_CALENDAR_IMAGE,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["Yes", "No"],
+                    values=["yes", "no"],
+                ),
+                initial_value="no",
+            ),
+            optional=False,
+        ),
+        orm.InputBlock(
+            label="Calendar Image Channel",
+            action=CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL,
+            element=orm.ChannelsSelectElement(placeholder="Select a channel"),
+            optional=True,
+        ),
     ]
 )
 

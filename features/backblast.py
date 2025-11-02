@@ -12,6 +12,8 @@ from f3_data_models.models import (
     Attendance_x_AttendanceType,
     AttendanceType,
     EventInstance,
+    EventTag,
+    EventTag_x_EventInstance,
     EventType_x_EventInstance,
     Org,
     Org_Type,
@@ -183,12 +185,14 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     backblast_metadata = safe_get(body, "message", "metadata", "event_payload") or {}
     view_metadata = safe_convert(safe_get(body, "view", "private_metadata") or "{}", json.loads)
     action_id = safe_get(body, "actions", 0, "action_id")
+    is_scheduled = True
     if action_id == actions.BACKBLAST_FILL_SELECT:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
     elif action_id == actions.BACKBLAST_NEW_BLANK_BUTTON or view_metadata.get("is_unscheduled") == "true":
         event_instance_id = None
+        is_scheduled = False
     else:
         event_instance_id = safe_get(backblast_metadata, "event_instance_id")
     update_view_id = safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
@@ -322,6 +326,8 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         backblast_metadata["file_ids"] = safe_get(backblast_metadata, "file_ids") or []
     else:
         callback_id = actions.BACKBLAST_CALLBACK_ID
+
+    backblast_metadata["is_scheduled"] = is_scheduled
 
     if update_view_id:
         backblast_form.update_modal(
@@ -657,6 +663,13 @@ COUNT: {count}
         [EventType_x_EventInstance.event_instance_id == event_instance_id],
         fields={EventType_x_EventInstance.event_type_id: event_type},
     )  # TODO: handle multiple event types
+
+    print(f"metadata: {metadata}")
+    if "is_scheduled" in metadata and metadata["is_scheduled"] is False:
+        otb_tag = DbManager.find_records(EventTag, [EventTag.name == "Off-The-Books"])[0]
+        print(f"adding OTB tag to event {event.id}: {otb_tag.id}")
+        if otb_tag.id not in [t.id for t in event.event_tags]:
+            DbManager.create_record(EventTag_x_EventInstance(event_instance_id=event.id, event_tag_id=otb_tag.id))
 
     attendance_types = [2 if u.slack_id == the_q else 3 if u.slack_id in (the_coq or []) else 1 for u in db_users]
     attendance_records = [
