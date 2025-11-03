@@ -127,12 +127,7 @@ def build_event_instance_add_form(
     initial_values = {}
 
     if new_preblast:
-        otb_tag_id = next(
-            (
-                (t.id for t in region_org_record.event_tags if t.name == "Off-The-Books"),
-                None,
-            )
-        )
+        otb_tag_id = safe_get([t.id for t in region_org_record.event_tags if t.name == "Off-The-Books"], 0)
         if otb_tag_id:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = str(otb_tag_id)
 
