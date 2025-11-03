@@ -5,10 +5,15 @@ services:
 ## db migrations to be ready and then runs the app.
 ## Use --profile app to include this service
   app:
+    entrypoint: []
+    command: sleep infinity
+    init: true
+    restart: "no"
+    tty: true
     profiles:
       - app
     build: .
-    restart: always
+    # restart: always
     ports:
       - 3000:3000
     environment:
@@ -22,7 +27,24 @@ services:
     volumes:
       - .:/app
     working_dir: /app
-    command: ["nodemon", "--exec", "python main.py", "-e", "py"]
+    # command:
+    #   - watchfiles
+    #   - --filter
+    #   - python
+    #   - --restart
+    #   - dotenv
+    #   - -f
+    #   - .env
+    #   - run
+    #   - --
+    #   - python
+    #   - main.py
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 2G
+    #     reservations:
+    #       memory: 1G
 
 ##  Just a simple postgres db.
   db:
@@ -31,7 +53,7 @@ services:
     # set shared memory limit when using docker compose
     shm_size: 128mb
     ports:
-      - 5432:5432
+      - 5433:5432
     env_file:
       - .env
     volumes:

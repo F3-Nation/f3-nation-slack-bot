@@ -1,0 +1,9 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile.dev
+  db:
+    # Remove host port publishing to avoid 5432 conflicts on the host
+    ports:
+      - 5433:5432

@@ -1,0 +1,38 @@
+{
+  "name": "F3 Nation Slack Bot",
+  // Reuse your Docker Compose stack
+  "dockerComposeFile": ["../compose.yml", "docker-compose.devcontainer.yml"],
+  // The service to attach to (must match the app service name in compose.yml)
+  "service": "app",
+  "workspaceFolder": "/app",
+  "overrideCommand": true,
+  // Ensure other services start too
+  "runServices": ["db", "db-init", "adminer", "app"],
+  // Forward common ports (adjust if your compose maps different ports)
+  "forwardPorts": [3000, 8080],
+  // Mount local git creds if needed (optional)
+  "mounts": ["source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"],
+  "remoteEnv": {
+    // Helpful for enabling dev-friendly code paths in the app
+    "LOCAL_DEVELOPMENT": "true"
+  },
+  // After the container is created
+  "postCreateCommand": "pip install --no-cache-dir -r requirements.txt && pip install --no-cache-dir -r scripts/requirements.txt || true && pre-commit install || true",
+  "features": {},
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.testing.pytestEnabled": true,
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "redhat.vscode-yaml",
+        "charliermarsh.ruff",
+        "ms-vscode.makefile-tools"
+      ]
+    }
+  }
+}

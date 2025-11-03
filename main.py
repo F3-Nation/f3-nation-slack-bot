@@ -137,5 +137,9 @@ app.shortcut(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
 
 if __name__ == "__main__":
     port = 3000 if LOCAL_DEVELOPMENT else 8080
-    app.start(port=port)
-    update_local_region_records()
+    try:
+        app.start(port=port)
+        update_local_region_records()
+    except KeyboardInterrupt:
+        # graceful shutdown during auto-reload
+        pass

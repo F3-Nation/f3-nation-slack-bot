@@ -48,6 +48,8 @@ pre-commit = "^4.2.0"
 pillow = "^10.2.0"
 pillow-heif = "^0.15.0"
 pymysql = "^1.1.1"
+watchfiles = "^1.1.1"
+python-dotenv = "^1.2.1"
 
 [tool.poetry.group.dev.dependencies]
 sqlalchemy-schemadisplay = "^2.0"
