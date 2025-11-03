@@ -6,11 +6,12 @@ from typing import List
 from f3_data_models.models import EventTag, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import (
+    ContextBlock,
     DividerBlock,
     InputBlock,
     SectionBlock,
 )
-from slack_sdk.models.blocks.basic_components import ConfirmObject, PlainTextObject
+from slack_sdk.models.blocks.basic_components import PlainTextObject
 from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.web import WebClient
 
@@ -41,7 +42,8 @@ class EventTagService:
         Fetches the event tags associated with a specific organization.
         """
         org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
-        return org_record.event_tags
+        org_event_tags = [tag for tag in org_record.event_tags if tag.specific_org_id == org_id]
+        return org_event_tags
 
     @staticmethod
     def get_available_global_tags(org_id: str) -> List[EventTag]:
@@ -162,19 +164,24 @@ class EventTagViews:
                 text=s.name,
                 block_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
                 accessory=StaticSelectElement(
-                    placeholder="Edit or Delete",
-                    options=as_selector_options(names=["Edit", "Delete"]),
-                    confirm=ConfirmObject(
-                        title="Are you sure?",
-                        text="Are you sure you want to edit / delete this Event Tag? This cannot be undone.",
-                        confirm="Yes, I'm sure",
-                        deny="Whups, never mind",
-                    ),
+                    placeholder="Edit",  # TODO: Change to "Edit / Delete"
+                    options=as_selector_options(names=["Edit"]),
+                    # confirm=ConfirmObject(
+                    #     title="Are you sure?",
+                    #     text="Are you sure you want to edit / delete this Event Tag? This cannot be undone.",
+                    #     confirm="Yes, I'm sure",
+                    #     deny="Whups, never mind",
+                    # ),
                     action_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
                 ),
             )
             for s in org_tags
         ]
+        blocks.append(
+            ContextBlock(
+                elements=[PlainTextObject(text="Only custom event tags can be edited or deleted.")],
+            )
+        )
         return SdkBlockView(blocks=blocks)
 
 
@@ -200,7 +207,7 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
         form.post_modal(
             client=client,
             trigger_id=safe_get(body, "trigger_id"),
-            title_text="Edit/Delete an Event Tag",
+            title_text="Edit an Event Tag",  # TODO: Edit/Delete
             callback_id=EDIT_DELETE_AO_CALLBACK_ID,
             submit_button_text="None",
             new_or_add="add",
