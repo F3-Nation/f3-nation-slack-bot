@@ -147,7 +147,7 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_MAKE_ORG: (db_admin.handle_make_org, False),
     actions.CALENDAR_CONFIG_GENERAL: (calendar_config.build_calendar_general_config_form, False),
     actions.SECRET_MENU_AO_LINEUPS: (db_admin.handle_ao_lineups, False),
-    actions.OPEN_CALENDAR_MSG_BUTTON: (home.build_home_form, False),
+    actions.OPEN_CALENDAR_MSG_BUTTON: (home.build_home_form, True),
     actions.SECRET_MENU_PREBLAST_REMINDERS: (db_admin.handle_preblast_reminders, False),
     actions.SECRET_MENU_BACKBLAST_REMINDERS: (db_admin.handle_backblast_reminders, False),
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
