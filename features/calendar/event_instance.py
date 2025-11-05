@@ -152,6 +152,7 @@ def build_event_instance_add_form(
             CALENDAR_ADD_EVENT_INSTANCE_END_TIME: safe_convert(
                 edit_event_instance.end_time, lambda t: t[:2] + ":" + t[2:]
             ),
+            CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT: ["True"] if edit_event_instance.highlight else [],
         }
         if edit_event_instance.event_tags:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [

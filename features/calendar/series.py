@@ -127,6 +127,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_END_DATE: safe_convert(edit_event.end_date, datetime.strftime, ["%Y-%m-%d"]),
             actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
+            actions.CALENDAR_ADD_SERIES_HIGHLIGHT: ["True"] if edit_event.highlight else [],
         }
 
         if edit_event.event_tags:
