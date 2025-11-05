@@ -489,6 +489,8 @@ def create_special_events_blocks(slack_settings_dict: dict) -> blocks.Block:
         joinedloads=[EventInstance.org],
     )
     if len(special_events) > 0:
+        # order by date and time
+        special_events.sort(key=lambda x: (x.start_date, x.start_time))
         blocks_list.append(blocks.HeaderBlock(text=":tada: Special Events:"))
         msg = create_special_events_text(special_events, slack_settings_dict)
         blocks_list.append(blocks.SectionBlock(text=blocks.MarkdownTextObject(text=msg)))
