@@ -22,9 +22,6 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
-    # lambda_function_host = (
-    #     safe_get(context, "lambda_request", "headers", "Host") or os.environ[constants.LOCAL_HOST_DOMAIN]
-    # )  # noqa
     lambda_function_host = safe_get(context, "lambda_request", "headers", "Host")
 
     backblast_ts = body["message"]["ts"]
@@ -46,34 +43,41 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
     )
 
     redirect_stage = "" if constants.LOCAL_DEVELOPMENT else "Prod/"
-    oauth = OAuth2Session(
-        client_id=os.environ[constants.STRAVA_CLIENT_ID],
-        redirect_uri=f"https://{lambda_function_host}/{redirect_stage}exchange_token",
-        scope=["read,activity:read,activity:write"],
-        state=f"{team_id}-{user_id}",
-    )
-    authorization_url, state = oauth.authorization_url("https://www.strava.com/oauth/authorize")
-    auth_blocks = [
-        slack_orm.ImageBlock(
-            image_url="https://slackblast-images.s3.amazonaws.com/btn_strava_connectwith_orange.png",
-            alt_text="Connect with Strava",
-        ),
-        slack_orm.ActionsBlock(
-            elements=[
-                slack_orm.ButtonElement(
-                    label="Connect",
-                    action=actions.STRAVA_CONNECT_BUTTON,
-                    url=authorization_url,
-                )
-            ]
-        ),
-        slack_orm.ContextBlock(
-            element=slack_orm.ContextElement(
-                initial_value="Opens in a new window",
+    if os.environ.get(constants.STRAVA_CLIENT_ID) and os.environ.get(constants.STRAVA_CLIENT_SECRET):
+        oauth = OAuth2Session(
+            client_id=os.environ[constants.STRAVA_CLIENT_ID],
+            redirect_uri=f"https://{lambda_function_host}/{redirect_stage}exchange_token",
+            scope=["read,activity:read,activity:write"],
+            state=f"{team_id}-{user_id}",
+        )
+        authorization_url, state = oauth.authorization_url("https://www.strava.com/oauth/authorize")
+        auth_blocks = [
+            slack_orm.ImageBlock(
+                image_url="https://slackblast-images.s3.amazonaws.com/btn_strava_connectwith_orange.png",
+                alt_text="Connect with Strava",
             ),
-            action="context",
-        ),
-    ]
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="Connect",
+                        action=actions.STRAVA_CONNECT_BUTTON,
+                        url=authorization_url,
+                    )
+                ]
+            ),
+            slack_orm.ContextBlock(
+                element=slack_orm.ContextElement(
+                    initial_value="Opens in a new window",
+                ),
+                action="context",
+            ),
+        ]
+    else:
+        auth_blocks = [
+            slack_orm.SectionBlock(
+                label="Strava client ID and secret are not configured.",  # noqa
+            )
+        ]
 
     if allow_strava:
         update_view_id = safe_get(body, actions.LOADING_ID)
@@ -195,53 +199,61 @@ def strava_exchange_token(event, context) -> dict:
         }
         return r
 
-    response = requests.post(
-        url="https://www.strava.com/oauth/token",
-        data={
-            "client_id": os.environ[constants.STRAVA_CLIENT_ID],
-            "client_secret": os.environ[constants.STRAVA_CLIENT_SECRET],
-            "code": code,
-            "grant_type": "authorization_code",
-        },
-    )
-    response.raise_for_status()
-
-    response_json = response.json()
-
-    user_records: List[SlackUser] = DbManager.find_records(
-        SlackUser, filters=[SlackUser.slack_id == user_id, SlackUser.slack_team_id == team_id]
-    )
-    if user_records:
-        user_record = user_records[0]
-        DbManager.update_record(
-            cls=SlackUser,
-            id=user_record.id,
-            fields={
-                SlackUser.strava_access_token: response_json["access_token"],
-                SlackUser.strava_refresh_token: response_json["refresh_token"],
-                SlackUser.strava_expires_at: datetime.fromtimestamp(response_json["expires_at"]),
-                SlackUser.strava_athlete_id: response_json["athlete"]["id"],
+    if not os.environ.get(constants.STRAVA_CLIENT_ID) or not os.environ.get(constants.STRAVA_CLIENT_SECRET):
+        r = {
+            "statusCode": 500,
+            "body": {"error": "Strava client ID or secret not configured."},
+            "headers": {},
+        }
+        return r
+    else:
+        response = requests.post(
+            url="https://www.strava.com/oauth/token",
+            data={
+                "client_id": os.environ[constants.STRAVA_CLIENT_ID],
+                "client_secret": os.environ[constants.STRAVA_CLIENT_SECRET],
+                "code": code,
+                "grant_type": "authorization_code",
             },
         )
-    else:
-        DbManager.create_record(
-            SlackUser(
-                slack_team_id=team_id,
-                slack_id=user_id,
-                strava_access_token=response_json["access_token"],
-                strava_refresh_token=response_json["refresh_token"],
-                strava_expires_at=datetime.fromtimestamp(response_json["expires_at"]),
-                strava_athlete_id=response_json["athlete"]["id"],
-            )
+        response.raise_for_status()
+
+        response_json = response.json()
+
+        user_records: List[SlackUser] = DbManager.find_records(
+            SlackUser, filters=[SlackUser.slack_id == user_id, SlackUser.slack_team_id == team_id]
         )
+        if user_records:
+            user_record = user_records[0]
+            DbManager.update_record(
+                cls=SlackUser,
+                id=user_record.id,
+                fields={
+                    SlackUser.strava_access_token: response_json["access_token"],
+                    SlackUser.strava_refresh_token: response_json["refresh_token"],
+                    SlackUser.strava_expires_at: datetime.fromtimestamp(response_json["expires_at"]),
+                    SlackUser.strava_athlete_id: response_json["athlete"]["id"],
+                },
+            )
+        else:
+            DbManager.create_record(
+                SlackUser(
+                    slack_team_id=team_id,
+                    slack_id=user_id,
+                    strava_access_token=response_json["access_token"],
+                    strava_refresh_token=response_json["refresh_token"],
+                    strava_expires_at=datetime.fromtimestamp(response_json["expires_at"]),
+                    strava_athlete_id=response_json["athlete"]["id"],
+                )
+            )
 
-    r = {
-        "statusCode": 200,
-        "body": {"message": "Authorization successful! You can return to Slack."},
-        "headers": {},
-    }
+        r = {
+            "statusCode": 200,
+            "body": {"message": "Authorization successful! You can return to Slack."},
+            "headers": {},
+        }
 
-    return r
+        return r
 
 
 def check_and_refresh_strava_token(user_record: SlackUser) -> str:
@@ -249,7 +261,11 @@ def check_and_refresh_strava_token(user_record: SlackUser) -> str:
     if not user_record.strava_access_token:
         return None
 
-    if user_record.strava_expires_at < datetime.now():
+    if (
+        user_record.strava_expires_at < datetime.now()
+        and os.environ.get(constants.STRAVA_CLIENT_ID)
+        and os.environ.get(constants.STRAVA_CLIENT_SECRET)
+    ):
         request_url = "https://www.strava.com/api/v3/oauth/token"
         res = requests.post(
             request_url,

@@ -310,7 +310,11 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
                     channel=user_id,
                 )
             else:
-                if constants.LOCAL_DEVELOPMENT:
+                if (
+                    constants.LOCAL_DEVELOPMENT
+                    and os.environ.get(constants.AWS_ACCESS_KEY_ID)
+                    and os.environ.get(constants.AWS_SECRET_ACCESS_KEY)
+                ):
                     s3_client = boto3.client(
                         "s3",
                         aws_access_key_id=os.environ[constants.AWS_ACCESS_KEY_ID],

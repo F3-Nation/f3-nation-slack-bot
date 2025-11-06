@@ -2,10 +2,8 @@ import os
 from dataclasses import dataclass
 from typing import List, Tuple, TypeVar
 
-import pg8000
 import sqlalchemy
 from f3_data_models.models import Base
-from google.cloud.sql.connector import Connector, IPTypes
 from sqlalchemy import and_
 
 # from sqlalchemy.dialects.mysql import insert
@@ -37,42 +35,7 @@ def get_engine(echo=False, schema=None, paxminer_db=True) -> Engine:
         engine = sqlalchemy.create_engine(db_url, echo=echo)
         return engine
     else:
-        host = os.environ[constants.DATABASE_HOST]
-        user = os.environ[constants.ADMIN_DATABASE_USER]
-        passwd = os.environ[constants.ADMIN_DATABASE_PASSWORD]
-        database = schema or os.environ[constants.ADMIN_DATABASE_SCHEMA]
-        # db_url = f"mysql+pymysql://{user}:{passwd}@{host}:3306/{database}?charset=utf8mb4"
-        # db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
-
-        # engine = sqlalchemy.create_engine(
-        #     sqlalchemy.engine.url.URL.create(
-        #         drivername="postgresql+pg8000",
-        #         username=user,
-        #         password=passwd,
-        #         database=database,
-        #         query={"unix_sock": f"{host}/.s.PGSQL.5432"},
-        #     ),
-        # )
-
-        if constants.LOCAL_DEVELOPMENT:
-            db_url = f"postgresql://{user}:{passwd}@{host}:5432/{database}"
-            engine = sqlalchemy.create_engine(db_url, echo=echo)
-        else:
-            connector = Connector()
-
-            def get_connection():
-                conn: pg8000.dbapi.Connection = connector.connect(
-                    instance_connection_string=host,
-                    driver="pg8000",
-                    user=user,
-                    password=passwd,
-                    db=database,
-                    ip_type=IPTypes.PUBLIC,
-                )
-                return conn
-
-            engine = sqlalchemy.create_engine("postgresql+pg8000://", creator=get_connection, echo=echo)
-        return engine
+        raise NotImplementedError("Only Paxminer DB is supported in this implementation.")
 
 
 def get_session(echo=False, schema=None, paxminer_db=True):

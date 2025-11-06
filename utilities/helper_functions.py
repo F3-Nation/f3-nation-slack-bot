@@ -20,7 +20,6 @@ from f3_data_models.models import (
     User,
 )
 from f3_data_models.utils import DbManager
-from slack_bolt.adapter.aws_lambda.lambda_s3_oauth_flow import LambdaS3OAuthFlow
 from slack_bolt.oauth.oauth_settings import OAuthSettings
 from slack_sdk.oauth.installation_store import FileInstallationStore
 from slack_sdk.oauth.state_store import FileOAuthStateStore
@@ -61,21 +60,6 @@ def trigger_map_revalidation():
         print(f"Error triggering map revalidation: {e}")
         return False
     return True
-
-
-def get_oauth_flow():
-    if LOCAL_DEVELOPMENT:
-        return None
-    else:
-        return LambdaS3OAuthFlow(
-            oauth_state_bucket_name=os.environ[constants.SLACK_STATE_S3_BUCKET_NAME],
-            installation_bucket_name=os.environ[constants.SLACK_INSTALLATION_S3_BUCKET_NAME],
-            settings=OAuthSettings(
-                client_id=os.environ[constants.SLACK_CLIENT_ID],
-                client_secret=os.environ[constants.SLACK_CLIENT_SECRET],
-                scopes=os.environ[constants.SLACK_SCOPES].split(","),
-            ),
-        )
 
 
 def get_oauth_settings():
@@ -327,7 +311,9 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
                 )
             )
             # Make the current user an admin of the org
-            user_id = get_user(safe_get(body, "user_id"), region_record, client, logger).user_id
+            user_id = get_user(
+                safe_get(body, "user_id") or safe_get(body, "user", "id"), region_record, client, logger
+            ).user_id
             admin_role_id = DbManager.find_first_record(Role, filters=[Role.name == "admin"]).id
             DbManager.create_record(
                 Role_x_User_x_Org(
@@ -756,7 +742,11 @@ def upload_files_to_s3(
                     f.readline().decode("utf-8")
                 except Exception as e:
                     logger.info(f"Error reading photo as text: {e}")
-            if constants.LOCAL_DEVELOPMENT:
+            if (
+                constants.LOCAL_DEVELOPMENT
+                and os.environ.get(constants.AWS_ACCESS_KEY_ID)
+                and os.environ.get(constants.AWS_SECRET_ACCESS_KEY)
+            ):
                 s3_client = boto3.client(
                     "s3",
                     aws_access_key_id=os.environ[constants.AWS_ACCESS_KEY_ID],
