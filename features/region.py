@@ -165,7 +165,7 @@ REGION_FORM = orm.BlockView(
         orm.InputBlock(
             label="Region Website",
             action=actions.REGION_WEBSITE,
-            element=orm.URLInputElement(placeholder="Enter the Region website"),
+            element=orm.PlainTextInputElement(placeholder="Enter the Region website"),
             optional=True,
         ),
         orm.InputBlock(

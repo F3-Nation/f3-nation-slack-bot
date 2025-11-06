@@ -127,14 +127,9 @@ def build_event_instance_add_form(
     initial_values = {}
 
     if new_preblast:
-        otb_tag_id = next(
-            (
-                (t.id for t in region_org_record.event_tags if t.name == "Off-The-Books"),
-                None,
-            )
-        )
+        otb_tag_id = safe_get([t.id for t in region_org_record.event_tags if t.name == "Off-The-Books"], 0)
         if otb_tag_id:
-            initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = str(otb_tag_id)
+            initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [str(otb_tag_id)]
 
     if edit_event_instance:
         initial_values = {
@@ -157,6 +152,7 @@ def build_event_instance_add_form(
             CALENDAR_ADD_EVENT_INSTANCE_END_TIME: safe_convert(
                 edit_event_instance.end_time, lambda t: t[:2] + ":" + t[2:]
             ),
+            CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT: ["True"] if edit_event_instance.highlight else [],
         }
         if edit_event_instance.event_tags:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [
