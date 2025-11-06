@@ -52,7 +52,7 @@ We've put together a dockerized local development setup that makes it very easy 
   
   This will run a localtunnel to route traffic to your local app. The script will then pick up the dynamic url, and use that to generate `app_manifest.json`. Finally, it will start your app with reload.
 
-5. **Update your app manifest**: in your [Slack app settings on the web console](https://api.slack.com/apps), go to your app, click on App Manifest, and replace what's there with the contents of `app_manifest.json`, and click Save. This will update it to know what url to use for interaction. To make sure your app is indeed able to process requests, you can click the Verify link.
+5. **Update your app to point to your url**: in your [Slack app settings on the web console](https://api.slack.com/apps), go to your app, click on App Manifest, and replace what's there with the contents of `app_manifest.json`, and click Save. This will update it to know what url to use for interaction. To make sure your app is indeed able to process requests, you can click the Verify link.
 
 
 You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel. Repeat steps 4 and 5 whenever you reopen the project, as the localtunnel url will be different each time.
