@@ -1,9 +1,4 @@
-services:
-  app:
-    build:
-      context: .
-      dockerfile: .devcontainer/Dockerfile.dev
-  db:
-    # Remove host port publishing to avoid 5432 conflicts on the host
-    ports:
-      - 5433:5432
+# This override compose file is no longer used by devcontainer.json.
+# Root compose.yml now directly sets app.build.dockerfile to .devcontainer/Dockerfile.dev.
+# You can delete this file if you prefer; keeping an empty services map keeps it a valid Compose file.
+services: {}

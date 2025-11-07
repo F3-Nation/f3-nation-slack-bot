@@ -3,24 +3,22 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 APP_HOME=/app
 WORKDIR $APP_HOME
 
-# Install git for pre-commit and other dev tools
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+# Consolidated system setup: install git (needed for pre-commit), curl (needed for Node setup script), then Node.js.
+# Use --no-install-recommends to keep image slim and minimize layers/duplicate apt-get calls.
+RUN apt-get update && apt-get install -y --no-install-recommends git curl && \
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
+    apt-get update && apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir poetry
 
-# Install Node.js for localtunnel
-RUN apt-get update && apt-get install -y git curl && \
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# Global npm deps (localtunnel) kept separate for clearer caching semantics.
 RUN npm install -g localtunnel
 
-RUN pip install --no-cache-dir poetry
-
 COPY . ./
-EXPOSE 3000
-EXPOSE 8080
+EXPOSE 3000 8080
 
-# Default to sleep, so you can override with VS Code tasks or docker-compose command
+# Default to sleep so devcontainer can override via tasks/compose command.
 CMD ["sleep", "infinity"]

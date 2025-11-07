@@ -12,7 +12,10 @@ services:
     tty: true
     profiles:
       - app
-    build: .
+    build:
+      context: .
+      # Use the Dev Container Dockerfile for the app so git/node/poetry are installed during dev builds
+      dockerfile: .devcontainer/Dockerfile.dev
     # restart: always
     ports:
       - 3000:3000

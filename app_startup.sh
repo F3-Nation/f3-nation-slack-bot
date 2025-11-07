@@ -36,7 +36,7 @@ start_lt() {
   # Start localtunnel in the background and capture output
   : > "${LT_OUTPUT_FILE}"
   echo "Starting localtunnel on port 3000..."
-  ( lt --port 3000 > "${LT_OUTPUT_FILE}" 2>&1 ) &
+  ( lt --host http://loca.lt --port 3000 > "${LT_OUTPUT_FILE}" 2>&1 ) &
   LT_PID=$!
   echo "localtunnel PID: ${LT_PID}"
 

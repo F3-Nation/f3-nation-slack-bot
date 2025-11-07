@@ -1,7 +1,7 @@
 {
   "name": "F3 Nation Slack Bot",
   // Reuse your Docker Compose stack
-  "dockerComposeFile": ["../compose.yml", "docker-compose.devcontainer.yml"],
+  "dockerComposeFile": ["../compose.yml"],
   // The service to attach to (must match the app service name in compose.yml)
   "service": "app",
   "workspaceFolder": "/app",
@@ -9,7 +9,7 @@
   // Ensure other services start too
   "runServices": ["db", "db-init", "adminer", "app"],
   // Forward common ports (adjust if your compose maps different ports)
-  "forwardPorts": [3000, 8080],
+  "forwardPorts": [3000, 5433, 8080],
   // Mount local git creds if needed (optional)
   "mounts": ["source=${localEnv:HOME}/.gitconfig,target=/root/.gitconfig,type=bind,consistency=cached"],
   "remoteEnv": {
