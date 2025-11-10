@@ -37,25 +37,30 @@ We've put together a dockerized local development setup that makes it very easy 
   ```
 2. **Initialize and install your local Slack app**: I recommend you use your own private Slack workspace for this. Open [Slack's app console](https://api.slack.com/apps), click Create New App->from manifest, then paste in the contents from `app_manifest.template.json`. After you install to your workspace, gather the Signing Secret from the Basic Information tab and the Bot User OAuth Token from the OAuth & Permissions tab.
 
-2. **Create your `.env` file**:
+3. **Create your `.env` file**:
   ```bash
   cp .env.example .env
    ```
   Replace `SLACK_SIGNING_SECRET` and `SLACK_BOT_TOKEN` from your Slack setup above. You can change some of the other variables if you like, but you don't need to. There are some client secrets you might need from Moneyball if you plan to test certain features.
 
-3. **Create and open the Dev Container**: use the VS Code command `Dev Containers: Open folder in Container...` to build the container and open the project in it. This will take a bit of time the first time it is built.
+4. **Build the environment (one step Docker approach)**: use the VS Code command `Dev Containers: Open folder in Container...` to build the container and open the project in it. This will take a bit of time the first time it is built.
 
-4. **Start the app**:
+    <details>
+    <summary>Alternative "manual" environment steps if Docker is not working</summary>
+    TBD instructions
+    </details>
+
+5. **Start the app**:
   ```bash
   ./app_startup.sh # you may have to run chmod +x app_startup.sh the first time
   ```
   
-  This will run a localtunnel to route traffic to your local app. The script will then pick up the dynamic url, and use that to generate `app_manifest.json`. Finally, it will start your app with reload.
+  This will run a localtunnel to route traffic to your local app. The script will generate a unique localtunnel url, and use that to generate `app_manifest.json`. Finally, it will start your app with reload.
 
-5. **Update your app to point to your url**: in your [Slack app settings on the web console](https://api.slack.com/apps), go to your app, click on App Manifest, and replace what's there with the contents of `app_manifest.json`, and click Save. This will update it to know what url to use for interaction. To make sure your app is indeed able to process requests, you can click the Verify link.
+6. **Update your app to point to your url**: in your [Slack app settings on the web console](https://api.slack.com/apps), go to your app, click on App Manifest, and replace what's there with the contents of `app_manifest.json`, and click Save. This will update it to know what url to use for interaction. To make sure your app is indeed able to process requests, you can click the Verify link.
 
 
-You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel. Repeat steps 4 and 5 whenever you reopen the project, as the localtunnel url will be different each time.
+You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel. The unique localtunnel url is now saved to your `.env` file, so the url should remain the same for future app starts.
   
   ### What Happens on Container Build
 
