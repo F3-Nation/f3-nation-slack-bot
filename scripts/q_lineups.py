@@ -145,14 +145,14 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
     for event in org_events:
         if event.q_name:
             q_label = f"@{event.q_name}"  # f"<@{event.slack_user_id}>" if event.slack_user_id else
-            label = f"*{event.event.start_date}*\n{event.event_type.name} {event.event.start_time}\n{q_label}"
+            label = f"*{event.event.start_date.strftime('%A, %m/%d')}*\n{event.event_type.name} {event.event.start_time}\n{q_label}"  # noqa
             image_url = event.q_avatar_url or "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
             accessory = ImageBlock(
                 image_url=image_url,
                 alt_text="Q Lineup",
             )
         else:
-            label = f"*{event.event.start_date}*\n{event.event_type.name} {event.event.start_time}\n*OPEN!*"
+            label = f"*{event.event.start_date.strftime('%A, %m/%d')}*\n{event.event_type.name} {event.event.start_time}\n*OPEN!*"  # noqa
             # image_url = "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
             accessory = ButtonElement(
                 label=":calendar: Sign Me Up!",
@@ -347,4 +347,4 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
 
 
 if __name__ == "__main__":
-    send_lineups()
+    send_lineups(force=True)
