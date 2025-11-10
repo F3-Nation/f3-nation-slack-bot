@@ -475,13 +475,23 @@ def build_series_list_form(
     region_record: SlackSettings,
     update_view_id=None,
 ):
+    filter_org = region_record.org_id
+    filter_values = {}
+    if safe_get(body, "actions", 0, "action_id") in [
+        actions.CALENDAR_MANAGE_SERIES_AO,
+    ]:
+        filter_values = orm.BlockView(blocks=copy.deepcopy(SERIES_LIST_FILTERS)).get_selected_values(body)
+        update_view_id = safe_get(body, "view", "id")
+        if safe_get(filter_values, actions.CALENDAR_MANAGE_SERIES_AO):
+            filter_org = safe_convert(safe_get(filter_values, actions.CALENDAR_MANAGE_SERIES_AO), int)
+
     title_text = "Delete or Edit a Series"
     confirm_text = "Are you sure you want to edit / delete this series? This cannot be undone. Also, editing or deleting a series will also edit or delete all future events associated with the series."  # noqa
     records = DbManager.find_join_records2(
         Event,
         Org,
         [
-            or_((Event.org_id == region_record.org_id), (Org.parent_id == region_record.org_id)),
+            or_((Event.org_id == filter_org), (Org.parent_id == filter_org)),
             Event.is_active,
         ],
     )
@@ -489,33 +499,31 @@ def build_series_list_form(
     records: list[Event | EventInstance] = [x[0] for x in records][:40]
 
     # TODO: separate into weekly / non-weekly series?
-    # TODO: add an AO filter
-    # ao_orgs = DbManager.find_records(
-    #     Org,
-    #     [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
-    # )
-    blocks = []
-    # blocks = [
-    #     orm.InputBlock(
-    #         label="AO Filter",
-    #         action=actions.CALENDAR_MANAGE_SERIES_AO,
-    #         element=orm.StaticSelectElement(
-    #             placeholder="Select an AO",
-    #             options=orm.as_selector_options(
-    #                 names=[ao.name for ao in ao_orgs],
-    #                 values=[str(ao.id) for ao in ao_orgs],
-    #             ),
-    #         ),
-    #         optional=True,
-    #         dispatch_action=True,
-    #     ),
-    # ]
+    ao_orgs = DbManager.find_records(
+        Org,
+        [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
+    )
+    form = orm.BlockView(blocks=copy.deepcopy(SERIES_LIST_FILTERS))
+    form.set_options(
+        {
+            actions.CALENDAR_MANAGE_SERIES_AO: orm.as_selector_options(
+                names=[ao.name for ao in ao_orgs],
+                values=[str(ao.id) for ao in ao_orgs],
+            ),
+        }
+    )
+    form.set_initial_values(
+        {
+            actions.CALENDAR_MANAGE_SERIES_AO: safe_get(filter_values, actions.CALENDAR_MANAGE_SERIES_AO),
+        }
+    )
+
     for s in records:
         label = f"{s.name} ({s.day_of_week.name.capitalize()} @ {s.start_time})"[  # noqa
             :50
         ]
 
-        blocks.append(
+        form.blocks.append(
             orm.SectionBlock(
                 label=label,
                 action=f"{actions.SERIES_EDIT_DELETE}_{s.id}",
@@ -531,7 +539,6 @@ def build_series_list_form(
                 ),
             )
         )
-    form = orm.BlockView(blocks=blocks)
     if update_view_id:
         form.update_modal(
             client=client,
@@ -701,3 +708,15 @@ SERIES_FORM = orm.BlockView(
         ),
     ]
 )
+
+SERIES_LIST_FILTERS = [
+    orm.InputBlock(
+        label="AO Filter",
+        action=actions.CALENDAR_MANAGE_SERIES_AO,
+        element=orm.StaticSelectElement(
+            placeholder="Select an AO",
+        ),
+        optional=True,
+        dispatch_action=True,
+    ),
+]

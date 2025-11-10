@@ -171,6 +171,7 @@ ACTION_MAPPER = {
     actions.CONFIG_REPORTING: (reporting.build_reporting_form, False),
     reporting.RUN_MONTHLY_REPORTS_NOW: (run_reporting_single_org, False),
     actions.CONFIG_HELP_MENU: (help.build_help_menu, False),
+    actions.CALENDAR_MANAGE_SERIES_AO: (series.build_series_list_form, False),
 }
 
 ACTION_PREFIXES = [
