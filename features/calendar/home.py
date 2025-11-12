@@ -5,6 +5,7 @@ import time
 from logging import Logger
 from typing import List
 
+import pytz
 import requests
 from f3_data_models.models import (
     Attendance,
@@ -186,12 +187,9 @@ def build_home_form(
         existing_filter_data = {}
 
     # Build the filter
-    start_date = (
-        safe_convert(
-            safe_get(existing_filter_data, actions.CALENDAR_HOME_DATE_FILTER), datetime.datetime.strptime, ["%Y-%m-%d"]
-        )
-        or datetime.datetime.now()
-    )
+    start_date = safe_convert(
+        safe_get(existing_filter_data, actions.CALENDAR_HOME_DATE_FILTER), datetime.datetime.strptime, ["%Y-%m-%d"]
+    ) or datetime.datetime.now(tz=pytz.timezone("US/Central"))
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or ["Default"] != ["Default"]:
         filter_org_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER)]
