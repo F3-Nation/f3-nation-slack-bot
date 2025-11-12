@@ -108,6 +108,7 @@ def convert_events(
             ],
         )
         event.meta["source"] = "paxminer_import"
+        event.meta["og_channel"] = backblast.ao_id
         events.append(event)
     return events
 
@@ -141,7 +142,7 @@ def convert_attendance(
                             Attendance_x_AttendanceType(attendance_type_id=attendance_type_id)
                         ],
                         is_planned=False,
-                        meta={"source": "paxminer_import"},
+                        meta={"source": "paxminer_import", "og_channel": attendance.ao_id},
                     )
                 )
     # remove duplicates on event_instance_id, user_id, and is_planned
