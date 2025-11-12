@@ -256,7 +256,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
     if not REGION_RECORDS:
         update_local_region_records()
 
-    region_record = safe_get(REGION_RECORDS, team_id)
+    region_record: SlackSettings | None = safe_get(REGION_RECORDS, team_id)
     team_domain = safe_get(body, "team", "domain")
 
     if not region_record:
@@ -327,6 +327,16 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
 
         org_id = org_record.id if org_record else None
         populate_users(client, team_id, org_id)
+
+    else:
+        # Update the bot token if it has changed
+        if context.get("bot_token") and context.get("bot_token") != region_record.bot_token:
+            region_record.bot_token = context["bot_token"]
+            DbManager.update_record(
+                SlackSpace,
+                safe_get(DbManager.find_first_record(SlackSpace, filters=[SlackSpace.team_id == team_id]), "id"),
+                {SlackSpace.settings: region_record.__dict__, SlackSpace.bot_token: context["bot_token"]},
+            )
 
     return region_record
 
