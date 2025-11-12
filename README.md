@@ -47,7 +47,14 @@ We've put together a dockerized local development setup that makes it very easy 
 
     <details>
     <summary>Alternative "manual" environment steps if Docker is not working</summary>
-    TBD instructions
+
+    1. Replicate the F3 Nation data structure through the instructions found here: https://github.com/F3-Nation/F3-Data-Models?tab=readme-ov-file#running-locally
+
+    2. Use `poetry` to install app dependencies:
+    ```sh
+    poetry env use 3.12
+    poetry install
+    ```
     </details>
 
 5. **Start the app**:
@@ -83,6 +90,9 @@ You should be off to the races! Try opening `/f3-nation-settings` to start build
   - **App**: http://localhost:3000
   - **Database**: localhost:5433 (postgres/postgres)
   - **Adminer**: http://localhost:8080 (a lightweight admin WEBUI for the db, though I'm partial to the [Database Client extension in VS Code](https://marketplace.visualstudio.com/items?itemName=cweijan.vscode-database-client2))
+
+> [!NOTE]
+> For connecting to adminer or other db clients, you will want to use localhost:5433 as the server / host name. If on WSL, you may need to use [WSL's IP address]:5433 instead. You can get WSL's IP address by using `wsl hostname -I` in powershell.
 
 > [!NOTE]
 > if you add or change packages via `poetry add ...`, you will need to also add it to `f3-nation-slack-bot/requirements.txt`. You can make sure that this file fully reflects the poetry virtual environment via: `poetry export -f requirements.txt -o requirements.txt --without-hashes`
