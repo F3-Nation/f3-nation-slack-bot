@@ -337,6 +337,7 @@ def get_region_record(team_id: str, body, context, client, logger) -> SlackSetti
                 safe_get(DbManager.find_first_record(SlackSpace, filters=[SlackSpace.team_id == team_id]), "id"),
                 {SlackSpace.settings: region_record.__dict__, SlackSpace.bot_token: context["bot_token"]},
             )
+            REGION_RECORDS[team_id] = region_record
 
     return region_record
 

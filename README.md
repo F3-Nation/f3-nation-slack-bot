@@ -8,15 +8,7 @@ Installation is as simple as a [simple link click](#getting-started-) (with even
 
 # Getting started
 
-Installation to your Slack workspace is simple:
-1. Click TBD link from a desktop computer
-2. Make sure to select your region in the upper right if you are signed into multiple spaces
-
-To get started, use the `/f3-nation-settings` command to start setting your schedule and preferences.
-                                                                         
-# Calendar
-
-To set your schedule, use the calendar menu in `/f3-nation-settings`. Once your schedule is up, you can visit the calendar by using the `/calendar` command.
+If you're looking to install and get started with the F3 Nation Slack bot to your Slack space, follow [this guide](https://docs.google.com/document/d/1e7tmuY3irKDt9oy1URQVcxPwxyet1ZY_bVZhGvhESEw/edit?tab=t.ezcys6v42f0t#heading=h.zi1izp9lf58i)
 
 # Contributing
 
@@ -24,9 +16,10 @@ The F3 Nation Slack Bot is in active development, and we welcome any and all hel
 
 We've put together a dockerized local development setup that makes it very easy to get going. It utilizes VS Code's Dev Container feature to make it even more seamless.
 
-### Prerequisites
+### Prerequisites (Docker approach)
 
-1. Docker installed on your system. If on Windows, this would include Docker Desktop through WSL
+1. Docker installed on your system. 
+    - If on Windows, I recommend installing a WSL distro and enabling Docker Desktop on it (settings -> )
 2. VS Code with the [Dev Container extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
 
 ### Local Setup

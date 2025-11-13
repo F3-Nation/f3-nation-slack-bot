@@ -337,7 +337,7 @@ def handle_send_admin_announcement(
                         ssl_context = ssl.create_default_context()
                         ssl_context.check_hostname = False
                         ssl_context.verify_mode = ssl.CERT_NONE
-                        slack_client = WebClient(slack_space.bot_token, ssl=ssl_context)
+                        slack_client = WebClient(slack_space.settings.get("bot_token"), ssl=ssl_context)
                         slack_client.chat_postMessage(
                             channel=slack_user.slack_id,
                             blocks=[announcement_text],

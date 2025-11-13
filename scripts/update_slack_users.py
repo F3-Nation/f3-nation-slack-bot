@@ -2,7 +2,6 @@ import os
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-
 from f3_data_models.models import Org_x_SlackSpace, SlackSpace, SlackUser
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
@@ -26,7 +25,7 @@ def update_slack_users(force=False):
     for slack_space_record in all_slack_spaces:
         slack_space = slack_space_record[0]
         region_org_record = slack_space_record[1]
-        client = WebClient(token=slack_space.bot_token)
+        client = WebClient(token=slack_space.settings.get("bot_token"))
         try:
             users: list[dict] = []
 
