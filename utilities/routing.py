@@ -21,7 +21,7 @@ from features.calendar import ao, event_instance, event_preblast, event_tag, eve
 from features.calendar import config as calendar_config
 from scripts.monthly_reporting import run_reporting_single_org
 from scripts.q_lineups import handle_lineup_signup
-from utilities import announcements, builders, options
+from utilities import builders, options
 from utilities.slack import actions
 
 # Required arguments for handler functions:
@@ -38,7 +38,6 @@ COMMAND_MAPPER = {
     "/preblast": (event_preblast.preblast_middleware, True),
     "/f3-nation-settings": (config.build_config_form, True),
     "/tag-achievement": (weaselbot.build_achievement_form, True),
-    "/send-announcement": (announcements.send, False),
     "/f3-calendar": (home.build_home_form, True),
     "/help": (help.build_help_menu, False),
 }
