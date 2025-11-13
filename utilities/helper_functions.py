@@ -357,6 +357,8 @@ def migrate_slackblast_settings(team_id: str, settings_starters: dict) -> SlackS
             "custom_fields",
         ]
         for k, v in slackblast_region.items():
+            if k in ["bot_token", "workspace_name"]:
+                continue
             if k in dicts_to_convert and isinstance(v, str):
                 v = safe_convert(v, json.loads)
             if k in SlackSettings.__annotations__:
