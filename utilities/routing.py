@@ -19,6 +19,7 @@ from features import (
 )
 from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
+from scripts.backblast_reminders import handle_backblast_reminder_dismiss
 from scripts.monthly_reporting import run_reporting_single_org
 from scripts.q_lineups import handle_lineup_signup
 from utilities import builders, options
@@ -126,6 +127,7 @@ ACTION_MAPPER = {
     actions.OPEN_CALENDAR_BUTTON: (home.handle_event_preblast_select_button, False),
     actions.MSG_EVENT_PREBLAST_BUTTON: (event_preblast.handle_event_preblast_action, False),
     actions.MSG_EVENT_BACKBLAST_BUTTON: (backblast.backblast_middleware, False),
+    actions.MSG_EVENT_BACKBLAST_ALREADY_BUTTON: (handle_backblast_reminder_dismiss, False),
     actions.BACKBLAST_FILL_SELECT: (backblast.build_backblast_form, False),
     actions.BACKBLAST_NEW_BLANK_BUTTON: (backblast.build_backblast_form, False),
     actions.REGION_INFO_BUTTON: (region.build_region_form, False),
