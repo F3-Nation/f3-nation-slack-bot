@@ -428,15 +428,15 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             element=orm.RichTextInputElement(),
         ),
         orm.DividerBlock(),
-        orm.InputBlock(
-            label="Preblast Reminder Days Before",
-            action=actions.CONFIG_PREBLAST_REMINDER_DAYS,
-            optional=True,
-            element=orm.NumberInputElement(
-                placeholder="Enter the number of days...", is_decimal_allowed=False, min_value=0, max_value=7
-            ),
-            hint="This will send a reminder to the Q and CoQs this many days before the workout to send a preblast. If set to 0, no reminder will be sent. Defaults to 1.",  # noqa
-        ),
+        # orm.InputBlock(
+        #     label="Preblast Reminder Days Before",
+        #     action=actions.CONFIG_PREBLAST_REMINDER_DAYS,
+        #     optional=True,
+        #     element=orm.NumberInputElement(
+        #         placeholder="Enter the number of days...", is_decimal_allowed=False, min_value=0, max_value=7
+        #     ),
+        #     hint="This will send a reminder to the Q and CoQs this many days before the workout to send a preblast. If set to 0, no reminder will be sent. Defaults to 1.",  # noqa
+        # ),
         orm.InputBlock(
             label="Backblast Reminder Count",
             action=actions.CONFIG_BACKBLAST_REMINDER_DAYS,

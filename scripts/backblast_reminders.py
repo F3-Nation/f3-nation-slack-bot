@@ -124,11 +124,11 @@ class BackblastList:
         session.close()
 
 
-def send_backblast_reminders():
+def send_backblast_reminders(force=False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 5:00 PM and 6:00 PM, eventually configurable
-    if current_time.hour == 17:
+    if current_time.hour == 17 or force:
         backblast_list = BackblastList()
         backblast_list.pull_data()
 
@@ -142,30 +142,38 @@ def send_backblast_reminders():
             )
 
             slack_bot_token = backblast.slack_settings.bot_token
+            backblast_reminder_days = backblast.slack_settings.backblast_reminder_days
+            if backblast_reminder_days is None:
+                backblast_reminder_days = 5
+
             if slack_bot_token and backblast.slack_user_id:
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-                slack_client = WebClient(slack_bot_token, ssl=ssl_context)
-                blocks: List[orm.BaseBlock] = [
-                    orm.SectionBlock(label=msg),
-                    orm.ActionsBlock(
-                        elements=[
-                            orm.ButtonElement(
-                                label="Fill Out Backblast",
-                                value=str(backblast.event.id),
-                                style="primary",
-                                action=actions.MSG_EVENT_BACKBLAST_BUTTON,
-                            ),
-                        ],
-                    ),
-                ]
-                blocks = [b.as_form_field() for b in blocks]
-                try:
-                    slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
-                except Exception as e:
-                    print(f"Error sending backblast reminder to {backblast.slack_user_id}: {e}")
-                    continue
+                if (
+                    backblast_reminder_days > 0
+                    and (current_date_cst() - backblast.event.start_date).days <= backblast_reminder_days
+                ):
+                    ssl_context = ssl.create_default_context()
+                    ssl_context.check_hostname = False
+                    ssl_context.verify_mode = ssl.CERT_NONE
+                    slack_client = WebClient(slack_bot_token, ssl=ssl_context)
+                    blocks: List[orm.BaseBlock] = [
+                        orm.SectionBlock(label=msg),
+                        orm.ActionsBlock(
+                            elements=[
+                                orm.ButtonElement(
+                                    label="Fill Out Backblast",
+                                    value=str(backblast.event.id),
+                                    style="primary",
+                                    action=actions.MSG_EVENT_BACKBLAST_BUTTON,
+                                ),
+                            ],
+                        ),
+                    ]
+                    blocks = [b.as_form_field() for b in blocks]
+                    try:
+                        slack_client.chat_postMessage(channel=backblast.slack_user_id, text=msg, blocks=blocks)
+                    except Exception as e:
+                        print(f"Error sending backblast reminder to {backblast.slack_user_id}: {e}")
+                        continue
 
 
 if __name__ == "__main__":

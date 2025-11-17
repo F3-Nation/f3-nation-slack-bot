@@ -208,7 +208,7 @@ def handle_backblast_reminders(
 ):
     from scripts.backblast_reminders import send_backblast_reminders
 
-    send_backblast_reminders()
+    send_backblast_reminders(force=True)
 
 
 def handle_generate_instances(
