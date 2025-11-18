@@ -49,6 +49,7 @@ HOME_ASSIGN_Q_CALLBACK_ID = "home-assign-q-id"
 SECRET_MENU_SEND_ADMIN_ANNOUNCEMENT = "secret-menu-send-admin-announcement"
 CONFIG_HELP_MENU = "help_menu_config"
 CALENDAR_MANAGE_SERIES_AO = "calendar_manage_series_ao"
+MSG_EVENT_BACKBLAST_ALREADY_BUTTON = "event_backblast_already_button_dm"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"

@@ -45,13 +45,19 @@ def home_schedule_query(
     session = get_session()
     # Create an alias for Attendance to use in the subquery
     # AttendanceAlias = aliased(AttendanceNew)
-
     # Create the subquery
     subquery = (
         select(
             Attendance.event_instance_id,
             func.string_agg(
-                case((Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]), User.f3_name), else_=None), ","
+                case(
+                    (
+                        and_(Attendance.is_planned, Attendance_x_AttendanceType.attendance_type_id.in_([2, 3])),
+                        User.f3_name,
+                    ),
+                    else_=None,
+                ),
+                ",",
             ).label("planned_qs"),
             func.max(case((Attendance.user_id == user_id, 1), else_=0)).label("user_attending"),
             func.max(

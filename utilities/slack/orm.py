@@ -183,12 +183,15 @@ def as_selector_options(names: List[str], values: List[str] = [], descriptions: 
     if values == [] and descriptions == []:
         selectors = [SelectorOption(name=x, value=x) for x in names]
     elif values == []:
-        selectors = [SelectorOption(name=x, value=x, description=y[:75]) for x, y in zip(names, descriptions)]
+        selectors = [
+            SelectorOption(name=x, value=x, description=y[:75]) for x, y in zip(names, descriptions, strict=False)
+        ]
     elif descriptions == []:
-        selectors = [SelectorOption(name=x, value=y) for x, y in zip(names, values)]
+        selectors = [SelectorOption(name=x, value=y) for x, y in zip(names, values, strict=False)]
     else:
         selectors = [
-            SelectorOption(name=x, value=y, description=z[:75]) for x, y, z in zip(names, values, descriptions)
+            SelectorOption(name=x, value=y, description=z[:75])
+            for x, y, z in zip(names, values, descriptions, strict=False)
         ]
     return selectors
 
@@ -492,7 +495,7 @@ class NumberInputElement(BaseElement):
             "action_id": action,
             "is_decimal_allowed": self.is_decimal_allowed,
         }
-        if self.initial_value:
+        if self.initial_value is not None:
             if isinstance(self.initial_value, str) and self.is_decimal_allowed:
                 try:
                     self.initial_value = float(self.initial_value)
