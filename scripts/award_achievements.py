@@ -29,24 +29,23 @@ If filter keys are unrecognised, they are ignored (logged at DEBUG level).
 
 from __future__ import annotations
 
+import os
+import sys
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 import argparse
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
-from f3_data_models.models import (
-    Achievement,
-    Achievement_x_User,
-    Attendance,
-    EventInstance,
-    EventTag_x_EventInstance,
-    EventType_x_EventInstance,
-    User,
-)
+from f3_data_models.models import Achievement, Achievement_x_User
 from f3_data_models.utils import get_session
 from sqlalchemy import Integer, and_, distinct, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+
+from utilities.database.orm.views import EventAttendance, EventInstanceExpanded
 
 # ---------------------------------------------------------------------------
 # Period calculations
@@ -148,26 +147,30 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         exclude_type_ids.update([tid for tid in type_ids if isinstance(tid, int)])
         exclude_tag_ids.update([tg for tg in tag_ids if isinstance(tg, int)])
 
-    need_type_join = bool(include_type_ids or exclude_type_ids)
-    need_tag_join = bool(include_tag_ids or exclude_tag_ids)
+    # When using the flattened views, we apply filters directly against
+    # the aggregated type / tag arrays instead of joining link tables.
+    # include => element is contained in all_types/all_tags
+    # exclude => element is NOT contained in all_types/all_tags
 
     if include_type_ids:
-        base_filters.append(EventType_x_EventInstance.event_type_id.in_(include_type_ids))
+        base_filters.append(func.COALESCE(EventInstanceExpanded.all_types, []).overlaps(include_type_ids))
     if include_tag_ids:
-        base_filters.append(EventTag_x_EventInstance.event_tag_id.in_(include_tag_ids))
+        base_filters.append(func.COALESCE(EventInstanceExpanded.all_tags, []).overlaps(include_tag_ids))
     if exclude_type_ids:
-        base_filters.append(~EventType_x_EventInstance.event_type_id.in_(exclude_type_ids))
+        base_filters.append(~func.COALESCE(EventInstanceExpanded.all_types, []).overlaps(exclude_type_ids))
     if exclude_tag_ids:
-        base_filters.append(~EventTag_x_EventInstance.event_tag_id.in_(exclude_tag_ids))
+        base_filters.append(~func.COALESCE(EventInstanceExpanded.all_tags, []).overlaps(exclude_tag_ids))
 
-    return base_filters, need_type_join, need_tag_join, list(exclude_type_ids), list(exclude_tag_ids)
+    # With the materialized views, we never need separate joins for
+    # type / tag link tables, so the booleans are always False.
+    return base_filters, False, False, list(exclude_type_ids), list(exclude_tag_ids)
 
 
 def _build_metric_columns(threshold_type: str):
     if threshold_type == "posts":
-        return func.count(Attendance.id)
+        return func.count(EventAttendance.id)
     if threshold_type == "unique_aos":
-        return func.count(distinct(EventInstance.ao_org_id))
+        return func.count(distinct(EventInstanceExpanded.ao_org_id))
     raise ValueError(f"Unsupported auto_threshold_type: {threshold_type}")
 
 
@@ -186,70 +189,48 @@ def _compute_all_period_metrics(
         filters: list = []
         filters, need_type_join, need_tag_join, *_ = _apply_filters([], achievement.auto_filters or {})
         if achievement.specific_org_id:
-            filters.append(User.home_region_id == achievement.specific_org_id)
-        query = (
-            select(
-                Attendance.user_id.label("user_id"),
-                func.cast(func.literal(-1), Integer).label("award_year"),
-                func.cast(func.literal(-1), Integer).label("award_period"),
-                metric_col.label("metric"),
-            )
-            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
-            .join(User, User.id == Attendance.user_id)
+            filters.append(EventAttendance.home_region_id == achievement.specific_org_id)
+        query = select(
+            EventAttendance.user_id.label("user_id"),
+            func.cast(func.literal(-1), Integer).label("award_year"),
+            func.cast(func.literal(-1), Integer).label("award_period"),
+            metric_col.label("metric"),
+        ).join(
+            EventInstanceExpanded,
+            EventInstanceExpanded.id == EventAttendance.event_instance_id,
         )
-        if need_type_join:
-            query = query.join(
-                EventType_x_EventInstance,
-                EventType_x_EventInstance.event_instance_id == EventInstance.id,
-                isouter=False,
-            )
-        if need_tag_join:
-            query = query.join(
-                EventTag_x_EventInstance,
-                EventTag_x_EventInstance.event_instance_id == EventInstance.id,
-                isouter=False,
-            )
         query = query.filter(*filters).group_by("user_id")
         return [(r[0], r[1], r[2], int(r[3])) for r in session.execute(query).all()]
 
     # Non-lifetime: restrict to year start..today
     year = today.year
     start_year = date(year, 1, 1)
-    filters: list = [and_(EventInstance.start_date >= start_year, EventInstance.start_date <= today)]
+    filters: list = [and_(EventInstanceExpanded.start_date >= start_year, EventInstanceExpanded.start_date <= today)]
     filters, need_type_join, need_tag_join, *_ = _apply_filters(filters, achievement.auto_filters or {})
     if achievement.specific_org_id:
-        filters.append(User.home_region_id == achievement.specific_org_id)
+        filters.append(EventAttendance.home_region_id == achievement.specific_org_id)
 
     # Period expression
     if cadence == "weekly":
-        period_expr = func.extract("isoweek", EventInstance.start_date)
+        period_expr = func.extract("isoweek", EventInstanceExpanded.start_date)
     elif cadence == "monthly":
-        period_expr = func.extract("month", EventInstance.start_date)
+        period_expr = func.extract("month", EventInstanceExpanded.start_date)
     elif cadence == "quarterly":
-        period_expr = (func.extract("month", EventInstance.start_date) - 1) / 3 + 1
+        period_expr = (func.extract("month", EventInstanceExpanded.start_date) - 1) / 3 + 1
     elif cadence == "yearly":
         period_expr = func.cast(func.literal(1), Integer)
     else:
         raise ValueError(f"Unsupported cadence: {cadence}")
 
-    query = (
-        select(
-            Attendance.user_id.label("user_id"),
-            func.cast(func.literal(year), Integer).label("award_year"),
-            func.cast(period_expr, Integer).label("award_period"),
-            metric_col.label("metric"),
-        )
-        .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
-        .join(User, User.id == Attendance.user_id)
+    query = select(
+        EventAttendance.user_id.label("user_id"),
+        func.cast(func.literal(year), Integer).label("award_year"),
+        func.cast(period_expr, Integer).label("award_period"),
+        metric_col.label("metric"),
+    ).join(
+        EventInstanceExpanded,
+        EventInstanceExpanded.id == EventAttendance.event_instance_id,
     )
-    if need_type_join:
-        query = query.join(
-            EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id, isouter=False
-        )
-    if need_tag_join:
-        query = query.join(
-            EventTag_x_EventInstance, EventTag_x_EventInstance.event_instance_id == EventInstance.id, isouter=False
-        )
     query = query.filter(*filters).group_by("user_id", "award_period")
     rows = session.execute(query).all()
     # Filter out future periods (e.g., if partial query produced future periods due to date overlap) - defensive
@@ -405,6 +386,7 @@ def main():  # pragma: no cover - CLI
         "--today", type=str, help="Override today's date (YYYY-MM-DD, UTC) for backfilling / testing", default=None
     )
     args = parser.parse_args()
+    print(f"Processing achievements with today={args.today} (dry_run={args.dry_run})")
 
     today = datetime.strptime(args.today, "%Y-%m-%d").date() if args.today else datetime.now(UTC).date()
 
