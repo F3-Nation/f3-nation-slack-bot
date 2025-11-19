@@ -571,7 +571,7 @@ LOADING_FORM = orm.BlockView(
         orm.ContextBlock(
             action="loading_context",
             element=orm.ContextElement(
-                initial_value="If this form does not update after ~10 seconds, an error may have occured. Please try again.",  # noqa: E501
+                initial_value="If this form does not update after ~10 seconds, an error may have occurred. Please try again.",  # noqa: E501
             ),
         ),
     ]
