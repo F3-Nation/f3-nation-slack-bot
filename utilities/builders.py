@@ -12,7 +12,7 @@ from utilities.slack import actions, forms
 # from pymysql.err import ProgrammingError
 
 
-def add_loading_form(body: dict, client: WebClient) -> str:
+def add_loading_form(body: dict, client: WebClient, new_or_add: str = "new") -> str:
     trigger_id = safe_get(body, "trigger_id")
     loading_form_response = forms.LOADING_FORM.post_modal(
         client=client,
@@ -20,6 +20,7 @@ def add_loading_form(body: dict, client: WebClient) -> str:
         title_text="Loading...",
         submit_button_text="None",
         callback_id="loading-id",
+        new_or_add=new_or_add,
     )
     # wait 0.1 seconds
     time.sleep(0.3)

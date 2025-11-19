@@ -20,6 +20,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from features.calendar import event_preblast
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     current_date_cst,
@@ -59,7 +60,7 @@ def manage_event_instances(body: dict, client: WebClient, logger: Logger, contex
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "add":
-        build_event_instance_add_form(body, client, logger, context, region_record)
+        build_event_instance_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
         build_event_instance_list_form(body, client, logger, context, region_record)
 
@@ -72,9 +73,15 @@ def build_event_instance_add_form(
     region_record: SlackSettings,
     edit_event_instance: EventInstance | None = None,
     new_preblast: bool = False,
+    loading_form: bool = False,
 ):
     parent_metadata = {"event_instance_id": edit_event_instance.id} if edit_event_instance else {}
     view_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+    else:
+        update_view_id = None
 
     title_text = "Add an Event"
     form = copy.deepcopy(INSTANCE_FORM)
@@ -173,6 +180,15 @@ def build_event_instance_add_form(
         form.update_modal(
             client=client,
             view_id=safe_get(body, "view", "id"),
+            callback_id=ADD_EVENT_INSTANCE_CALLBACK_ID,
+            title_text=title_text,
+            parent_metadata=parent_metadata,
+        )
+    elif update_view_id:
+        form.set_initial_values(initial_values)
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
             callback_id=ADD_EVENT_INSTANCE_CALLBACK_ID,
             title_text=title_text,
             parent_metadata=parent_metadata,
@@ -413,7 +429,9 @@ def handle_event_instance_edit_delete(
 
     if action == "Edit":
         event_instance: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
-        build_event_instance_add_form(body, client, logger, context, region_record, edit_event_instance=event_instance)
+        build_event_instance_add_form(
+            body, client, logger, context, region_record, edit_event_instance=event_instance, loading_form=True
+        )  # noqa
     elif action == "Delete":
         DbManager.update_record(EventInstance, event_instance_id, fields={"is_active": False})
         build_event_instance_list_form(
