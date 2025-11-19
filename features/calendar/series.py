@@ -25,6 +25,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from utilities import constants
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     current_date_cst,
@@ -40,7 +41,7 @@ def manage_series(body: dict, client: WebClient, logger: Logger, context: dict, 
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "add":
-        build_series_add_form(body, client, logger, context, region_record)
+        build_series_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
         build_series_list_form(body, client, logger, context, region_record)
 
@@ -53,6 +54,7 @@ def build_series_add_form(
     region_record: SlackSettings,
     edit_event: Event | None = None,
     new_preblast: bool = False,
+    loading_form: bool = False,
 ):
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
     if safe_get(metadata, "series_id"):
@@ -62,6 +64,11 @@ def build_series_add_form(
         parent_metadata = metadata
     else:
         parent_metadata = {"series_id": edit_event.id} if edit_event else {}
+
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+    else:
+        update_view_id = None
 
     if edit_event:
         title_text = "Edit a Series"
@@ -156,6 +163,15 @@ def build_series_add_form(
         form.update_modal(
             client=client,
             view_id=safe_get(body, "view", "id"),
+            callback_id=actions.ADD_SERIES_CALLBACK_ID,
+            title_text=title_text,
+            parent_metadata=parent_metadata,
+        )
+    elif update_view_id:
+        form.set_initial_values(initial_values)
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
             callback_id=actions.ADD_SERIES_CALLBACK_ID,
             title_text=title_text,
             parent_metadata=parent_metadata,
@@ -566,7 +582,7 @@ def handle_series_edit_delete(
 
     if action == "Edit":
         series: Event = DbManager.get(Event, series_id, joinedloads="all")
-        build_series_add_form(body, client, logger, context, region_record, edit_event=series)
+        build_series_add_form(body, client, logger, context, region_record, edit_event=series, loading_form=True)
     elif action == "Delete":
         DbManager.update_record(Event, series_id, fields={"is_active": False})
         DbManager.update_records(
