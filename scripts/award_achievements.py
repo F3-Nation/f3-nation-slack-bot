@@ -137,6 +137,15 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         tag_ids = inc.get("event_tag_id") or []
         include_type_ids.update([tid for tid in type_ids if isinstance(tid, int)])
         include_tag_ids.update([tg for tg in tag_ids if isinstance(tg, int)])
+        first_f_ind = inc.get("first_f_ind")
+        if first_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.first_f_ind == first_f_ind)
+        second_f_ind = inc.get("second_f_ind")
+        if second_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.second_f_ind == second_f_ind)
+        third_f_ind = inc.get("third_f_ind")
+        if third_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.third_f_ind == third_f_ind)
 
     # Collect exclude constraints
     for exc in excludes:
@@ -146,23 +155,22 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         tag_ids = exc.get("event_tag_id") or []
         exclude_type_ids.update([tid for tid in type_ids if isinstance(tid, int)])
         exclude_tag_ids.update([tg for tg in tag_ids if isinstance(tg, int)])
+        first_f_ind = exc.get("first_f_ind")
+        if first_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.first_f_ind != first_f_ind)
+        second_f_ind = exc.get("second_f_ind")
+        if second_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.second_f_ind != second_f_ind)
+        third_f_ind = exc.get("third_f_ind")
+        if third_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.third_f_ind != third_f_ind)
 
-    # When using the flattened views, we apply filters directly against
-    # the aggregated type / tag arrays instead of joining link tables.
-    # include => element is contained in all_types/all_tags
-    # exclude => element is NOT contained in all_types/all_tags
+    # When using the flattened views, we no longer need separate joins
+    # for type / tag link tables, so the booleans are always False.
+    # For now, event_type_id / event_tag_id-based filters are not
+    # supported directly against the view and are ignored (but the
+    # first/second/third_f_ind filters above are applied normally).
 
-    if include_type_ids:
-        base_filters.append(func.COALESCE(EventInstanceExpanded.all_types, []).overlaps(include_type_ids))
-    if include_tag_ids:
-        base_filters.append(func.COALESCE(EventInstanceExpanded.all_tags, []).overlaps(include_tag_ids))
-    if exclude_type_ids:
-        base_filters.append(~func.COALESCE(EventInstanceExpanded.all_types, []).overlaps(exclude_type_ids))
-    if exclude_tag_ids:
-        base_filters.append(~func.COALESCE(EventInstanceExpanded.all_tags, []).overlaps(exclude_tag_ids))
-
-    # With the materialized views, we never need separate joins for
-    # type / tag link tables, so the booleans are always False.
     return base_filters, False, False, list(exclude_type_ids), list(exclude_tag_ids)
 
 
@@ -181,8 +189,9 @@ def _compute_all_period_metrics(
 
     Single query per achievement to cover all elapsed periods in current year (or lifetime).
     """
+    print(f"Computing metrics for achievement={achievement.id} ({threshold_type})...")
     metric_col = _build_metric_columns(threshold_type)
-    cadence = str(achievement.auto_cadence).lower()
+    cadence = str(achievement.auto_cadence.name).lower()
 
     # Lifetime: group to a fixed (-1, -1)
     if cadence == "lifetime":
@@ -218,13 +227,13 @@ def _compute_all_period_metrics(
     elif cadence == "quarterly":
         period_expr = (func.extract("month", EventInstanceExpanded.start_date) - 1) / 3 + 1
     elif cadence == "yearly":
-        period_expr = func.cast(func.literal(1), Integer)
+        period_expr = 1
     else:
         raise ValueError(f"Unsupported cadence: {cadence}")
 
     query = select(
         EventAttendance.user_id.label("user_id"),
-        func.cast(func.literal(year), Integer).label("award_year"),
+        func.cast(year, Integer).label("award_year"),
         func.cast(period_expr, Integer).label("award_period"),
         metric_col.label("metric"),
     ).join(
@@ -285,7 +294,7 @@ def process_achievement(session: Session, achievement: Achievement, today: date)
     if not achievement.auto_threshold or not achievement.auto_threshold_type:
         return []
 
-    threshold_type = str(achievement.auto_threshold_type).lower()
+    threshold_type = str(achievement.auto_threshold_type.name).lower()
     if threshold_type not in SUPPORTED_THRESHOLD_TYPES:
         return []
 
@@ -386,7 +395,6 @@ def main():  # pragma: no cover - CLI
         "--today", type=str, help="Override today's date (YYYY-MM-DD, UTC) for backfilling / testing", default=None
     )
     args = parser.parse_args()
-    print(f"Processing achievements with today={args.today} (dry_run={args.dry_run})")
 
     today = datetime.strptime(args.today, "%Y-%m-%d").date() if args.today else datetime.now(UTC).date()
 
@@ -395,6 +403,7 @@ def main():  # pragma: no cover - CLI
         if args.achievement_id:
             ach_query = ach_query.filter(Achievement.id == args.achievement_id)
         achievements = session.scalars(ach_query).all()
+        print(f"Processing {len(achievements)} achievements...")
         total_candidates = 0
         for ach in achievements:
             cands = process_achievement(session, ach, today)
