@@ -287,7 +287,7 @@ def handle_event_instance_add(
         # event_instance_id is passed in the metadata if this is an edit
         update_fields = event_instance_record.to_update_dict()
         # drop the fields that are None, as we don't want to update them
-        update_fields = {k: v for k, v in update_fields.items() if v is not None}
+        update_fields = {k: v for k, v in update_fields.items() if v is not None and v != []}
         DbManager.update_record(EventInstance, metadata["event_instance_id"], fields=update_fields)
         record = DbManager.get(
             EventInstance,
