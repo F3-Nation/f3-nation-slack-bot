@@ -378,6 +378,8 @@ def send_preblast(
         *preblast_info.preblast_blocks,
         orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
     ]
+    q_attendance = next((r for r in preblast_info.attendance_records if 2 in [t.id for t in r.attendance_types]), None)
+    q_user_id = safe_get(preblast_info.attendance_slack_dict, q_attendance)
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
         "event_instance_id": event_instance_id,
@@ -393,7 +395,8 @@ def send_preblast(
         username = None
         icon_url = None
     else:
-        q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
+        slack_id = q_user_id or slack_user_id
+        q_name, q_url = get_user_names([slack_id], logger, client, return_urls=True)
         q_name = (q_name or [""])[0]
         q_url = q_url[0]
         username = f"{q_name} (via F3 Nation)"
