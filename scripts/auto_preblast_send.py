@@ -28,7 +28,7 @@ from sqlalchemy.orm import aliased
 
 from features.calendar import event_preblast
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst
+from utilities.helper_functions import current_date_cst, safe_get
 
 
 @dataclass
@@ -121,32 +121,44 @@ class PreblastList:
 def send_automated_preblasts():
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
-    # check if the current time is between 7:00 PM and 8:00 PM, eventually configurable
-    if current_time.hour == 12:
-        preblast_list = PreblastList()
-        preblast_list.pull_data(
-            filters=[
-                EventInstance.start_date == current_date_cst() + timedelta(days=1),  # eventually configurable
-                EventInstance.preblast_ts.is_(None),  # not already sent
-                EventInstance.is_active,  # not canceled
-            ]
-        )
-        preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
+    preblast_list = PreblastList()
+    preblast_list.pull_data(
+        filters=[
+            EventInstance.start_date == current_date_cst() + timedelta(days=1),  # eventually configurable
+            EventInstance.preblast_ts.is_(None),  # not already sent
+            EventInstance.is_active,  # not canceled
+        ]
+    )
 
-        for preblast in preblast_list.items:
-            try:
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-                slack_client = WebClient(preblast.slack_settings.bot_token, ssl=ssl_context)
-                event_preblast.send_preblast(
-                    event_instance_id=preblast.event.id,
-                    region_record=preblast.slack_settings,
-                    client=slack_client,
-                )
-            except Exception as e:
-                print(f"Error sending preblast for event {preblast.event.id}: {e}")
-                continue
+    for preblast in preblast_list.items:
+        automated_option = safe_get(preblast.slack_settings.__dict__, "automated_preblast_option") or "disable"
+        automated_hour = safe_get(preblast.slack_settings.__dict__, "automated_preblast_hour_cst")
+
+        # Skip if feature is disabled
+        if automated_option == "disable":
+            continue
+
+        # If an hour is configured, require match to current hour
+        if automated_hour is not None and automated_hour != current_time.hour:
+            continue
+
+        # Respect option semantics around Q assignment
+        if automated_option == "q_only" and not preblast.q_name:
+            continue
+
+        try:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            slack_client = WebClient(preblast.slack_settings.bot_token, ssl=ssl_context)
+            event_preblast.send_preblast(
+                event_instance_id=preblast.event.id,
+                region_record=preblast.slack_settings,
+                client=slack_client,
+            )
+        except Exception as e:
+            print(f"Error sending preblast for event {preblast.event.id}: {e}")
+            continue
 
 
 if __name__ == "__main__":
