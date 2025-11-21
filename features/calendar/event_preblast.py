@@ -378,7 +378,9 @@ def send_preblast(
         *preblast_info.preblast_blocks,
         orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
     ]
-    q_attendance = next((r for r in preblast_info.attendance_records if 2 in [t.id for t in r.attendance_types]), None)
+    q_attendance = next(
+        (r for r in preblast_info.attendance_records if any(t.id == 2 for t in r.attendance_types)), None
+    )
     q_user_id = safe_get(preblast_info.attendance_slack_dict, q_attendance)
     blocks = [b.as_form_field() for b in blocks]
     metadata = {

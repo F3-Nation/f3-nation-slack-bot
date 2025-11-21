@@ -186,7 +186,7 @@ def handle_config_general_post(
     )
     region_record.automated_preblast_option = safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST) or "q_only"
     region_record.automated_preblast_hour_cst = safe_convert(
-        safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST_TIME).split(":")[0], int
+        (safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST_TIME) or "12:00").split(":")[0], int
     )
 
     DbManager.update_records(
