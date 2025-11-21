@@ -114,6 +114,10 @@ def build_config_general_form(
             actions.CONFIG_ENABLE_STRAVA: "enable" if region_record.strava_enabled == 1 else "disable",
             actions.CONFIG_PREBLAST_REMINDER_DAYS: region_record.preblast_reminder_days,
             actions.CONFIG_BACKBLAST_REMINDER_DAYS: region_record.backblast_reminder_days,
+            actions.CONFIG_AUTOMATED_PREBLAST: region_record.automated_preblast_option or "q_only",
+            actions.CONFIG_AUTOMATED_PREBLAST_TIME: f"{str(region_record.automated_preblast_hour_cst).zfill(2)}:00"
+            if region_record.automated_preblast_hour_cst is not None
+            else "12:00",
         }
     )
 
@@ -179,6 +183,10 @@ def handle_config_general_post(
     )
     region_record.backblast_reminder_days = safe_convert(
         safe_get(config_data, actions.CONFIG_BACKBLAST_REMINDER_DAYS), int
+    )
+    region_record.automated_preblast_option = safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST) or "q_only"
+    region_record.automated_preblast_hour_cst = safe_convert(
+        safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST_TIME).split(":")[0], int
     )
 
     DbManager.update_records(
