@@ -428,15 +428,24 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             element=orm.RichTextInputElement(),
         ),
         orm.DividerBlock(),
-        # orm.InputBlock(
-        #     label="Preblast Reminder Days Before",
-        #     action=actions.CONFIG_PREBLAST_REMINDER_DAYS,
-        #     optional=True,
-        #     element=orm.NumberInputElement(
-        #         placeholder="Enter the number of days...", is_decimal_allowed=False, min_value=0, max_value=7
-        #     ),
-        #     hint="This will send a reminder to the Q and CoQs this many days before the workout to send a preblast. If set to 0, no reminder will be sent. Defaults to 1.",  # noqa
-        # ),
+        orm.InputBlock(
+            label="Automated Preblast Options",
+            action=actions.CONFIG_AUTOMATED_PREBLAST,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["Send for Qs", "Send even if no Q", "Disable"], values=["q_only", "always", "disable"]
+                ),  # noqa: E501
+                initial_value="q_only",
+            ),
+        ),
+        orm.InputBlock(
+            label="Automated Preblast Time (CST)",
+            action=actions.CONFIG_AUTOMATED_PREBLAST_TIME,
+            optional=True,
+            element=orm.TimepickerElement(),
+            hint="Automated preblasts will be sent this time the day before if one has not been posted by the Q already.",  # noqa
+        ),
         orm.InputBlock(
             label="Backblast Reminder Count",
             action=actions.CONFIG_BACKBLAST_REMINDER_DAYS,

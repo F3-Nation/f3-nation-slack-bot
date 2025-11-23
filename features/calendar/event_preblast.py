@@ -34,7 +34,7 @@ from utilities.helper_functions import (
     safe_convert,
     safe_get,
 )
-from utilities.slack import actions, orm
+from utilities.slack import actions, forms, orm
 
 
 @dataclass
@@ -276,6 +276,23 @@ def handle_event_preblast_edit(
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
     callback_id = safe_get(body, "view", "callback_id")
+
+    if (
+        form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
+        or callback_id == actions.EVENT_PREBLAST_POST_CALLBACK_ID
+        or (safe_get(metadata, "preblast_ts") or "None") != "None"
+    ):
+        preblast_send = True
+        forms.SUBMIT_FORM.update_modal(
+            client=client,
+            view_id=safe_get(body, "view", "id"),
+            callback_id="submit_form_waiting",
+            title_text="Submitting Preblast",
+            submit_button_text="None",
+        )
+    else:
+        preblast_send = False
+
     update_fields = {
         EventInstance.name: form_data[actions.EVENT_PREBLAST_TITLE],
         EventInstance.location_id: form_data[actions.EVENT_PREBLAST_LOCATION],
@@ -324,11 +341,7 @@ def handle_event_preblast_edit(
         ]
         DbManager.create_records(new_records)
 
-    if (
-        form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
-        or callback_id == actions.EVENT_PREBLAST_POST_CALLBACK_ID
-        or (safe_get(metadata, "preblast_ts") or "None") != "None"
-    ):
+    if preblast_send:
         send_preblast(
             body,
             client,
@@ -336,6 +349,13 @@ def handle_event_preblast_edit(
             context,
             region_record,
             event_instance_id,
+        )
+        forms.SUBMIT_FORM_SUCCESS.update_modal(
+            client=client,
+            view_id=safe_get(body, "view", "id"),
+            callback_id="submit_form_success",
+            title_text="Preblast Submitted",
+            submit_button_text="None",
         )
 
     # elif form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Schedule 24 hours before event":
@@ -358,6 +378,10 @@ def send_preblast(
         *preblast_info.preblast_blocks,
         orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
     ]
+    q_attendance = next(
+        (r for r in preblast_info.attendance_records if any(t.id == 2 for t in r.attendance_types)), None
+    )
+    q_user_id = safe_get(preblast_info.attendance_slack_dict, q_attendance)
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
         "event_instance_id": event_instance_id,
@@ -373,7 +397,8 @@ def send_preblast(
         username = None
         icon_url = None
     else:
-        q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
+        slack_id = q_user_id or slack_user_id
+        q_name, q_url = get_user_names([slack_id], logger, client, return_urls=True)
         q_name = (q_name or [""])[0]
         q_url = q_url[0]
         username = f"{q_name} (via F3 Nation)"
