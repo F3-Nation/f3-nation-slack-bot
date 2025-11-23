@@ -207,18 +207,20 @@ def build_home_form(
         filter.append(EventType.id.in_(event_type_ids))
 
     open_q_only = actions.FILTER_OPEN_Q in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or [])
+    only_users_events = actions.FILTER_MY_EVENTS in (
+        safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or []
+    )
     # Run the query
     # TODO: implement pagination / dynamic limit
     split_time = time.time()
     print(f"Block building time: {split_time - start_time}")
     start_time = time.time()
-    events: list[CalendarHomeQuery] = home_schedule_query(user_id, filter, limit=100, open_q_only=open_q_only)
+    events: list[CalendarHomeQuery] = home_schedule_query(
+        user_id, filter, limit=100, open_q_only=open_q_only, only_users_events=only_users_events
+    )
     split_time = time.time()
     print(f"Home schedule query: {split_time - start_time}")
     start_time = time.time()
-
-    if actions.FILTER_MY_EVENTS in (safe_get(existing_filter_data, actions.CALENDAR_HOME_Q_FILTER) or []):
-        events = [x for x in events if x.user_attending]
 
     # Build the event list
     active_date = datetime.date(2020, 1, 1)

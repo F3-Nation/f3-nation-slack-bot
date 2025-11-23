@@ -40,7 +40,7 @@ class CalendarHomeQuery:
 
 
 def home_schedule_query(
-    user_id: int, filters: list, limit: int = 45, open_q_only: bool = False
+    user_id: int, filters: list, limit: int = 45, open_q_only: bool = False, only_users_events: bool = False
 ) -> list[CalendarHomeQuery]:
     session = get_session()
     # Create an alias for Attendance to use in the subquery
@@ -84,6 +84,9 @@ def home_schedule_query(
 
     if open_q_only:
         filters.append(subquery.c.planned_qs == None)  # noqa: E711
+
+    if only_users_events:
+        filters.append(subquery.c.user_attending == 1)
 
     # Create the main query
     query = (
