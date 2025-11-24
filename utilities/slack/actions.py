@@ -52,6 +52,7 @@ CALENDAR_MANAGE_SERIES_AO = "calendar_manage_series_ao"
 MSG_EVENT_BACKBLAST_ALREADY_BUTTON = "event_backblast_already_button_dm"
 CONFIG_AUTOMATED_PREBLAST = "automated_preblast"
 CONFIG_AUTOMATED_PREBLAST_TIME = "automated_preblast_time"
+SETTINGS_BUTTON = "settings_button"
 
 PREBLAST_CALLBACK_ID = "preblast-id"
 PREBLAST_TITLE = "title"

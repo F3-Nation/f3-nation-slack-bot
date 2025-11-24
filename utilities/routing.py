@@ -173,6 +173,7 @@ ACTION_MAPPER = {
     reporting.RUN_MONTHLY_REPORTS_NOW: (run_reporting_single_org, False),
     actions.CONFIG_HELP_MENU: (help.build_help_menu, False),
     actions.CALENDAR_MANAGE_SERIES_AO: (series.build_series_list_form, False),
+    actions.SETTINGS_BUTTON: (config.build_config_form, True),
 }
 
 ACTION_PREFIXES = [
@@ -195,6 +196,7 @@ VIEW_CLOSED_MAPPER = {
 
 EVENT_MAPPER = {
     "team_join": (welcome.handle_team_join, False),
+    "app_mention": (help.handle_app_mention, False),
 }
 
 OPTIONS_MAPPER = {
