@@ -21,7 +21,10 @@ Assumptions / notes:
                              "exclude": [...] }
        * We treat each dict in include as a dimension constraint (AND across dimensions, OR within values)
        * Exclude removes events matching ANY of its value lists.
-  - Supported threshold types: 'posts' (attendance count), 'unique_aos' (distinct EventInstance.ao_org_id)
+    - Supported threshold types: 'posts' (attendance count),
+                                                             'unique_aos' (distinct EventInstanceExpanded.ao_org_id),
+                                                             'qs' (number of times user Q'd),
+                                                             'posts_at_ao' (attendance at a specific AO or any AO)
   - Additional threshold types can be added by extending _build_metric_clause.
 
 If filter keys are unrecognised, they are ignored (logged at DEBUG level).
@@ -114,7 +117,7 @@ def iter_periods(cadence: str, year: int, today: date) -> Iterable[Tuple[int, Tu
 # ---------------------------------------------------------------------------
 
 
-SUPPORTED_THRESHOLD_TYPES = {"posts", "unique_aos"}
+SUPPORTED_THRESHOLD_TYPES = {"posts", "unique_aos", "qs", "posts_at_ao"}
 
 
 def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[list, bool, bool, list, list]:
@@ -146,6 +149,9 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         third_f_ind = inc.get("third_f_ind")
         if third_f_ind is not None:
             base_filters.append(EventInstanceExpanded.third_f_ind == third_f_ind)
+        ao_org_id = inc.get("ao_org_id")
+        if ao_org_id is not None:
+            base_filters.append(EventInstanceExpanded.ao_org_id == ao_org_id)
 
     # Collect exclude constraints
     for exc in excludes:
@@ -164,6 +170,9 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         third_f_ind = exc.get("third_f_ind")
         if third_f_ind is not None:
             base_filters.append(EventInstanceExpanded.third_f_ind != third_f_ind)
+        ao_org_id = exc.get("ao_org_id")
+        if ao_org_id is not None:
+            base_filters.append(EventInstanceExpanded.ao_org_id != ao_org_id)
 
     # When using the flattened views, we no longer need separate joins
     # for type / tag link tables, so the booleans are always False.
@@ -179,6 +188,13 @@ def _build_metric_columns(threshold_type: str):
         return func.count(EventAttendance.id)
     if threshold_type == "unique_aos":
         return func.count(distinct(EventInstanceExpanded.ao_org_id))
+    if threshold_type == "qs":
+        # Number of times the user Q'd (q_ind is 1 for Q, 0/NULL otherwise)
+        return func.coalesce(func.sum(EventAttendance.q_ind), 0)
+    if threshold_type == "posts_at_ao":
+        # Posts scoped by AO via auto_filters (ao_org_id); when no ao_org_id
+        # filter is supplied, this becomes equivalent to total posts.
+        return func.count(EventAttendance.id)
     raise ValueError(f"Unsupported auto_threshold_type: {threshold_type}")
 
 
