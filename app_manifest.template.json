@@ -146,6 +146,7 @@
         "event_subscriptions": {
             "request_url": "https://HOST-PLACEHOLDER/slack/events",
             "bot_events": [
+                "app_mention",
                 "team_join"
             ]
         },
