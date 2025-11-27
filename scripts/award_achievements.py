@@ -310,7 +310,7 @@ def process_achievement(session: Session, achievement: Achievement, today: date)
     if not achievement.auto_threshold or not achievement.auto_threshold_type:
         return []
 
-    threshold_type = str(achievement.auto_threshold_type.name).lower()
+    threshold_type = str(achievement.auto_threshold_type).lower()
     if threshold_type not in SUPPORTED_THRESHOLD_TYPES:
         return []
 
@@ -421,10 +421,18 @@ def main():  # pragma: no cover - CLI
         achievements = session.scalars(ach_query).all()
         print(f"Processing {len(achievements)} achievements...")
         total_candidates = 0
+        all_candidates = []
         for ach in achievements:
             cands = process_achievement(session, ach, today)
             award_candidates(session, cands, args.dry_run)
             total_candidates += len(cands)
+            all_candidates.extend(cands)
+        # save a csv of candidates for record-keeping
+        if all_candidates and args.dry_run:
+            with open(f"achievement_candidates_{today}.csv", "w") as f:
+                f.write("achievement_id,user_id,award_year,award_period,metric\n")
+                for c in all_candidates:
+                    f.write(f"{c.achievement_id},{c.user_id},{c.award_year},{c.award_period},{c.metric}\n")
         print(f"Done. Candidates processed: {total_candidates}")
 
 
