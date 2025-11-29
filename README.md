@@ -61,7 +61,19 @@ We've put together a dockerized local development setup that makes it very easy 
 
 
 You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel. The unique localtunnel url is now saved to your `.env` file, so the url should remain the same for future app starts.
-  
+
+7. **(Optional) Configure your environment for debugging**:
+
+    a) Set the *SOCKET_MODE* environment variable to *true*
+
+    b) Enable enable socket mode in your development Slack app
+
+    c) Remove all urls from your slash commands in your dev app. If you find difficulty in editing the urls, delete the existing ones and recreate them without urls. In order to operate in socket mode, you cannot have a url set for the slash command you are trying to debug.
+
+    d) Hit *F5* to start debugger. Set a breakpoint where you want the code to break. To start, it's best to set a breakpoint on the first line of the *main_response* function.
+
+    e) Go to your dev app and perform an action. Your IDE should take focus and allow you to step through the code line-by-line (or however you wish). Note that any action taken will likely fail, due to the 3 second response requirement. This should not be an issue for development purposes. The idea is to be able to inspect the state of the application as you step through. If you wish to actually make a change, just stop the debugger or quickly *F5* through to the end before the 3 second timeout.
+
   ### What Happens on Container Build
 
   1. **Database Service** (`db`): PostgreSQL 16 starts up
