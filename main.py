@@ -1,4 +1,3 @@
-# import json
 import json
 import logging
 import re
@@ -6,6 +5,7 @@ import time
 import traceback
 from typing import Callable, Tuple
 
+import debugpy
 import functions_framework
 from flask import Request, Response
 from google.cloud.logging_v2.handlers import StructuredLogHandler, setup_logging
@@ -27,6 +27,21 @@ from utilities.helper_functions import (
 )
 from utilities.routing import MAIN_MAPPER
 from utilities.slack.actions import LOADING_ID
+
+
+def setup_debugger():
+    try:
+        import os
+
+        if os.getenv("DEBUGPY_ENABLE") == "1":
+            debugpy.listen(("0.0.0.0", 5678))
+            logging.getLogger().info("Waiting for debugger attach on port 5678...")
+            debugpy.wait_for_client()
+    except Exception as exc:  # pragma: no cover - best-effort debug helper
+        logging.getLogger().warning(f"Failed to initialize debugpy: {exc}")
+
+
+setup_debugger()
 
 logging_level = logging.INFO
 if LOCAL_DEVELOPMENT:
