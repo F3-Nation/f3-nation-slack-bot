@@ -1,4 +1,3 @@
-# import json
 import json
 import logging
 import re
@@ -16,7 +15,7 @@ import scripts
 from features import strava
 from features.calendar import series
 from utilities.builders import add_loading_form, send_error_response
-from utilities.constants import LOCAL_DEVELOPMENT
+from utilities.constants import ENABLE_DEBUGGING, LOCAL_DEVELOPMENT
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     get_oauth_settings,
@@ -27,6 +26,24 @@ from utilities.helper_functions import (
 )
 from utilities.routing import MAIN_MAPPER
 from utilities.slack.actions import LOADING_ID
+
+
+def setup_debugger():
+    try:
+        # Only ever enable debugger in local development
+        if not (LOCAL_DEVELOPMENT and ENABLE_DEBUGGING):
+            return
+
+        import debugpy
+
+        debugpy.listen(("0.0.0.0", 5678))
+        print("Waiting for debugger attach on port 5678...")
+        debugpy.wait_for_client()
+    except Exception as exc:  # pragma: no cover - best-effort debug helper
+        logging.getLogger().warning(f"Failed to initialize debugpy: {exc}")
+
+
+setup_debugger()
 
 logging_level = logging.INFO
 if LOCAL_DEVELOPMENT:
@@ -68,6 +85,8 @@ def handler(request: Request):
 
 def main_response(body, logger: logging.Logger, client, ack, context):
     # ack()
+    # if ENABLE_DEBUGGING:
+    #     body[DEBUG_ID] = add_debug_form(body=body, client=client) # TODO: add form that pops up right away
     if LOCAL_DEVELOPMENT:
         logger.info(json.dumps(body, indent=4))
     else:
@@ -83,7 +102,7 @@ def main_response(body, logger: logging.Logger, client, ack, context):
     lookup: Tuple[Callable, bool] = safe_get(safe_get(MAIN_MAPPER, request_type), request_id)
     if lookup:
         run_function, add_loading = lookup
-        if add_loading:
+        if add_loading and not ENABLE_DEBUGGING:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
         try:
             # time the call

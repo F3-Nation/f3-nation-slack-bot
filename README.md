@@ -61,6 +61,14 @@ We've put together a dockerized local development setup that makes it very easy 
 
 
 You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel. The unique localtunnel url is now saved to your `.env` file, so the url should remain the same for future app starts.
+
+### Step Debugging
+
+If you'd like to use a step debugger, follow these steps:
+
+1. Set `ENABLE_DEBUGGING=true` in `.env`
+2. Start the app as usual with `./app_startup.sh`
+3. It will give a message "Waiting for debugger attach on port 5678...". Start VSCode's debugger, make sure to select the `Attach to debugpy (F3 bot)` option
   
   ### What Happens on Container Build
 

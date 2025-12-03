@@ -27,6 +27,21 @@ def add_loading_form(body: dict, client: WebClient, new_or_add: str = "new") -> 
     return safe_get(loading_form_response, "view", "id")
 
 
+def add_debug_form(body: dict, client: WebClient, new_or_add: str = "new") -> str:
+    trigger_id = safe_get(body, "trigger_id")
+    debug_form_response = forms.DEBUG_FORM.post_modal(
+        client=client,
+        trigger_id=trigger_id,
+        title_text="Debug Info",
+        submit_button_text="None",
+        callback_id="debug-id",
+        new_or_add=new_or_add,
+    )
+    # wait 0.1 seconds
+    time.sleep(0.3)
+    return safe_get(debug_form_response, "view", "id")
+
+
 def ignore_event(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     logger.debug("Ignoring event")
 
