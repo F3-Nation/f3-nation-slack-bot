@@ -55,12 +55,21 @@ We've put together a dockerized local development setup that makes it very easy 
   ./app_startup.sh # you may have to run chmod +x app_startup.sh the first time
   ```
   
-  This will run a localtunnel to route traffic to your local app. The script will generate a unique localtunnel url, and use that to generate `app_manifest.json`. Finally, it will start your app with reload.
+  This will run a localtunnel to route traffic to your local app or use socket mode (see below). The script will generate `app_manifest.json`. Finally, it will start your app with reload.
 
-6. **Update your app to point to your url**: in your [Slack app settings on the web console](https://api.slack.com/apps), go to your app, click on App Manifest, and replace what's there with the contents of `app_manifest.json`, and click Save. This will update it to know what url to use for interaction. To make sure your app is indeed able to process requests, you can click the Verify link.
+6. **Update your app to point to your url**: in your [Slack app settings on the web console](https://api.slack.com/apps), go to your app, click on App Manifest, and replace what's there with the contents of `app_manifest.json`, and click Save. This will update it to know how to connect to your local app.
 
 
-You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel. The unique localtunnel url is now saved to your `.env` file, so the url should remain the same for future app starts.
+You should be off to the races! Try opening `/f3-nation-settings` to start building a dummy region. Changes you make to python files will trigger a reload of the app. Use Ctrl-C in your terminal to kill the app and localtunnel (if applicable). 
+
+### Socket Mode vs LocalTunnel
+
+For connecting your local app to Slack, you have two options:
+
+1. **LocalTunnel**: this method initializes a localtunnel which routes https requests to your locally running app
+2. **Slack's Socket Mode**: this method utilizes websockets to route Slack interaction to your local app
+
+You can contol which one is used via `SOCKET_MODE` in `.env`
 
 ### Step Debugging
 
