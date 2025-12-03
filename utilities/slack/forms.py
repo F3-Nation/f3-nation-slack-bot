@@ -586,6 +586,18 @@ LOADING_FORM = orm.BlockView(
     ]
 )
 
+DEBUG_FORM = orm.BlockView(
+    blocks=[
+        orm.SectionBlock(label=":beetle: Debug Mode", action=actions.DEBUG),
+        orm.ContextBlock(
+            action="loading_context",
+            element=orm.ContextElement(
+                initial_value="If your call does not end in an updated view, you may have to close this manually.",  # noqa: E501
+            ),
+        ),
+    ]
+)
+
 ERROR_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(label=":warning: the following error occurred:", action=actions.ERROR_FORM_MESSAGE),
