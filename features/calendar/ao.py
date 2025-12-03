@@ -87,8 +87,9 @@ def build_ao_add_form(
     else:
         title_text = "Add an AO"
 
-    if update_view_id:
+    if update_metadata:
         form.set_initial_values(update_metadata)
+    if update_view_id:
         form.update_modal(
             client=client,
             view_id=update_view_id,

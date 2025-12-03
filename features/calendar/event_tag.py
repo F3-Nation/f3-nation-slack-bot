@@ -196,13 +196,11 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
         available_tags = service.get_available_global_tags(region_record.org_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
         form = views.build_add_tag_modal(available_tags, org_tags)
-        form.post_modal(
+        form.update_modal(
             client=client,
-            trigger_id=safe_get(body, "trigger_id"),
+            view_id=update_view_id,
             title_text="Add an Event Tag",
             callback_id=CALENDAR_ADD_EVENT_TAG_CALLBACK_ID,
-            update_view_id=update_view_id,
-            new_or_add="add",
         )
     elif action == "edit":
         org_tags = service.get_org_event_tags(region_record.org_id)
@@ -249,13 +247,11 @@ def handle_event_tag_edit_delete(
         event_tag = DbManager.get(EventTag, event_tag_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
         form = views.build_edit_tag_modal(event_tag, org_tags)
-        form.post_modal(
+        form.update_modal(
             client=client,
-            trigger_id=safe_get(body, "trigger_id"),
+            view_id=update_view_id,
             title_text="Edit an Event Tag",
             callback_id=CALENDAR_ADD_EVENT_TAG_CALLBACK_ID,
-            update_view_id=update_view_id,
-            new_or_add="add",
             parent_metadata={"edit_event_tag_id": event_tag.id},
         )
     elif action == "Delete":
