@@ -47,7 +47,7 @@ def build_ao_add_form(
     form = copy.deepcopy(AO_FORM)
 
     # Pull locations and event types for the region
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types])
     locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
     event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
 
@@ -89,12 +89,14 @@ def build_ao_add_form(
 
     if update_metadata:
         form.set_initial_values(update_metadata)
+
     if update_view_id:
         form.update_modal(
             client=client,
             view_id=update_view_id,
             title_text=title_text,
             callback_id=actions.ADD_AO_CALLBACK_ID,
+            parent_metadata={"ao_id": edit_ao.id} if edit_ao else {},
         )
     else:
         form.post_modal(
