@@ -16,6 +16,7 @@ TEMPLATE_FILE="app_manifest.template.json"
 ENV_FILE=".env"
 SUBDOMAIN_VAR="LT_SUBDOMAIN_SUFFIX"
 SUBDOMAIN_PREFIX="f3dev"
+SOCKET_MODE_VAR="SOCKET_MODE"
 
 # Preflight checks for required CLIs
 assert_cmd() { command -v "$1" >/dev/null 2>&1 || { echo "Required command not found: $1"; exit 1; }; }
@@ -46,6 +47,24 @@ ensure_subdomain_suffix() {
   export LT_SUBDOMAIN
 }
 
+load_socket_mode() {
+  local existing=""
+  if [[ -f "${ENV_FILE}" ]] && grep -E "^${SOCKET_MODE_VAR}=" "${ENV_FILE}" >/dev/null; then
+    existing=$(grep -E "^${SOCKET_MODE_VAR}=" "${ENV_FILE}" | tail -1 | cut -d= -f2-)
+  fi
+  if [[ -z "${existing}" ]]; then
+    existing="false"
+    # Add a newline if .env exists and does not end with one
+    if [[ -f "${ENV_FILE}" ]] && [[ $(tail -c1 "${ENV_FILE}") != "" ]]; then
+      echo >> "${ENV_FILE}"
+    fi
+    echo "${SOCKET_MODE_VAR}=${existing}" >> "${ENV_FILE}"
+    echo "Initialized ${SOCKET_MODE_VAR}=${existing} in ${ENV_FILE}"
+  fi
+  SOCKET_MODE="${existing}"
+  export SOCKET_MODE
+}
+
 generate_manifest() {
   local host="$1"
   echo "Generating app_manifest.json for host: ${host}"
@@ -53,8 +72,26 @@ generate_manifest() {
     echo "Template file not found: ${TEMPLATE_FILE}"
     exit 1
   fi
+  # First apply HOST-PLACEHOLDER substitution
   sed "s|HOST-PLACEHOLDER|${host}|g" "${TEMPLATE_FILE}" > app_manifest.json
-  echo "Generated app_manifest.json with URL: ${host}"
+
+  if [[ "${SOCKET_MODE}" == "true" ]]; then
+    # In socket mode, remove slash command URLs and enable socket_mode_enabled.
+    # This relies on the current formatting of app_manifest.template.json.
+    tmp_file="app_manifest.tmp.json"
+
+    # Remove all "url" lines from the slash_commands entries.
+    # These lines look like: "url": "https://...",
+    sed '/"url": "https:\/\//d' app_manifest.json > "${tmp_file}"
+
+    # Flip socket_mode_enabled to true.
+    sed 's/"socket_mode_enabled": false/"socket_mode_enabled": true/' "${tmp_file}" > app_manifest.json
+
+    rm -f "${tmp_file}"
+    echo "Generated app_manifest.json for SOCKET_MODE (no slash command URLs, socket_mode_enabled=true)"
+  else
+    echo "Generated app_manifest.json with URL: ${host}"
+  fi
 }
 
 start_lt() {
@@ -118,29 +155,56 @@ trap 'STOPPING=true; cleanup; exit 0' SIGINT SIGTERM
 # Always cleanup on script exit as a safety net
 trap cleanup EXIT
 
-# Initial start
-start_lt
-start_app
+load_socket_mode
 
-# Supervision loop: restart whichever process exits; regenerate manifest if URL changes
-while true; do
-  # Wait for any child to exit
-  if ! wait -n "${LT_PID}" "${APP_PID}"; then
-    : # ignore child exit status; we'll restart below
-  fi
+if [[ "${SOCKET_MODE}" == "true" ]]; then
+  echo "SOCKET_MODE=true; skipping localtunnel startup."
+  # In socket mode, regenerate manifest once (no slash command URLs, socket_mode_enabled=true).
+  # Use localhost since no external tunnel is required.
+  generate_manifest "localhost:3000"
 
-  # If we're stopping, break out without restarting
-  if [[ "$STOPPING" == true ]]; then
-    break
-  fi
+  # Start only the app and supervise it
+  start_app
 
-  # Restart whichever died
-  if ! kill -0 "${LT_PID}" 2>/dev/null; then
-    echo "localtunnel exited; restarting..."
-    start_lt
-  fi
-  if ! kill -0 "${APP_PID}" 2>/dev/null; then
-    echo "App process exited; restarting..."
-    start_app
-  fi
-done
+  while true; do
+    if ! wait -n "${APP_PID}"; then
+      :
+    fi
+
+    if [[ "$STOPPING" == true ]]; then
+      break
+    fi
+
+    if ! kill -0 "${APP_PID}" 2>/dev/null; then
+      echo "App process exited; restarting..."
+      start_app
+    fi
+  done
+else
+  # Initial start with localtunnel
+  start_lt
+  start_app
+
+  # Supervision loop: restart whichever process exits; regenerate manifest if URL changes
+  while true; do
+    # Wait for any child to exit
+    if ! wait -n "${LT_PID}" "${APP_PID}"; then
+      : # ignore child exit status; we'll restart below
+    fi
+
+    # If we're stopping, break out without restarting
+    if [[ "$STOPPING" == true ]]; then
+      break
+    fi
+
+    # Restart whichever died
+    if ! kill -0 "${LT_PID}" 2>/dev/null; then
+      echo "localtunnel exited; restarting..."
+      start_lt
+    fi
+    if ! kill -0 "${APP_PID}" 2>/dev/null; then
+      echo "App process exited; restarting..."
+      start_app
+    fi
+  done
+fi
