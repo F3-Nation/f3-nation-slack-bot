@@ -8,6 +8,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from features.calendar import ao
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import get_location_display_name, safe_convert, safe_get, trigger_map_revalidation
 from utilities.slack import actions, orm
@@ -17,7 +18,7 @@ def manage_locations(body: dict, client: WebClient, logger: Logger, context: dic
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "add":
-        build_location_add_form(body, client, logger, context, region_record)
+        build_location_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
         build_location_list_form(body, client, logger, context, region_record)
 
@@ -29,7 +30,12 @@ def build_location_add_form(
     context: dict,
     region_record: SlackSettings,
     edit_location: Location = None,
+    loading_form: bool = False,
+    update_view_id: str | None = None,
 ):
+    if loading_form and not update_view_id:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+
     form = copy.deepcopy(LOCATION_FORM)
     action_id = safe_get(body, "actions", 0, "action_id")
 
@@ -68,14 +74,23 @@ def build_location_add_form(
     if edit_location:
         parent_metadata["location_id"] = edit_location.id
 
-    form.post_modal(
-        client=client,
-        trigger_id=safe_get(body, "trigger_id"),
-        title_text=title_text,
-        callback_id=actions.ADD_LOCATION_CALLBACK_ID,
-        new_or_add="add",
-        parent_metadata=parent_metadata,
-    )
+    if update_view_id:
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            title_text=title_text,
+            callback_id=actions.ADD_LOCATION_CALLBACK_ID,
+            parent_metadata=parent_metadata,
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text=title_text,
+            callback_id=actions.ADD_LOCATION_CALLBACK_ID,
+            new_or_add="add",
+            parent_metadata=parent_metadata,
+        )
 
 
 def handle_location_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -185,7 +200,15 @@ def handle_location_edit_delete(
 
     if action == "Edit":
         location = DbManager.get(Location, location_id)
-        build_location_add_form(body, client, logger, context, region_record, location)
+        build_location_add_form(
+            body,
+            client,
+            logger,
+            context,
+            region_record,
+            edit_location=location,
+            loading_form=True,
+        )
     elif action == "Delete":
         DbManager.update_record(Location, location_id, fields={"is_active": False})
         trigger_map_revalidation()

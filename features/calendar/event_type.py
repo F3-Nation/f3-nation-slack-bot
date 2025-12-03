@@ -7,6 +7,7 @@ from f3_data_models.models import Event_Category, EventType
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
@@ -16,7 +17,7 @@ def manage_event_types(body: dict, client: WebClient, logger: Logger, context: d
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "add":
-        build_event_type_form(body, client, logger, context, region_record)
+        build_event_type_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
         build_event_type_list_form(body, client, logger, context, region_record)
 
@@ -28,7 +29,13 @@ def build_event_type_form(
     context: dict,
     region_record: SlackSettings,
     edit_event_type: EventType = None,
+    loading_form: bool = False,
 ):
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+    else:
+        update_view_id = None
+
     form = copy.deepcopy(EVENT_TYPE_FORM)
 
     event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
@@ -78,14 +85,23 @@ def build_event_type_form(
     event_type_labels = [f" - {event_type.name}: {event_type.acronym}" for event_type in event_types_in_org]
     form.blocks[-1].label = "Event types in use:\n\n" + "\n".join(event_type_labels)
 
-    form.post_modal(
-        client=client,
-        trigger_id=safe_get(body, "trigger_id"),
-        title_text=title_text,
-        callback_id=actions.CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID,
-        new_or_add="add",
-        parent_metadata=metadata,
-    )
+    if update_view_id:
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            title_text=title_text,
+            callback_id=actions.CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID,
+            parent_metadata=metadata,
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text=title_text,
+            callback_id=actions.CALENDAR_ADD_EVENT_TYPE_CALLBACK_ID,
+            new_or_add="add",
+            parent_metadata=metadata,
+        )
 
 
 def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -182,7 +198,15 @@ def handle_event_type_edit_delete(
 
     if action == "Edit":
         event_type: EventType = DbManager.get(EventType, event_type_id)
-        build_event_type_form(body, client, logger, context, region_record, edit_event_type=event_type)
+        build_event_type_form(
+            body,
+            client,
+            logger,
+            context,
+            region_record,
+            edit_event_type=event_type,
+            loading_form=True,
+        )
     elif action == "Delete":
         DbManager.update_record(
             EventType,
