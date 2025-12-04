@@ -9,6 +9,7 @@ from f3_data_models.models import Event, EventInstance, EventType, Location, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     get_location_display_name,
@@ -24,7 +25,7 @@ def manage_aos(body: dict, client: WebClient, logger: Logger, context: dict, reg
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "add":
-        build_ao_add_form(body, client, logger, context, region_record)
+        build_ao_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
         build_ao_list_form(body, client, logger, context, region_record)
 
@@ -38,11 +39,15 @@ def build_ao_add_form(
     edit_ao: Org = None,
     update_view_id: str = None,
     update_metadata: dict = None,
+    loading_form: bool = False,
 ):
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+
     form = copy.deepcopy(AO_FORM)
 
     # Pull locations and event types for the region
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types])
     locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
     event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
 
@@ -82,13 +87,16 @@ def build_ao_add_form(
     else:
         title_text = "Add an AO"
 
-    if update_view_id:
+    if update_metadata:
         form.set_initial_values(update_metadata)
+
+    if update_view_id:
         form.update_modal(
             client=client,
             view_id=update_view_id,
             title_text=title_text,
             callback_id=actions.ADD_AO_CALLBACK_ID,
+            parent_metadata={"ao_id": edit_ao.id} if edit_ao else {},
         )
     else:
         form.post_modal(
@@ -185,8 +193,8 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        ao: Org = DbManager.get(Org, ao_id, joinedloads="all")
-        build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao)
+        ao: Org = DbManager.get(Org, ao_id)
+        build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao, loading_form=True)
     elif action == "Delete":
         DbManager.update_record(Org, ao_id, fields={"is_active": False})
         DbManager.update_records(Event, [Event.org_id == ao_id], fields={"is_active": False})
