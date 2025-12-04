@@ -193,7 +193,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        ao: Org = DbManager.get(Org, ao_id, joinedloads="all")
+        ao: Org = DbManager.get(Org, ao_id)
         build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao, loading_form=True)
     elif action == "Delete":
         DbManager.update_record(Org, ao_id, fields={"is_active": False})

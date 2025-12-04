@@ -42,7 +42,7 @@ class EventTagService:
         """
         Fetches the event tags associated with a specific organization.
         """
-        org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
+        org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
         org_event_tags = [tag for tag in org_record.event_tags if tag.specific_org_id == org_id]
         return org_event_tags
 
@@ -52,7 +52,7 @@ class EventTagService:
         Fetches global event tags that the organization has not yet added.
         """
         all_event_tags: List[EventTag] = DbManager.find_records(EventTag, [True])
-        org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
+        org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
         org_event_tag_ids = {e.id for e in org_record.event_tags}
         return [tag for tag in all_event_tags if tag.id not in org_event_tag_ids]
 
