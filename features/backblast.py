@@ -269,7 +269,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         aos: List[Org] = DbManager.find_records(
             Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
         )
-        region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+        region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.event_types])
         backblast_form.set_options(
             {
                 actions.BACKBLAST_AO: slack_orm.as_selector_options(

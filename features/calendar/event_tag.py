@@ -15,6 +15,7 @@ from slack_sdk.models.blocks.basic_components import PlainTextObject
 from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.web import WebClient
 
+from utilities.builders import add_loading_form
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
@@ -41,7 +42,7 @@ class EventTagService:
         """
         Fetches the event tags associated with a specific organization.
         """
-        org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
+        org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
         org_event_tags = [tag for tag in org_record.event_tags if tag.specific_org_id == org_id]
         return org_event_tags
 
@@ -51,7 +52,7 @@ class EventTagService:
         Fetches global event tags that the organization has not yet added.
         """
         all_event_tags: List[EventTag] = DbManager.find_records(EventTag, [True])
-        org_record: Org = DbManager.get(Org, org_id, joinedloads="all")
+        org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
         org_event_tag_ids = {e.id for e in org_record.event_tags}
         return [tag for tag in all_event_tags if tag.id not in org_event_tag_ids]
 
@@ -191,15 +192,15 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
     views = EventTagViews()
 
     if action == "add":
+        update_view_id = add_loading_form(body, client, new_or_add="add")
         available_tags = service.get_available_global_tags(region_record.org_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
         form = views.build_add_tag_modal(available_tags, org_tags)
-        form.post_modal(
+        form.update_modal(
             client=client,
-            trigger_id=safe_get(body, "trigger_id"),
+            view_id=update_view_id,
             title_text="Add an Event Tag",
             callback_id=CALENDAR_ADD_EVENT_TAG_CALLBACK_ID,
-            new_or_add="add",
         )
     elif action == "edit":
         org_tags = service.get_org_event_tags(region_record.org_id)
@@ -242,15 +243,15 @@ def handle_event_tag_edit_delete(
     views = EventTagViews()
 
     if action == "Edit":
+        update_view_id = add_loading_form(body, client, new_or_add="add")
         event_tag = DbManager.get(EventTag, event_tag_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
         form = views.build_edit_tag_modal(event_tag, org_tags)
-        form.post_modal(
+        form.update_modal(
             client=client,
-            trigger_id=safe_get(body, "trigger_id"),
+            view_id=update_view_id,
             title_text="Edit an Event Tag",
             callback_id=CALENDAR_ADD_EVENT_TAG_CALLBACK_ID,
-            new_or_add="add",
             parent_metadata={"edit_event_tag_id": event_tag.id},
         )
     elif action == "Delete":

@@ -101,7 +101,9 @@ def build_event_instance_add_form(
     aos: List[Org] = DbManager.find_records(
         Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
     )
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    region_org_record: Org = DbManager.get(
+        Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types, Org.event_tags]
+    )
     locations = [location for location in region_org_record.locations if location.is_active]
     location_records2 = DbManager.find_join_records2(
         Location,
@@ -428,7 +430,9 @@ def handle_event_instance_edit_delete(
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        event_instance: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+        event_instance: EventInstance = DbManager.get(
+            EventInstance, event_instance_id, joinedloads=[EventInstance.event_types, EventInstance.event_tags]
+        )  # noqa
         build_event_instance_add_form(
             body, client, logger, context, region_record, edit_event_instance=event_instance, loading_form=True
         )  # noqa

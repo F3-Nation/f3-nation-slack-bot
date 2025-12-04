@@ -89,14 +89,14 @@ def convert_events(
     events: List[EventInstance] = []
     for backblast in paxminer_backblasts:
         if type(backblast.bd_date) is str:
-            backblast.bd_date = date(2020, 1, 1)
+            backblast.bd_date = date(2010, 1, 1)
     for backblast in paxminer_backblasts:
         event = EventInstance(
             org_id=slack_org_dict.get(backblast.ao_id) or region_org_id,  # will return none if not found
             is_active=True,
             highlight=False,
-            start_date=backblast.bd_date if backblast.bd_date > date(2020, 1, 1) else date(2020, 1, 1),
-            end_date=backblast.bd_date if backblast.bd_date > date(2020, 1, 1) else date(2020, 1, 1),
+            start_date=backblast.bd_date if backblast.bd_date > date(2010, 1, 1) else date(2010, 1, 1),
+            end_date=backblast.bd_date if backblast.bd_date > date(2010, 1, 1) else date(2010, 1, 1),
             name=extract_name(backblast.backblast),
             pax_count=backblast.pax_count,
             fng_count=backblast.fng_count,

@@ -80,7 +80,9 @@ def build_series_add_form(
     aos: List[Org] = DbManager.find_records(
         Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
     )
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    region_org_record: Org = DbManager.get(
+        Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types, Org.event_tags]
+    )
     locations = [location for location in region_org_record.locations if location.is_active]
     location_records2 = DbManager.find_join_records2(
         Location,
