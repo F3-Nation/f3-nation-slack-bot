@@ -217,7 +217,7 @@ def build_config_slt_form(
     position_users = get_position_users(org_id, region_record.org_id, slack_team_id=region_record.team_id)
     aos: List[Org] = DbManager.find_records(
         cls=Org,
-        filters=[Org.parent_id == region_record.org_id],
+        filters=[Org.parent_id == region_record.org_id, Org.is_active],
     )
     level_options = [orm.SelectorOption(name="Region", value="0")]
     for a in aos:
