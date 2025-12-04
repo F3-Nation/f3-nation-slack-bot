@@ -922,7 +922,7 @@ version = "1.8.17"
 description = "An implementation of the Debug Adapter Protocol for Python"
 optional = false
 python-versions = ">=3.8"
-groups = ["main", "dev"]
+groups = ["dev"]
 files = [
     {file = "debugpy-1.8.17-cp310-cp310-macosx_15_0_x86_64.whl", hash = "sha256:c41d2ce8bbaddcc0009cc73f65318eedfa3dbc88a8298081deb05389f1ab5542"},
     {file = "debugpy-1.8.17-cp310-cp310-manylinux_2_34_x86_64.whl", hash = "sha256:1440fd514e1b815edd5861ca394786f90eb24960eb26d6f7200994333b1d79e3"},
@@ -1063,14 +1063,14 @@ tests = ["asttokens (>=2.1.0)", "coverage", "coverage-enable-subprocess", "ipyth
 
 [[package]]
 name = "f3-data-models"
-version = "0.8.1"
+version = "0.9.0"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 groups = ["main"]
 files = [
-    {file = "f3_data_models-0.8.1-py3-none-any.whl", hash = "sha256:2537c43768d2e191fa549326ef865748ded08b90f16adbf020f35b3bcc1bd825"},
-    {file = "f3_data_models-0.8.1.tar.gz", hash = "sha256:0d3efdeb8bb7c36a49f530e322edfaf30a3dd7ccc158cfa5bbe76b80ad369cfc"},
+    {file = "f3_data_models-0.9.0-py3-none-any.whl", hash = "sha256:14f3949ac7c797ab893a010068edd440a5cc40dadbf475140a0bbbf1eab5b689"},
+    {file = "f3_data_models-0.9.0.tar.gz", hash = "sha256:a9d5bede8a1be4506fbb497b3cd06b1e887d8594aa48e4252cd91fc2708d7d34"},
 ]
 
 [package.dependencies]
@@ -5366,4 +5366,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "753cfcaf1796beba16155b6b98fc09e378b83594cc37890f7a9f9b24d7eea380"
+content-hash = "1c36a662609492a06076ae35c90665889a9092529ad3828f7e14630f0ca66927"
