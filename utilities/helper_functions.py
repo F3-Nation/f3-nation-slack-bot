@@ -1,6 +1,7 @@
 import json
 import os
 import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from logging import Logger
 from typing import Any, Dict, List, Tuple
@@ -46,7 +47,22 @@ def get_location_display_name(location: Location) -> str:
         return "Unnamed Location"
 
 
-def trigger_map_revalidation():
+@dataclass
+class MapUpdateData:
+    eventId: int | None
+    locationId: int | None
+    orgId: int | None
+
+
+@dataclass
+class MapUpdate:
+    version: str
+    timestamp: str
+    action: str
+    data: MapUpdateData
+
+
+def trigger_map_revalidation(update_info: MapUpdate | None = None):
     try:
         response = requests.post(
             url=os.environ.get("MAP_REVALIDATION_URL"),
@@ -54,6 +70,7 @@ def trigger_map_revalidation():
                 "Content-Type": "application/json",
                 "x-api-key": os.environ.get("MAP_REVALIDATION_KEY"),
             },
+            data=json.dumps(update_info.__dict__) if update_info else None,
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:

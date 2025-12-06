@@ -1,6 +1,5 @@
 import copy
 import json
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from logging import Logger
 from typing import List
@@ -28,6 +27,8 @@ from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    MapUpdate,
+    MapUpdateData,
     current_date_cst,
     get_location_display_name,
     safe_convert,
@@ -289,21 +290,6 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
             create_events(records)
     trigger_map_revalidation()
-
-
-@dataclass
-class MapUpdateData:
-    eventId: int | None
-    locationId: int | None
-    orgId: int | None
-
-
-@dataclass
-class MapUpdate:
-    version: str
-    timestamp: str
-    action: str
-    data: MapUpdateData
 
 
 def update_from_map(request: Request) -> Response:
