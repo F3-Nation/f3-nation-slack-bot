@@ -12,6 +12,7 @@ from slack_sdk.web import WebClient
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    MapUpdateData,
     get_location_display_name,
     safe_convert,
     safe_get,
@@ -148,9 +149,13 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         if not logo_url:
             update_dict.pop("logo_url", None)
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
+        action = "map.updated"
+        orgId = metatdata["ao_id"]
     else:
-        DbManager.create_record(ao)
-    trigger_map_revalidation()
+        ao: Org = DbManager.create_record(ao)
+        action = "map.created"
+        orgId = ao.id
+    trigger_map_revalidation(action=action, map_update_data=MapUpdateData(orgId=orgId))
 
 
 def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -203,7 +208,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
             [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.datetime.now()],
             fields={"is_active": False},
         )
-        trigger_map_revalidation()
+        trigger_map_revalidation(action="map.deleted", map_update_data=MapUpdateData(orgId=ao_id))
 
 
 AO_FORM = orm.BlockView(
