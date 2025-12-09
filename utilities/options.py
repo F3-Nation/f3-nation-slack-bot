@@ -6,6 +6,7 @@ from slack_sdk import WebClient
 from sqlalchemy import and_
 
 from features import connect as connect_form
+from features import paxminer_mapping
 from features import user as user_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
@@ -40,7 +41,7 @@ def handle_request(
                 }
             )
         return options
-    elif action_id in [user_form.USER_FORM_HOME_REGION, connect_form.SELECT_REGION]:
+    elif action_id in [user_form.USER_FORM_HOME_REGION, connect_form.SELECT_REGION, paxminer_mapping.PAXMINER_REGION]:
         # Handle the home region selection
         org_records = DbManager.find_records(
             cls=Org,

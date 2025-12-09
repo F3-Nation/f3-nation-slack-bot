@@ -73,6 +73,7 @@ PREBLAST_OP = "preblast_original_poster"
 PREBLAST_CALLBACK_ID_LEGACY = "preblast-id-legacy"
 PREBLAST_EDIT_CALLBACK_ID_LEGACY = "preblast-edit-id-legacy"
 PREBLAST_EDIT_BUTTON_LEGACY = "edit-preblast-legacy"
+PAXMINER_MAPPING = "paxminer_mapping"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"

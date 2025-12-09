@@ -233,6 +233,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":bar_chart: Custom Field Settings",
                     action=actions.CONFIG_CUSTOM_FIELDS,
                 ),
+                orm.ButtonElement(
+                    label=":computer: Paxminer Mapping",
+                    action=actions.PAXMINER_MAPPING,
+                ),
             ],
         ),
     ]

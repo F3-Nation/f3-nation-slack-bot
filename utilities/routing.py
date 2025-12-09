@@ -7,6 +7,7 @@ from features import (
     custom_fields,
     db_admin,
     help,
+    paxminer_mapping,
     preblast,
     preblast_legacy,
     region,
@@ -79,6 +80,7 @@ VIEW_MAPPER = {
     actions.HOME_ASSIGN_Q_CALLBACK_ID: (home.handle_assign_q_form, False),
     actions.DB_ADMIN_CALLBACK_ID: (db_admin.handle_send_admin_announcement, False),
     reporting.REPORTING_CALLBACK_ID: (reporting.handle_reporting_edit, False),
+    paxminer_mapping.PAXMINER_MAPPING_ID: (paxminer_mapping.handle_paxminer_mapping_post, False),
 }
 
 ACTION_MAPPER = {
@@ -174,6 +176,9 @@ ACTION_MAPPER = {
     actions.CONFIG_HELP_MENU: (help.build_help_menu, False),
     actions.CALENDAR_MANAGE_SERIES_AO: (series.build_series_list_form, False),
     actions.SETTINGS_BUTTON: (config.build_config_form, True),
+    actions.PAXMINER_MAPPING: (paxminer_mapping.build_paxminer_mapping_form, False),
+    paxminer_mapping.PAXMINER_ORIGINATING_CHANNEL: (paxminer_mapping.build_paxminer_mapping_form, False),
+    paxminer_mapping.PAXMINER_REGION: (paxminer_mapping.build_paxminer_mapping_form, False),
 }
 
 ACTION_PREFIXES = [
@@ -202,6 +207,7 @@ EVENT_MAPPER = {
 OPTIONS_MAPPER = {
     actions.USER_OPTION_LOAD: (options.handle_request, False),
     user.USER_FORM_HOME_REGION: (options.handle_request, False),
+    paxminer_mapping.PAXMINER_REGION: (options.handle_request, False),
     connect.SELECT_REGION: (options.handle_request, False),
 }
 
