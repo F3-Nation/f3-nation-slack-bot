@@ -1,15 +1,18 @@
+import copy
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Org, Org_Type
-from f3_data_models.utils import DbManager
+from f3_data_models.models import EventInstance, EventType_x_EventInstance, Org, Org_Type
+from f3_data_models.utils import DbManager, get_session
 from slack_sdk.models.blocks import (
     DividerBlock,
     InputBlock,
+    SectionBlock,
 )
 from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.blocks.block_elements import ChannelSelectElement, ExternalDataSelectElement, SelectElement
 from slack_sdk.web import WebClient
+from sqlalchemy import func
 
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
@@ -21,6 +24,26 @@ PAXMINER_EVENT_TYPE = "paxminer-event-type"
 PAXMINER_AO = "paxminer-assign-ao"
 PAXMINER_MAPPING_ID = "paxminer-mapping-id"
 PAXMINER_REGION = "paxminer-assign-region"
+PAXMINER_CURRENT_MAPPING = "paxminer-current-mapping"
+
+
+def get_paxminer_mapping_text(channel_id: str) -> str:
+    session = get_session()
+    print(channel_id)
+    query = (
+        session.query(Org.name, func.count(EventInstance.id))
+        .join(EventInstance, EventInstance.org_id == Org.id)
+        .filter(EventInstance.meta.op("->>")("og_channel") == channel_id)
+        .group_by(Org.name)
+        .order_by(func.count(EventInstance.id).desc())
+    )
+    results = query.all()
+    if not results:
+        return "No paxminer import found from this channel."
+    output = "*Current Mapping:*\n"
+    mapping_lines = [f"{count} Events -> *{org_name}*" for org_name, count in results]
+    session.close()
+    return output + "\n".join(mapping_lines)
 
 
 def build_paxminer_mapping_form(
@@ -28,16 +51,24 @@ def build_paxminer_mapping_form(
 ):
     if safe_get(body, "actions", 0, "action_id") in [PAXMINER_ORIGINATING_CHANNEL, PAXMINER_REGION]:
         initial_channel = safe_get(
-            body, "state", "values", PAXMINER_ORIGINATING_CHANNEL, PAXMINER_ORIGINATING_CHANNEL, "selected_channel"
+            body,
+            "view",
+            "state",
+            "values",
+            PAXMINER_ORIGINATING_CHANNEL,
+            PAXMINER_ORIGINATING_CHANNEL,
+            "selected_channel",
         )
+        print(f"Initial Channel: {initial_channel}")
         initial_org = safe_convert(
-            safe_get(body, "state", "values", PAXMINER_REGION, PAXMINER_REGION, "selected_option", "value"), int
+            safe_get(body, "view", "state", "values", PAXMINER_REGION, PAXMINER_REGION, "selected_option", "value"), int
         )
 
         org_record = DbManager.get(Org, (initial_org or region_record.org_id), joinedloads=[Org.event_types])
         event_type_options = [Option(label=et.name, value=str(et.id)) for et in org_record.event_types]
         intial_event_type = next(et for et in event_type_options if et.label == "Bootcamp")
-        initial_region = Option(label=org_record.name, value=str(org_record.id))
+        initial_region = {"text": org_record.name, "value": str(org_record.id)}
+        current_mapping_text = get_paxminer_mapping_text(initial_channel)
         ao_records: List[Org] = DbManager.find_records(
             Org,
             [
@@ -46,59 +77,28 @@ def build_paxminer_mapping_form(
                 Org.is_active.is_(True),
             ],
         )
-        added_blocks = [
-            DividerBlock(),
-            InputBlock(
-                label="Assign to Region",
-                block_id=PAXMINER_REGION,
-                element=ExternalDataSelectElement(
-                    action_id=PAXMINER_REGION,
-                    placeholder="Select a region...",
-                    initial_option=initial_region,
-                ),
-                optional=False,
-                dispatch_action=True,
-            ),
-            InputBlock(
-                label="Assign to AO",
-                block_id=PAXMINER_AO,
-                element=SelectElement(
-                    action_id=PAXMINER_AO,
-                    options=[Option(label=ao.name, value=str(ao.id)) for ao in ao_records],
-                ),
-                optional=False,
-            ),
-            InputBlock(
-                label="Assign to Event Type",
-                block_id=PAXMINER_EVENT_TYPE,
-                element=SelectElement(
-                    action_id=PAXMINER_EVENT_TYPE,
-                    options=event_type_options,
-                    initial_option=intial_event_type,
-                ),
-                optional=False,
-            ),
-        ]
+        form = copy.deepcopy(PAXMINER_MAPPING_FORM)
+        form.set_options(
+            {
+                PAXMINER_AO: [Option(label=ao.name, value=str(ao.id)) for ao in ao_records],
+                PAXMINER_EVENT_TYPE: event_type_options,
+            }
+        )
+        form.set_initial_values(
+            {
+                PAXMINER_REGION: initial_region,
+                PAXMINER_EVENT_TYPE: intial_event_type,
+                PAXMINER_ORIGINATING_CHANNEL: initial_channel,
+                PAXMINER_CURRENT_MAPPING: current_mapping_text,
+            }
+        )
         update_view_id = safe_get(body, "view", "id")
     else:
+        form = copy.deepcopy(PAXMINER_MAPPING_FORM)
+        form.blocks = form.blocks[:1]  # only keep the channel select block
         initial_channel = None
-        added_blocks = []
         update_view_id = None
 
-    form = SdkBlockView(
-        blocks=[
-            InputBlock(
-                label="Originating Channel",
-                block_id=PAXMINER_ORIGINATING_CHANNEL,
-                element=ChannelSelectElement(
-                    action_id=PAXMINER_ORIGINATING_CHANNEL,
-                    initial_channel=initial_channel,
-                ),
-                dispatch_action=True,
-            ),
-            *added_blocks,
-        ],
-    )
     if update_view_id:
         form.update_modal(
             client=client,
@@ -117,7 +117,63 @@ def build_paxminer_mapping_form(
         )
 
 
+PAXMINER_MAPPING_FORM = SdkBlockView(
+    blocks=[
+        InputBlock(
+            label="Originating Channel",
+            block_id=PAXMINER_ORIGINATING_CHANNEL,
+            element=ChannelSelectElement(
+                action_id=PAXMINER_ORIGINATING_CHANNEL,
+            ),
+            dispatch_action=True,
+        ),
+        DividerBlock(),
+        SectionBlock(
+            block_id=PAXMINER_CURRENT_MAPPING,
+            text="Current mapping",
+        ),  # Placeholder for current mapping text
+        InputBlock(
+            label="Assign to Region",
+            block_id=PAXMINER_REGION,
+            element=ExternalDataSelectElement(
+                action_id=PAXMINER_REGION,
+                placeholder="Select a region...",
+            ),
+            optional=False,
+            dispatch_action=True,
+        ),
+        InputBlock(
+            label="Assign to AO",
+            block_id=PAXMINER_AO,
+            element=SelectElement(
+                action_id=PAXMINER_AO,
+            ),
+            optional=False,
+        ),
+        InputBlock(
+            label="Assign to Event Type",
+            block_id=PAXMINER_EVENT_TYPE,
+            element=SelectElement(
+                action_id=PAXMINER_EVENT_TYPE,
+            ),
+            optional=False,
+        ),
+    ]
+)
+
+
 def handle_paxminer_mapping_post(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    pass
+    data = PAXMINER_MAPPING_FORM.get_selected_values(body)
+    print(data)
+    DbManager.update_records(
+        EventInstance,
+        filters=[EventInstance.meta.op("->>")("og_channel") == data[PAXMINER_ORIGINATING_CHANNEL]],
+        fields={
+            EventInstance.org_id: int(data[PAXMINER_AO]),
+            EventInstance.event_instances_x_event_types: [
+                EventType_x_EventInstance(event_type_id=int(data[PAXMINER_EVENT_TYPE]))
+            ],
+        },
+    )
