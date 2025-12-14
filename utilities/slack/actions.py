@@ -74,6 +74,7 @@ PREBLAST_CALLBACK_ID_LEGACY = "preblast-id-legacy"
 PREBLAST_EDIT_CALLBACK_ID_LEGACY = "preblast-edit-id-legacy"
 PREBLAST_EDIT_BUTTON_LEGACY = "edit-preblast-legacy"
 SUBMIT_MODAL_EXTERNAL_ID = "submit_modal"
+DEBUG_FORM_EXTERNAL_ID = "debug_form"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"

@@ -18,7 +18,7 @@ from slack_sdk.web import WebClient
 import scripts
 from features import strava
 from features.calendar import series
-from utilities.builders import add_loading_form, send_error_response, submit_modal, update_submit_modal
+from utilities.builders import add_debug_form, add_loading_form, send_error_response, submit_modal, update_submit_modal
 from utilities.constants import ENABLE_DEBUGGING, LOCAL_DEVELOPMENT, SOCKET_MODE
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -96,7 +96,11 @@ if not LOCAL_DEVELOPMENT:
 def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ack, context: dict):
     # acknowledge all requests immediately
     # the submit_modal() function only applies to view_submission events
-    ack(**submit_modal())
+    request_type, request_id = get_request_type(body)
+    if request_type == "view_submission":
+        ack(**submit_modal())
+    else:
+        ack()
     # if ENABLE_DEBUGGING:
     #     body[DEBUG_ID] = add_debug_form(body=body, client=client) # TODO: add form that pops up right away
     if LOCAL_DEVELOPMENT:
@@ -112,12 +116,13 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
         logger.warning(f"Error getting region record: {exc}")
         region_record = SlackSettings(team_id=safe_get(body, "team_id") or safe_get(body, "team", "id"))
 
-    request_type, request_id = get_request_type(body)
     lookup: Tuple[Callable, bool] = safe_get(safe_get(MAIN_MAPPER, request_type), request_id)
 
     if lookup:
         run_function, add_loading = lookup
-        if add_loading:
+        if ENABLE_DEBUGGING and request_type != "view_submission":
+            body[LOADING_ID] = add_debug_form(body=body, client=client)
+        elif add_loading:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
         try:
             # time the call

@@ -6,7 +6,9 @@ from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.views import View
 
 # slack_sdk.models.composition_objects.Option
+from utilities.constants import ENABLE_DEBUGGING
 from utilities.helper_functions import safe_get
+from utilities.slack import actions
 
 
 def as_selector_options(names: List[str], values: List[str] = None, descriptions: List[str] = None) -> List[Option]:
@@ -199,7 +201,10 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        if new_or_add == "new":
+        if ENABLE_DEBUGGING:
+            view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
+            return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
+        elif new_or_add == "new":
             return client.views_open(trigger_id=trigger_id, view=view.to_dict())
         elif new_or_add == "add":
             return client.views_push(trigger_id=trigger_id, view=view.to_dict())
@@ -229,7 +234,10 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        if external_id:
+        if ENABLE_DEBUGGING:
+            view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
+            return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
+        elif external_id:
             return client.views_update(external_id=external_id, view=view.to_dict())
         else:
             return client.views_update(view_id=view_id, view=view.to_dict())
