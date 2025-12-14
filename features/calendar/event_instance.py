@@ -49,11 +49,15 @@ CALENDAR_ADD_EVENT_INSTANCE_DOW = "calendar_add_event_instance_dow"
 CALENDAR_ADD_EVENT_AO = "calendar_add_event_ao"
 CALENDAR_ADD_EVENT_INSTANCE_FREQUENCY = "calendar_add_event_instance_frequency"
 CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION = "calendar_add_event_instance_description"
+CALENDAR_ADD_EVENT_INSTANCE_OPTIONS = "calendar_add_event_instance_options"
 ADD_EVENT_INSTANCE_CALLBACK_ID = "add_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE = "calendar_manage_event_instance"
 EDIT_DELETE_EVENT_INSTANCE_CALLBACK_ID = "edit_delete_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE_AO = "calendar_manage_event_instance_ao"
 CALENDAR_MANAGE_EVENT_INSTANCE_DATE = "calendar_manage_event_instance_date"
+
+
+META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
 
 
 def manage_event_instances(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -161,8 +165,19 @@ def build_event_instance_add_form(
             CALENDAR_ADD_EVENT_INSTANCE_END_TIME: safe_convert(
                 edit_event_instance.end_time, lambda t: t[:2] + ":" + t[2:]
             ),
-            CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT: ["True"] if edit_event_instance.highlight else [],
         }
+
+        options = []
+        if safe_get(edit_event_instance, "is_private"):
+            options.append("private")
+        if safe_get(edit_event_instance, "meta") and safe_get(
+            edit_event_instance.meta, META_DO_NOT_SEND_AUTO_PREBLASTS
+        ):
+            options.append("no_auto_preblasts")
+        if safe_get(edit_event_instance, "highlight"):
+            options.append("highlight")
+        if options:
+            initial_values[CALENDAR_ADD_EVENT_INSTANCE_OPTIONS] = options
         if edit_event_instance.event_tags:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [
                 str(edit_event_instance.event_tags[0].id)
@@ -224,6 +239,22 @@ def handle_event_instance_add(
         )
     form_data = form.get_selected_values(body)
 
+    selected_options = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_OPTIONS) or []
+    is_private = "private" in selected_options
+    do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
+    highlight = "highlight" in selected_options
+
+    if safe_get(metadata, "event_instance_id"):
+        existing_event_instance: EventInstance = DbManager.get(EventInstance, metadata["event_instance_id"])
+        merged_meta = dict(safe_get(existing_event_instance, "meta") or {})
+    else:
+        merged_meta = {}
+
+    if do_not_send_auto_preblasts:
+        merged_meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
+    else:
+        merged_meta.pop(META_DO_NOT_SEND_AUTO_PREBLASTS, None)
+
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME):
         end_time: str = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME).replace(":", "")
     else:
@@ -274,7 +305,9 @@ def handle_event_instance_add(
         ),
         end_time=end_time,
         is_active=True,
-        highlight=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT) == ["True"],
+        is_private=is_private,
+        meta=merged_meta,
+        highlight=highlight,
         preblast_rich=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
     )
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST):
@@ -496,12 +529,29 @@ INSTANCE_FORM = orm.BlockView(
             hint="If left blank, will default to the AO name + event type.",
         ),
         orm.InputBlock(
-            label="Highlight on Special Events Page?",
-            action=CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT,
+            label="Options",
+            action=CALENDAR_ADD_EVENT_INSTANCE_OPTIONS,
             element=orm.CheckboxInputElement(
-                options=orm.as_selector_options(names=["Yes"], values=["True"]),
+                options=orm.as_selector_options(
+                    names=[
+                        "Make event private",
+                        "Do not send auto-preblasts",
+                        "Highlight on Special Events List",
+                    ],
+                    values=[
+                        "private",
+                        "no_auto_preblasts",
+                        "highlight",
+                    ],
+                    descriptions=[
+                        "Hides the event from Maps and PAX Vault.",
+                        "Opts this event out of automated preblasts.",
+                        "Shown on the calendar channel view, if enabled.",
+                    ],
+                ),
             ),
-            hint="Primarily used for 2nd F events, convergences, etc.",
+            optional=True,
+            # hint="Highlight is primarily used for 2nd F events, convergences, etc.",
         ),
     ]
 )
