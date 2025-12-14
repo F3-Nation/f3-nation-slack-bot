@@ -94,6 +94,8 @@ if not LOCAL_DEVELOPMENT:
 
 
 def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ack, context: dict):
+    # acknowledge all requests immediately
+    # the submit_modal() function only applies to view_submission events
     ack(**submit_modal())
     # if ENABLE_DEBUGGING:
     #     body[DEBUG_ID] = add_debug_form(body=body, client=client) # TODO: add form that pops up right away
