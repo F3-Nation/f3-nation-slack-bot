@@ -101,8 +101,7 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
         ack(**submit_modal())
     else:
         ack()
-    # if ENABLE_DEBUGGING:
-    #     body[DEBUG_ID] = add_debug_form(body=body, client=client) # TODO: add form that pops up right away
+
     if LOCAL_DEVELOPMENT:
         logger.info(json.dumps(body, indent=4))
     else:
@@ -122,6 +121,7 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
         run_function, add_loading = lookup
         if ENABLE_DEBUGGING and request_type != "view_submission":
             body[LOADING_ID] = add_debug_form(body=body, client=client)
+            # NOTE: do not put debugging breakpoints above this line
         elif add_loading:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
         try:
