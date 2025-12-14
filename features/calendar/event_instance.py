@@ -544,7 +544,7 @@ INSTANCE_FORM = orm.BlockView(
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides the event from Maps and PAX Vault.",
+                        "Hides the upcoming event from Maps and PAX Vault.",
                         "Opts this event out of automated preblasts.",
                         "Typically used for 2nd F events, convergences, etc.",
                     ],
