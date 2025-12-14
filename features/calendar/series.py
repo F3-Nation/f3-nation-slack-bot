@@ -759,19 +759,23 @@ SERIES_FORM = orm.BlockView(
             element=orm.CheckboxInputElement(
                 options=orm.as_selector_options(
                     names=[
-                        "Make event private (does not show up on maps)",
+                        "Make event private",
                         "Do not send auto-preblasts",
-                        "Highlight on Special Events Page?",
+                        "Highlight on Special Events List",
                     ],
                     values=[
                         "private",
                         "no_auto_preblasts",
                         "highlight",
                     ],
+                    descriptions=[
+                        "Hides the event from Maps and PAX Vault.",
+                        "Opts this event out of automated preblasts.",
+                        "Typically used for 2nd F events, convergences, etc.",
+                    ],
                 ),
             ),
             optional=True,
-            hint="Highlight is primarily used for 2nd F events, convergences, etc.",
         ),
     ]
 )

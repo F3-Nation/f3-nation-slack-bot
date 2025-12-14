@@ -546,12 +546,11 @@ INSTANCE_FORM = orm.BlockView(
                     descriptions=[
                         "Hides the event from Maps and PAX Vault.",
                         "Opts this event out of automated preblasts.",
-                        "Shown on the calendar channel view, if enabled.",
+                        "Typically used for 2nd F events, convergences, etc.",
                     ],
                 ),
             ),
             optional=True,
-            # hint="Highlight is primarily used for 2nd F events, convergences, etc.",
         ),
     ]
 )
