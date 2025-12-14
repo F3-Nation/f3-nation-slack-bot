@@ -10,14 +10,15 @@ import functions_framework
 from dotenv import load_dotenv
 from flask import Request, Response
 from google.cloud.logging_v2.handlers import StructuredLogHandler, setup_logging
-from slack_bolt import App
+from slack_bolt import Ack, App
 from slack_bolt.adapter.google_cloud_functions import SlackRequestHandler
 from slack_bolt.adapter.socket_mode import SocketModeHandler
+from slack_sdk.web import WebClient
 
 import scripts
 from features import strava
 from features.calendar import series
-from utilities.builders import add_loading_form, send_error_response
+from utilities.builders import add_loading_form, send_error_response, submit_modal, update_submit_modal
 from utilities.constants import ENABLE_DEBUGGING, LOCAL_DEVELOPMENT, SOCKET_MODE
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -92,8 +93,8 @@ if not LOCAL_DEVELOPMENT:
             return Response(f"Invalid path: {request.path}", status=404)
 
 
-def main_response(body, logger: logging.Logger, client, ack, context):
-    # ack()
+def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ack, context: dict):
+    ack(**submit_modal())
     # if ENABLE_DEBUGGING:
     #     body[DEBUG_ID] = add_debug_form(body=body, client=client) # TODO: add form that pops up right away
     if LOCAL_DEVELOPMENT:
@@ -114,7 +115,7 @@ def main_response(body, logger: logging.Logger, client, ack, context):
 
     if lookup:
         run_function, add_loading = lookup
-        if add_loading and not ENABLE_DEBUGGING:
+        if add_loading:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
         try:
             # time the call
@@ -128,6 +129,10 @@ def main_response(body, logger: logging.Logger, client, ack, context):
             )
             if resp and request_type == "block_suggestion":
                 ack(options=resp)
+            elif request_type == "view_submission":
+                update_submit_modal(
+                    client=client, logger=logger, text="Your data was saved successfully!"
+                )  # TODO: handle errors
             else:
                 ack()
             end_time = time.time()

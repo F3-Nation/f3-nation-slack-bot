@@ -73,6 +73,7 @@ PREBLAST_OP = "preblast_original_poster"
 PREBLAST_CALLBACK_ID_LEGACY = "preblast-id-legacy"
 PREBLAST_EDIT_CALLBACK_ID_LEGACY = "preblast-edit-id-legacy"
 PREBLAST_EDIT_BUTTON_LEGACY = "edit-preblast-legacy"
+SUBMIT_MODAL_EXTERNAL_ID = "submit_modal"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"

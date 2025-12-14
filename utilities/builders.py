@@ -1,15 +1,84 @@
 import copy
 import time
 from logging import Logger
+from typing import Any, Dict
 
+from slack_sdk.models.blocks import (
+    ContextBlock,
+    DividerBlock,
+    SectionBlock,
+)
+from slack_sdk.models.blocks.basic_components import PlainTextObject
+from slack_sdk.models.views import View
 from slack_sdk.web import WebClient
 
 from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_get
-from utilities.slack import actions, forms
+from utilities.slack import actions, forms, sdk_orm
 
 # from pymysql.err import ProgrammingError
+
+
+def submit_modal() -> Dict[str, Any]:
+    return {
+        "response_action": "update",
+        "view": View(
+            type="modal",
+            title="Submitting...",
+            external_id=actions.SUBMIT_MODAL_EXTERNAL_ID,
+            blocks=[
+                SectionBlock(
+                    text=PlainTextObject(text="Submitting your form, please wait... :hourglass_flowing_sand:")
+                ),
+                DividerBlock(),
+                ContextBlock(
+                    elements=[
+                        PlainTextObject(
+                            text="If this takes longer than 10 seconds, please check back later or contact support."
+                        )
+                    ]
+                ),
+            ],
+        ),
+    }
+
+
+def submit_modal_success() -> Dict[str, Any]:
+    return {
+        "response_action": "update",
+        "view": View(
+            type="modal",
+            title="Submitting...",
+            external_id=actions.SUBMIT_MODAL_EXTERNAL_ID,
+            blocks=[
+                SectionBlock(
+                    text=PlainTextObject(
+                        text=":white_check_mark: Your data was saved successfully! You can close this form now."
+                    )  # noqa: E501
+                ),
+            ],
+        ),
+    }
+
+
+def update_submit_modal(client: WebClient, logger: Logger, text: str) -> Dict[str, Any]:
+    form = sdk_orm.SdkBlockView(
+        blocks=[
+            SectionBlock(text=f":white_check_mark: {text} You can close this form now."),
+        ]
+    )
+    try:
+        form.update_modal(
+            client=client,
+            title_text="Success!",
+            submit_button_text="None",
+            external_id=actions.SUBMIT_MODAL_EXTERNAL_ID,
+            callback_id="submit_form_success",
+            view_id="not_used",
+        )
+    except Exception as e:
+        logger.error(f"Failed to update submit modal: {e}")
 
 
 def add_loading_form(body: dict, client: WebClient, new_or_add: str = "new") -> str:

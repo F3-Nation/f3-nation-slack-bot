@@ -214,6 +214,7 @@ class SdkBlockView:
         parent_metadata: dict = None,
         close_button_text: str = "Close",
         notify_on_close: bool = False,
+        external_id: str = None,
     ):
         """Updates an existing modal view."""
         view = View(
@@ -228,4 +229,7 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        return client.views_update(view_id=view_id, view=view.to_dict())
+        if external_id:
+            return client.views_update(external_id=external_id, view=view.to_dict())
+        else:
+            return client.views_update(view_id=view_id, view=view.to_dict())
