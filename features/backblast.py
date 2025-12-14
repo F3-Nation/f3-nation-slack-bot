@@ -352,14 +352,6 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
 
 
 def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    forms.SUBMIT_FORM.update_modal(
-        client=client,
-        view_id=safe_get(body, "view", "id"),
-        callback_id="submit_form_waiting",
-        title_text="Submitting Backblast",
-        submit_button_text="None",
-    )
-
     create_or_edit = "create" if safe_get(body, "view", "callback_id") == actions.BACKBLAST_CALLBACK_ID else "edit"
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
@@ -685,13 +677,11 @@ COUNT: {count}
     ]
     DbManager.create_records(attendance_records)
 
-    forms.SUBMIT_FORM_SUCCESS.update_modal(
-        client=client,
-        view_id=safe_get(body, "view", "id"),
-        callback_id="submit_form_success",
-        title_text="Backblast Submitted",
-        submit_button_text="None",
-    )
+    # builders.update_submit_modal(
+    #     client=client,
+    #     logger=logger,
+    #     text="Your backblast has been saved and posted successfully!",
+    # )
 
 
 def handle_backblast_edit_button(

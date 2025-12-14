@@ -5,7 +5,9 @@ from typing import Any, Dict, List
 
 from slack_sdk.web import WebClient
 
+from utilities.constants import ENABLE_DEBUGGING
 from utilities.helper_functions import safe_get
+from utilities.slack import actions
 
 
 @dataclass
@@ -886,7 +888,10 @@ class BlockView:
         if submit_button_text != "None":  # TODO: would prefer this to use None instead of "None"
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
-        if new_or_add == "new":
+        if ENABLE_DEBUGGING:
+            view["external_id"] = actions.DEBUG_FORM_EXTERNAL_ID
+            res = client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view)
+        elif new_or_add == "new":
             res = client.views_open(trigger_id=trigger_id, view=view)
         elif new_or_add == "add":
             res = client.views_push(trigger_id=trigger_id, view=view)
@@ -895,7 +900,7 @@ class BlockView:
 
     def update_modal(
         self,
-        client: Any,
+        client: WebClient,
         view_id: str,
         title_text: str,
         callback_id: str,
@@ -919,7 +924,11 @@ class BlockView:
         if submit_button_text != "None":
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
-        client.views_update(view_id=view_id, view=view)
+        if ENABLE_DEBUGGING:
+            view["external_id"] = actions.DEBUG_FORM_EXTERNAL_ID
+            client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view)
+        else:
+            client.views_update(view_id=view_id, view=view)
 
 
 def parse_welcome_template(template: str, user_id: str) -> List[BaseBlock]:
