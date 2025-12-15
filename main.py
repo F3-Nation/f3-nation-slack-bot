@@ -62,7 +62,7 @@ else:
     setup_logging(handler, log_level=logging_level)
 
 app = App(
-    process_before_response=not LOCAL_DEVELOPMENT,
+    process_before_response=False,
     oauth_settings=get_oauth_settings(),
 )
 
@@ -99,7 +99,7 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
     request_type, request_id = get_request_type(body)
     if request_type == "view_submission":
         ack(**submit_modal())
-    else:
+    elif request_type != "block_suggestion":
         ack()
 
     if LOCAL_DEVELOPMENT:
@@ -140,8 +140,6 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
                 update_submit_modal(
                     client=client, logger=logger, text="Your data was saved successfully!"
                 )  # TODO: handle errors
-            else:
-                ack()
             end_time = time.time()
             logger.info(f"Function {run_function.__name__} took {end_time - start_time:.2f} seconds to run.")
         except Exception as exc:
