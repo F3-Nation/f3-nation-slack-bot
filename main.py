@@ -62,7 +62,7 @@ else:
     setup_logging(handler, log_level=logging_level)
 
 app = App(
-    process_before_response=False,
+    process_before_response=not LOCAL_DEVELOPMENT,
     oauth_settings=get_oauth_settings(),
 )
 
@@ -153,15 +153,8 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
         )
 
 
-if LOCAL_DEVELOPMENT:
-    ARGS = [main_response]
-    LAZY_KWARGS = {}
-else:
-    ARGS = []
-    LAZY_KWARGS = {
-        "ack": lambda ack: ack(),
-        "lazy": [main_response],
-    }
+ARGS = [main_response]
+LAZY_KWARGS = {}
 
 MATCH_ALL_PATTERN = re.compile(".*")
 app.action(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
