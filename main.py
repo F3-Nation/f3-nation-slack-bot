@@ -18,7 +18,7 @@ from slack_sdk.web import WebClient
 import scripts
 from features import strava
 from features.calendar import series
-from utilities.builders import add_debug_form, add_loading_form, send_error_response, submit_modal, update_submit_modal
+from utilities.builders import add_debug_form, add_loading_form, send_error_response
 from utilities.constants import ENABLE_DEBUGGING, LOCAL_DEVELOPMENT, SOCKET_MODE
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -97,9 +97,9 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
     # acknowledge all requests immediately
     # the submit_modal() function only applies to view_submission events
     request_type, request_id = get_request_type(body)
-    if request_type == "view_submission":
-        ack(**submit_modal())
-    elif request_type != "block_suggestion":
+    # if request_type == "view_submission":
+    #     ack(**submit_modal()) # leaving this in case we figure out how to make it work
+    if request_type != "block_suggestion":
         ack()
 
     if LOCAL_DEVELOPMENT:
@@ -136,10 +136,10 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
             )
             if resp and request_type == "block_suggestion":
                 ack(options=resp)
-            elif request_type == "view_submission":
-                update_submit_modal(
-                    client=client, logger=logger, text="Your data was saved successfully!"
-                )  # TODO: handle errors
+            # elif request_type == "view_submission":
+            #     update_submit_modal(
+            #         client=client, logger=logger, text="Your data was saved successfully!"
+            #     )  # TODO: handle errors
             end_time = time.time()
             logger.info(f"Function {run_function.__name__} took {end_time - start_time:.2f} seconds to run.")
         except Exception as exc:
