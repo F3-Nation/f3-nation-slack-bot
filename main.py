@@ -153,8 +153,15 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
         )
 
 
-ARGS = [main_response]
-LAZY_KWARGS = {}
+if LOCAL_DEVELOPMENT:
+    ARGS = [main_response]
+    LAZY_KWARGS = {}
+else:
+    ARGS = []
+    LAZY_KWARGS = {
+        "ack": lambda ack: ack(),
+        "lazy": [main_response],
+    }
 
 MATCH_ALL_PATTERN = re.compile(".*")
 app.action(MATCH_ALL_PATTERN)(*ARGS, **LAZY_KWARGS)
