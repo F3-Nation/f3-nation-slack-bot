@@ -34,7 +34,7 @@ from utilities.helper_functions import (
     safe_convert,
     safe_get,
 )
-from utilities.slack import actions, forms, orm
+from utilities.slack import actions, orm
 
 
 @dataclass
@@ -283,13 +283,13 @@ def handle_event_preblast_edit(
         or (safe_get(metadata, "preblast_ts") or "None") != "None"
     ):
         preblast_send = True
-        forms.SUBMIT_FORM.update_modal(
-            client=client,
-            view_id=safe_get(body, "view", "id"),
-            callback_id="submit_form_waiting",
-            title_text="Submitting Preblast",
-            submit_button_text="None",
-        )
+        # forms.SUBMIT_FORM.update_modal(
+        #     client=client,
+        #     view_id=safe_get(body, "view", "id"),
+        #     callback_id="submit_form_waiting",
+        #     title_text="Submitting Preblast",
+        #     submit_button_text="None",
+        # )
     else:
         preblast_send = False
 
@@ -350,13 +350,13 @@ def handle_event_preblast_edit(
             region_record,
             event_instance_id,
         )
-        forms.SUBMIT_FORM_SUCCESS.update_modal(
-            client=client,
-            view_id=safe_get(body, "view", "id"),
-            callback_id="submit_form_success",
-            title_text="Preblast Submitted",
-            submit_button_text="None",
-        )
+        # forms.SUBMIT_FORM_SUCCESS.update_modal(
+        #     client=client,
+        #     view_id=safe_get(body, "view", "id"),
+        #     callback_id="submit_form_success",
+        #     title_text="Preblast Submitted",
+        #     submit_button_text="None",
+        # )
 
     # elif form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Schedule 24 hours before event":
     #     pass  # schedule preblast
