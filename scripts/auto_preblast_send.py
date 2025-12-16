@@ -131,6 +131,10 @@ def send_automated_preblasts():
     )
 
     for preblast in preblast_list.items:
+        # Respect per-event opt-out
+        if safe_get((preblast.event.meta or {}), "do_not_send_auto_preblasts"):
+            continue
+
         automated_option = safe_get(preblast.slack_settings.__dict__, "automated_preblast_option") or "disable"
         automated_hour = safe_get(preblast.slack_settings.__dict__, "automated_preblast_hour_cst")
 

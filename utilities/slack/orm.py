@@ -706,10 +706,13 @@ class CheckboxInputElement(BaseElement):
         return j
 
     def __make_option(self, option: SelectorOption):
-        return {
+        option_dict = {
             "text": {"type": "plain_text", "text": option.name, "emoji": True},
             "value": option.value,
         }
+        if option.description:
+            option_dict["description"] = {"type": "plain_text", "text": option.description, "emoji": True}
+        return option_dict
 
 
 @dataclass
