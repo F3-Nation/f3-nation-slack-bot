@@ -769,12 +769,13 @@ SERIES_FORM = orm.BlockView(
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides the upcomingevent from Maps and PAX Vault.",
-                        "Opts this event out of automated preblasts.",
+                        "Hides series from Maps and PAX Vault.",
+                        "Opts this series out of automated preblasts.",
                         "Typically used for 2nd F events, convergences, etc.",
                     ],
                 ),
             ),
+            hint="If you want to exclude this series from stats, use the 'Off-The-Books' event tag.",
             optional=True,
         ),
     ]

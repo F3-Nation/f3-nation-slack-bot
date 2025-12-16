@@ -550,6 +550,7 @@ INSTANCE_FORM = orm.BlockView(
                     ],
                 ),
             ),
+            hint="If you want to exclude this event from stats, use the 'Off-The-Books' event tag.",
             optional=True,
         ),
     ]
