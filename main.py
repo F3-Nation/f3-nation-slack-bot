@@ -51,6 +51,8 @@ setup_debugger()
 
 load_dotenv()
 
+process_before_response = os.environ.get("PROCESS_BEFORE_RESPONSE", "false").lower() == "true"
+
 logging_level = logging.INFO
 if LOCAL_DEVELOPMENT:
     logger = logging.getLogger()
@@ -62,7 +64,7 @@ else:
     setup_logging(handler, log_level=logging_level)
 
 app = App(
-    process_before_response=not LOCAL_DEVELOPMENT,
+    process_before_response=process_before_response,
     oauth_settings=get_oauth_settings(),
 )
 
