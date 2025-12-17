@@ -349,6 +349,61 @@ def handle_send_admin_announcement(
                         )
 
 
+def build_long_run_task_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    form = orm.BlockView(
+        blocks=[
+            orm.InputBlock(
+                action=actions.DB_ADMIN_LONG_RUN_SECONDS,
+                label="Task Duration (seconds)",
+                element=orm.NumberInputElement(
+                    initial_value=5,
+                ),
+            ),
+        ]
+    )
+
+    form.post_modal(
+        client=client,
+        trigger_id=safe_get(body, "trigger_id"),
+        title_text="Long Run Task",
+        submit_button_text="Start Task",
+        callback_id=actions.DB_ADMIN_LONG_RUN_CALLBACK_ID,
+        new_or_add="add",
+    )
+
+
+def handle_long_run_task(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    form_data = DB_ADMIN_FORM.get_selected_values(body)
+    duration_seconds = safe_convert(
+        safe_get(form_data, actions.DB_ADMIN_LONG_RUN_SECONDS),
+        int,
+        default=5,
+    )
+    import time
+
+    client.chat_postMessage(
+        channel=safe_get(body, "user", "id"),
+        text=f"Starting long run task for {duration_seconds} seconds...",
+    )
+    time.sleep(duration_seconds)
+    client.chat_postMessage(
+        channel=safe_get(body, "user", "id"),
+        text="Long run task complete.",
+    )
+
+
 DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
@@ -392,6 +447,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Update Bot Token",
                     action=actions.SECRET_MENU_UPDATE_BOT_TOKEN,
+                ),
+                orm.ButtonElement(
+                    label="Test long run task",
+                    action=actions.SECRET_MENU_LONG_RUN,
                 ),
             ],
         ),
