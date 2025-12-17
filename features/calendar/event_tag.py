@@ -7,7 +7,6 @@ from f3_data_models.models import EventTag, Org
 from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import (
     ContextBlock,
-    DividerBlock,
     InputBlock,
     SectionBlock,
 )
@@ -23,7 +22,6 @@ from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
 
 # Action IDs
 CALENDAR_MANAGE_EVENT_TAGS = "calendar-manage-event-tags"
-CALENDAR_ADD_EVENT_TAG_SELECT = "calendar-add-event-tag-select"
 CALENDAR_ADD_EVENT_TAG_NEW = "calendar-add-event-tag-new"
 CALENDAR_ADD_EVENT_TAG_COLOR = "calendar-add-event-tag-color"
 EVENT_TAG_EDIT_DELETE = "event-tag-edit-delete"
@@ -45,30 +43,6 @@ class EventTagService:
         org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
         org_event_tags = [tag for tag in org_record.event_tags if tag.specific_org_id == org_id]
         return org_event_tags
-
-    @staticmethod
-    def get_available_global_tags(org_id: str) -> List[EventTag]:
-        """
-        Fetches global event tags that the organization has not yet added.
-        """
-        all_event_tags: List[EventTag] = DbManager.find_records(EventTag, [True])
-        org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
-        org_event_tag_ids = {e.id for e in org_record.event_tags}
-        return [tag for tag in all_event_tags if tag.id not in org_event_tag_ids]
-
-    @staticmethod
-    def add_global_tag_to_org(tag_id: int, org_id: str):
-        """
-        Associates an existing global event tag with an organization.
-        """
-        event_tag: EventTag = DbManager.get(EventTag, tag_id)
-        DbManager.create_record(
-            EventTag(
-                name=event_tag.name,
-                color=event_tag.color,
-                specific_org_id=org_id,
-            )
-        )
 
     @staticmethod
     def create_org_specific_tag(name: str, color: str, org_id: str):
@@ -108,20 +82,11 @@ class EventTagViews:
     """
 
     @staticmethod
-    def build_add_tag_modal(available_tags: List[EventTag], org_tags: List[EventTag]) -> SdkBlockView:
+    def build_add_tag_modal(org_tags: List[EventTag]) -> SdkBlockView:
         """
-        Constructs the modal for adding a new or existing event tag.
+        Constructs the modal for adding a new org-specific event tag.
         """
         form = copy.deepcopy(EVENT_TAG_FORM)
-        form.set_options(
-            {
-                CALENDAR_ADD_EVENT_TAG_SELECT: as_selector_options(
-                    names=[tag.name for tag in available_tags],
-                    values=[str(tag.id) for tag in available_tags],
-                    descriptions=[tag.color for tag in available_tags],
-                ),
-            }
-        )
         color_list = [f"{e.name} - {e.color}" for e in org_tags]
         if color_block := form.get_block(CALENDAR_EVENT_TAG_COLORS_IN_USE):
             color_block.text.text = f"Colors already in use: \n - {'\n - '.join(color_list)}"
@@ -139,9 +104,6 @@ class EventTagViews:
                 CALENDAR_ADD_EVENT_TAG_COLOR: tag_to_edit.color,
             }
         )
-
-        # Remove blocks that are not needed for editing
-        form.delete_block(CALENDAR_ADD_EVENT_TAG_SELECT)
 
         # Find the input block for the tag name and change its label
         if name_input_block := form.get_block(CALENDAR_ADD_EVENT_TAG_NEW):
@@ -193,9 +155,8 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
 
     if action == "add":
         update_view_id = add_loading_form(body, client, new_or_add="add")
-        available_tags = service.get_available_global_tags(region_record.org_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
-        form = views.build_add_tag_modal(available_tags, org_tags)
+        form = views.build_add_tag_modal(org_tags)
         form.update_modal(
             client=client,
             view_id=update_view_id,
@@ -218,16 +179,13 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
 def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form_data = EVENT_TAG_FORM.get_selected_values(body)
     event_tag_name = form_data.get(CALENDAR_ADD_EVENT_TAG_NEW)
-    event_tag_id = form_data.get(CALENDAR_ADD_EVENT_TAG_SELECT)
     event_color = form_data.get(CALENDAR_ADD_EVENT_TAG_COLOR)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     edit_event_tag_id = safe_convert(metadata.get("edit_event_tag_id"), int)
 
     service = EventTagService()
 
-    if event_tag_id:
-        service.add_global_tag_to_org(event_tag_id, region_record.org_id)
-    elif event_tag_name and event_color:
+    if event_tag_name and event_color:
         if edit_event_tag_id:
             service.update_org_specific_tag(edit_event_tag_id, event_tag_name, event_color)
         else:
@@ -266,14 +224,7 @@ EVENT_TAG_FORM = SdkBlockView(
             ),
         ),
         InputBlock(
-            label=PlainTextObject(text="Select from commonly used event tags"),
-            element=StaticSelectElement(placeholder=PlainTextObject(text="Select from commonly used event tags")),
-            optional=True,
-            block_id=CALENDAR_ADD_EVENT_TAG_SELECT,
-        ),
-        DividerBlock(),
-        InputBlock(
-            label=PlainTextObject(text="Or create a new event tag"),
+            label=PlainTextObject(text="Create a new event tag"),
             element=PlainTextInputElement(placeholder=PlainTextObject(text="New event tag")),
             block_id=CALENDAR_ADD_EVENT_TAG_NEW,
             optional=True,
