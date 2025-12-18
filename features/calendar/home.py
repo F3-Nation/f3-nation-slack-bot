@@ -218,6 +218,8 @@ def build_home_form(
     events: list[CalendarHomeQuery] = home_schedule_query(
         user_id, filter, limit=100, open_q_only=open_q_only, only_users_events=only_users_events
     )
+    if LOCAL_DEVELOPMENT:
+        time.sleep(4)  # simulate longer query time
     split_time = time.time()
     print(f"Home schedule query: {split_time - start_time}")
     start_time = time.time()

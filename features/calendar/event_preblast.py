@@ -22,6 +22,7 @@ from sqlalchemy import or_
 from features import preblast_legacy
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
 from utilities import constants
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import event_attendance_query, get_admin_users
 from utilities.helper_functions import (
@@ -161,6 +162,9 @@ def build_event_preblast_form(
     event_instance_id: int = None,
     update_view_id: str = None,
 ):
+    if not update_view_id:
+        loading_view_id = add_loading_form(body, client, new_or_add="add" if safe_get(body, "view", "id") else "new")
+
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
     record = preblast_info.event_record
     view_id = safe_get(body, "view", "id")
@@ -243,30 +247,23 @@ def build_event_preblast_form(
     }
 
     if update_view_id:
-        form.update_modal(
-            client=client,
-            view_id=update_view_id,
-            title_text=title_text,
-            submit_button_text=submit_button_text,
-            parent_metadata=metadata,
-            callback_id=actions.EVENT_PREBLAST_CALLBACK_ID,
-        )
+        update_view_id = update_view_id
+        callback_id = actions.EVENT_PREBLAST_CALLBACK_ID
     else:
+        update_view_id = loading_view_id
         if view_id:
-            new_or_add = "add"
             callback_id = actions.EVENT_PREBLAST_CALLBACK_ID
         else:
-            new_or_add = "new"
             callback_id = actions.EVENT_PREBLAST_POST_CALLBACK_ID
-        form.post_modal(
-            client=client,
-            trigger_id=safe_get(body, "trigger_id"),
-            callback_id=callback_id,
-            title_text=title_text,
-            submit_button_text=submit_button_text,
-            new_or_add=new_or_add,
-            parent_metadata=metadata,
-        )
+
+    form.update_modal(
+        client=client,
+        view_id=update_view_id,
+        title_text=title_text,
+        submit_button_text=submit_button_text,
+        parent_metadata=metadata,
+        callback_id=callback_id,
+    )
 
 
 def handle_event_preblast_edit(

@@ -895,7 +895,6 @@ class BlockView:
             res = client.views_open(trigger_id=trigger_id, view=view)
         elif new_or_add == "add":
             res = client.views_push(trigger_id=trigger_id, view=view)
-
         return res
 
     def update_modal(
@@ -908,7 +907,7 @@ class BlockView:
         parent_metadata: dict = None,
         close_button_text: str = "Close",
         notify_on_close: bool = False,
-    ):
+    ) -> dict:
         blocks = self.as_form_field()
 
         view = {
@@ -924,11 +923,18 @@ class BlockView:
         if submit_button_text != "None":
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
-        if ENABLE_DEBUGGING:
-            view["external_id"] = actions.DEBUG_FORM_EXTERNAL_ID
-            client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view)
-        else:
-            client.views_update(view_id=view_id, view=view)
+        try:
+            if ENABLE_DEBUGGING:
+                view["external_id"] = actions.DEBUG_FORM_EXTERNAL_ID
+                res = client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view)
+            else:
+                res = client.views_update(view_id=view_id, view=view)
+        except Exception as e:
+            # TODO: handle "not found" errors; post new instead of update?
+            print(f"Failed to update modal: {e}")
+            res = None
+
+        return res
 
 
 def parse_welcome_template(template: str, user_id: str) -> List[BaseBlock]:

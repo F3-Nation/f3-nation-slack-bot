@@ -111,12 +111,6 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
 
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
 
-    try:
-        region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
-    except Exception as exc:
-        logger.warning(f"Error getting region record: {exc}")
-        region_record = SlackSettings(team_id=safe_get(body, "team_id") or safe_get(body, "team", "id"))
-
     lookup: Tuple[Callable, bool] = safe_get(safe_get(MAIN_MAPPER, request_type), request_id)
 
     if lookup:
@@ -127,6 +121,11 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
         elif add_loading:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
         try:
+            try:
+                region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
+            except Exception as exc:
+                logger.warning(f"Error getting region record: {exc}")
+                region_record = SlackSettings(team_id=safe_get(body, "team_id") or safe_get(body, "team", "id"))
             # time the call
             start_time = time.time()
             resp = run_function(

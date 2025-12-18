@@ -234,10 +234,14 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        if ENABLE_DEBUGGING:
-            view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
-            return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
-        elif external_id:
-            return client.views_update(external_id=external_id, view=view.to_dict())
-        else:
-            return client.views_update(view_id=view_id, view=view.to_dict())
+        try:
+            if ENABLE_DEBUGGING:
+                view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
+                return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
+            elif external_id:
+                return client.views_update(external_id=external_id, view=view.to_dict())
+            else:
+                return client.views_update(view_id=view_id, view=view.to_dict())
+        except Exception as e:
+            # TODO: handle "not found" errors; post new instead of update?
+            print(f"Failed to update modal: {e}")
