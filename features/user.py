@@ -8,6 +8,7 @@ from slack_sdk import WebClient
 
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import get_user, safe_get, upload_files_to_storage
+from utilities.slack import actions
 from utilities.slack.orm import (
     ActionsBlock,
     BlockView,
@@ -64,13 +65,21 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
         stats_url = f"{os.getenv('STATS_URL')}/stats/pax/{user.id}"
         form.blocks[2].elements[0].url = stats_url
 
-    form.post_modal(
-        client=client,
-        trigger_id=safe_get(body, "trigger_id"),
-        title_text="User Settings",
-        callback_id=USER_FORM_ID,
-        new_or_add="add",
-    )
+    if safe_get(body, actions.LOADING_ID):
+        form.update_modal(
+            client=client,
+            view_id=safe_get(body, actions.LOADING_ID),
+            title_text="User Settings",
+            callback_id=USER_FORM_ID,
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="User Settings",
+            callback_id=USER_FORM_ID,
+            new_or_add="add",
+        )
 
 
 def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
