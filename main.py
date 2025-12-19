@@ -96,13 +96,7 @@ if not LOCAL_DEVELOPMENT:
 
 
 def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ack, context: dict):
-    # acknowledge all requests immediately
-    # the submit_modal() function only applies to view_submission events
     request_type, request_id = get_request_type(body)
-    # if request_type == "view_submission":
-    #     ack(**submit_modal()) # leaving this in case we figure out how to make it work
-    if request_type != "block_suggestion":
-        ack()
 
     if LOCAL_DEVELOPMENT:
         logger.info(json.dumps(body, indent=4))
@@ -120,6 +114,10 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
             # NOTE: do not put debugging breakpoints above this line
         elif add_loading:
             body[LOADING_ID] = add_loading_form(body=body, client=client)
+
+        if request_type != "block_suggestion":
+            ack()
+
         try:
             try:
                 region_record: SlackSettings = get_region_record(team_id, body, context, client, logger)
@@ -148,6 +146,7 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
             send_error_response(body=body, client=client, error=str(exc)[:3000])
             logger.error(tb_str)
     else:
+        ack()
         logger.warning(
             f"no handler for path: "
             f"{safe_get(safe_get(MAIN_MAPPER, request_type), request_id) or request_type + ', ' + request_id}"

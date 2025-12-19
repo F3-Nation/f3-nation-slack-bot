@@ -244,11 +244,13 @@ def create_user(slack_user_info: dict, home_region_id: int | None = None) -> Sla
 
 def update_local_slack_users(slack_user: SlackUser = None) -> None:
     print("Updating local slack users...")
+    global SLACK_USERS
+
     if slack_user:
         SLACK_USERS[slack_user.slack_id] = slack_user
         return
     slack_users: List[SlackUser] = DbManager.find_records(SlackUser, filters=[True])
-    global SLACK_USERS
+
     SLACK_USERS.clear()
     SLACK_USERS.update({slack_user.slack_id: slack_user for slack_user in slack_users})
 
