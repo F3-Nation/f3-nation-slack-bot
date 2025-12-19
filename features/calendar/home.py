@@ -38,7 +38,9 @@ def handle_event_preblast_select_button(
     action = safe_get(body, "actions", 0, "action_id")
     view_id = safe_get(body, "view", "id")
     if action == actions.EVENT_PREBLAST_NEW_BUTTON:
-        event_instance.build_event_instance_add_form(body, client, logger, context, region_record, new_preblast=True)
+        event_instance.build_event_instance_add_form(
+            body, client, logger, context, region_record, new_preblast=True, loading_form=True
+        )
     elif action == actions.OPEN_CALENDAR_BUTTON:
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
