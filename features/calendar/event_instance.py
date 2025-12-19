@@ -334,12 +334,6 @@ def handle_event_instance_add(
         record = DbManager.create_record(event_instance_record)
     # trigger_map_revalidation()
 
-    if safe_get(metadata, "event_instance_id"):
-        body["actions"] = [{"action_id": CALENDAR_MANAGE_EVENT_INSTANCE}]
-        build_event_instance_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
-        )
-
     if safe_get(metadata, "is_preblast") == "True":
         # If this is for a new unscheduled event, we need to set attendance and post the preblast
         event_instance: EventInstance = record
@@ -476,7 +470,7 @@ def handle_event_instance_edit_delete(
     elif action == "Delete":
         DbManager.update_record(EventInstance, event_instance_id, fields={"is_active": False})
         build_event_instance_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
 
 

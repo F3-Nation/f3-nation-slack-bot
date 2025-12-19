@@ -155,7 +155,7 @@ ACTION_MAPPER = {
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
     actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
     actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION: (db_admin.handle_trigger_map_revalidation, False),
-    actions.CONFIG_USER_SETTINGS: (user.build_user_form, False),
+    actions.CONFIG_USER_SETTINGS: (user.build_user_form, True),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE: (event_instance.manage_event_instances, False),
     actions.EVENT_INSTANCE_EDIT_DELETE: (event_instance.handle_event_instance_edit_delete, False),
     event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
