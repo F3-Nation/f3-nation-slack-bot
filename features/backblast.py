@@ -23,6 +23,7 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import not_, or_
+from sqlmodel import func
 
 from features import backblast_legacy
 from utilities import constants, sendmail
@@ -129,7 +130,10 @@ def backblast_middleware(
                 ),
                 or_(
                     EventInstance.meta.is_(None),
-                    ~EventInstance.meta["backblast_reminder_dismissed"].as_boolean(),
+                    func.coalesce(
+                        EventInstance.meta["backblast_reminder_dismissed"].as_boolean(),
+                        False,
+                    ).is_(False),
                 ),
             ],
         )
