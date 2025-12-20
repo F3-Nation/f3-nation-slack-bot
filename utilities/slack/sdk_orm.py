@@ -122,7 +122,12 @@ class SdkBlockView:
         for block in self.blocks:
             if isinstance(block, InputBlock) and block.block_id in options:
                 if hasattr(block.element, "options"):
-                    block.element.options = options[block.block_id]
+                    option_list = options[block.action]
+                    for option in option_list:
+                        option.name = option.name[:75]
+                        if option.description:
+                            option.description = option.description[:75]
+                    block.element.options = option_list
 
     def to_dict_list(self) -> List[dict]:
         """Serializes all blocks to a list of dictionaries."""
