@@ -45,7 +45,7 @@ def manage_series(body: dict, client: WebClient, logger: Logger, context: dict, 
     if action == "add":
         build_series_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
-        build_series_list_form(body, client, logger, context, region_record)
+        build_series_list_form(body, client, logger, context, region_record, loading_form=True)
 
 
 def build_series_add_form(
@@ -529,7 +529,11 @@ def build_series_list_form(
     context: dict,
     region_record: SlackSettings,
     update_view_id=None,
+    loading_form: bool = False,
 ):
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+
     filter_org = region_record.org_id
     filter_values = {}
     if safe_get(body, "actions", 0, "action_id") in [

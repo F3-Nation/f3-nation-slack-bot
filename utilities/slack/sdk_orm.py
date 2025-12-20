@@ -122,7 +122,12 @@ class SdkBlockView:
         for block in self.blocks:
             if isinstance(block, InputBlock) and block.block_id in options:
                 if hasattr(block.element, "options"):
-                    block.element.options = options[block.block_id]
+                    option_list = options[block.action]
+                    for option in option_list:
+                        option.name = option.name[:75]
+                        if option.description:
+                            option.description = option.description[:75]
+                    block.element.options = option_list
 
     def to_dict_list(self) -> List[dict]:
         """Serializes all blocks to a list of dictionaries."""
@@ -234,10 +239,14 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        if ENABLE_DEBUGGING:
-            view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
-            return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
-        elif external_id:
-            return client.views_update(external_id=external_id, view=view.to_dict())
-        else:
-            return client.views_update(view_id=view_id, view=view.to_dict())
+        try:
+            if ENABLE_DEBUGGING:
+                view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
+                return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
+            elif external_id:
+                return client.views_update(external_id=external_id, view=view.to_dict())
+            else:
+                return client.views_update(view_id=view_id, view=view.to_dict())
+        except Exception as e:
+            # TODO: handle "not found" errors; post new instead of update?
+            print(f"Failed to update modal: {e}")

@@ -66,7 +66,7 @@ def manage_event_instances(body: dict, client: WebClient, logger: Logger, contex
     if action == "add":
         build_event_instance_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
-        build_event_instance_list_form(body, client, logger, context, region_record)
+        build_event_instance_list_form(body, client, logger, context, region_record, loading_form=True)
 
 
 def build_event_instance_add_form(
@@ -334,12 +334,6 @@ def handle_event_instance_add(
         record = DbManager.create_record(event_instance_record)
     # trigger_map_revalidation()
 
-    if safe_get(metadata, "event_instance_id"):
-        body["actions"] = [{"action_id": CALENDAR_MANAGE_EVENT_INSTANCE}]
-        build_event_instance_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
-        )
-
     if safe_get(metadata, "is_preblast") == "True":
         # If this is for a new unscheduled event, we need to set attendance and post the preblast
         event_instance: EventInstance = record
@@ -362,9 +356,13 @@ def build_event_instance_list_form(
     context: dict,
     region_record: SlackSettings,
     update_view_id=None,
+    loading_form: bool = False,
 ):
     title_text = "Delete or Edit an Event"
     confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
+
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
 
     start_date = current_date_cst()
     filter_org = region_record.org_id
@@ -472,7 +470,7 @@ def handle_event_instance_edit_delete(
     elif action == "Delete":
         DbManager.update_record(EventInstance, event_instance_id, fields={"is_active": False})
         build_event_instance_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
 
 

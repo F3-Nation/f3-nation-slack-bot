@@ -159,8 +159,6 @@ def get_user_names(
     names = []
     urls = []
 
-    update_local_slack_users()
-
     for user_id in array_of_user_ids:
         user: SlackUser = safe_get(SLACK_USERS, user_id)
         if user:
@@ -244,10 +242,15 @@ def create_user(slack_user_info: dict, home_region_id: int | None = None) -> Sla
     return slack_user_record
 
 
-def update_local_slack_users() -> None:
+def update_local_slack_users(slack_user: SlackUser = None) -> None:
     print("Updating local slack users...")
-    slack_users: List[SlackUser] = DbManager.find_records(SlackUser, filters=[True])
     global SLACK_USERS
+
+    if slack_user:
+        SLACK_USERS[slack_user.slack_id] = slack_user
+        return
+    slack_users: List[SlackUser] = DbManager.find_records(SlackUser, filters=[True])
+
     SLACK_USERS.clear()
     SLACK_USERS.update({slack_user.slack_id: slack_user for slack_user in slack_users})
 
