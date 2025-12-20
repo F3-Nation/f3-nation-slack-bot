@@ -839,12 +839,12 @@ class BlockView:
     def set_options(self, options: Dict[str, List[SelectorOption]]):
         for block in self.blocks:
             if block.action in options:
-                options = options[block.action]
-                for option in options:
+                option_list = options[block.action]
+                for option in option_list:
                     option.name = option.name[:75]
                     if option.description:
                         option.description = option.description[:75]
-                block.element.options = options
+                block.element.options = option_list
 
     def as_form_field(self) -> List[dict]:
         return [b.as_form_field() for b in self.blocks]
