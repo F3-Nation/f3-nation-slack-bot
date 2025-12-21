@@ -167,13 +167,14 @@ def handle_paxminer_mapping_post(
 ):
     data = PAXMINER_MAPPING_FORM.get_selected_values(body)
     print(data)
-    DbManager.update_records(
-        EventInstance,
-        filters=[EventInstance.meta.op("->>")("og_channel") == data[PAXMINER_ORIGINATING_CHANNEL]],
-        fields={
-            EventInstance.org_id: int(data[PAXMINER_AO]),
-            EventInstance.event_instances_x_event_types: [
-                EventType_x_EventInstance(event_type_id=int(data[PAXMINER_EVENT_TYPE]))
-            ],
-        },
-    )
+    if data.get(PAXMINER_ORIGINATING_CHANNEL) and data.get(PAXMINER_AO) and data.get(PAXMINER_EVENT_TYPE):
+        DbManager.update_records(
+            EventInstance,
+            filters=[EventInstance.meta.op("->>")("og_channel") == data[PAXMINER_ORIGINATING_CHANNEL]],
+            fields={
+                EventInstance.org_id: int(data[PAXMINER_AO]),
+                EventInstance.event_instances_x_event_types: [
+                    EventType_x_EventInstance(event_type_id=int(data[PAXMINER_EVENT_TYPE]))
+                ],
+            },
+        )
