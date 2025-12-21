@@ -39,7 +39,7 @@ def get_paxminer_mapping_text(channel_id: str) -> str:
     )
     results = query.all()
     if not results:
-        return "No paxminer import found from this channel."
+        return "No paxminer import found from this channel. The migration may not have been run yet (check your migration date), or the migration may have been run before we started adding channel metadata. If this is the case, you can request a remigration from the dev team."  # noqa: E501
     output = "*Current Mapping:*\n"
     mapping_lines = [f"{count} Events -> *{org_name}*" for org_name, count in results]
     session.close()
