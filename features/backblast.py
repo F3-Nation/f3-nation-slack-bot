@@ -178,7 +178,14 @@ def backblast_middleware(
         )
 
 
-def build_backblast_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+def build_backblast_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+    event_instance_id: int = None,
+):
     """
     Args:
         body (dict): Slack request body
@@ -194,7 +201,9 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
     view_metadata = safe_convert(safe_get(body, "view", "private_metadata") or "{}", json.loads)
     action_id = safe_get(body, "actions", 0, "action_id")
     is_scheduled = True
-    if action_id == actions.BACKBLAST_FILL_SELECT:
+    if event_instance_id:
+        pass
+    elif action_id == actions.BACKBLAST_FILL_SELECT:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)

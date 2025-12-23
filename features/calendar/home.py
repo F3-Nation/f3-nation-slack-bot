@@ -19,6 +19,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
+from features.backblast import build_backblast_form
 from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS, event_instance
 from features.calendar.event_preblast import (
     build_event_preblast_form,
@@ -229,12 +230,14 @@ def build_home_form(
     active_date = datetime.date(2020, 1, 1)
     block_count = 1
     for event in events:
+        option_names: List[str] = []
         if block_count > 90:
             break
-        if event.user_q:
-            option_names = ["Edit Preblast"]
-        else:
-            option_names = ["View Preblast"]
+        if not user_is_admin:
+            if event.user_q:
+                option_names.append("Edit Preblast")
+            else:
+                option_names.append("View Preblast")
         if event.event.start_date != active_date:
             active_date = event.event.start_date
             blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
@@ -259,6 +262,8 @@ def build_home_form(
             label += " :pencil:"
         if user_is_admin:
             option_names.append("Assign Q")
+            option_names.append("Edit Preblast")
+            option_names.append("Edit Backblast")
         blocks.append(
             orm.SectionBlock(
                 label=label,
@@ -585,6 +590,8 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
 
     if action in ["View Preblast", "Edit Preblast"]:
         build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
+    elif action == "Edit Backblast":
+        build_backblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     elif action == "Take Q":
         attendance_record = DbManager.find_records(
             Attendance,

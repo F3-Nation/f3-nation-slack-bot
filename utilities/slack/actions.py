@@ -79,6 +79,7 @@ DB_ADMIN_LONG_RUN_SECONDS = "long_run_seconds"
 DB_ADMIN_LONG_RUN_CALLBACK_ID = "db-admin-long-run-id"
 SECRET_MENU_LONG_RUN = "secret-menu-long-run"
 PAXMINER_MAPPING = "paxminer_mapping"
+EVENT_PREBLAST_START_TIME = "event_preblast_start_time"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"
