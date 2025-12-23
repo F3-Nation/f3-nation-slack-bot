@@ -195,6 +195,7 @@ def build_event_preblast_form(
         initial_values = {
             actions.EVENT_PREBLAST_TITLE: record.name,
             actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich or region_record.preblast_moleskin_template,
+            actions.EVENT_PREBLAST_START_TIME: record.start_time[:2] + ":" + record.start_time[2:],
             # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
         if record.location:
@@ -300,6 +301,7 @@ def handle_event_preblast_edit(
             client,
             logger,
         ),
+        EventInstance.start_time: safe_get(form_data, actions.EVENT_PREBLAST_START_TIME).replace(":", ""),
     }
     DbManager.update_record(EventInstance, event_instance_id, update_fields)
     DbManager.delete_records(
@@ -776,6 +778,12 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             label="Location",
             action=actions.EVENT_PREBLAST_LOCATION,
             element=orm.StaticSelectElement(),
+            optional=False,
+        ),
+        orm.InputBlock(
+            label="Start Time",
+            action=actions.EVENT_PREBLAST_START_TIME,
+            element=orm.TimepickerElement(placeholder="Select start time"),
             optional=False,
         ),
         orm.InputBlock(
