@@ -122,9 +122,9 @@ class SdkBlockView:
         for block in self.blocks:
             if isinstance(block, InputBlock) and block.block_id in options:
                 if hasattr(block.element, "options"):
-                    option_list = options[block.action]
+                    option_list = options[block.block_id]
                     for option in option_list:
-                        option.name = option.name[:75]
+                        option.label = option.label[:75]
                         if option.description:
                             option.description = option.description[:75]
                     block.element.options = option_list
