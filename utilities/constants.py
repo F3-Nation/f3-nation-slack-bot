@@ -155,8 +155,8 @@ FREQUENCY_OPTIONS = {
     "values": ["Weekly", "Monthly"],
 }
 INTERVAL_OPTIONS = {
-    "names": ["Every", "Every Other", "Every Third", "Every Fourth"],
-    "values": ["1", "2", "3", "4"],
+    "names": ["Every", "Every Other", "Every Third", "Every Fourth", "Every Fifth"],
+    "values": ["1", "2", "3", "4", "5"],
 }
 
 ORG_TYPES = {
