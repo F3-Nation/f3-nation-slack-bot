@@ -95,7 +95,7 @@ def build_paxminer_mapping_form(
         update_view_id = safe_get(body, "view", "id")
     else:
         form = copy.deepcopy(PAXMINER_MAPPING_FORM)
-        form.blocks = form.blocks[:1]  # only keep the channel select block
+        form.blocks = form.blocks[:2]  # only keep the channel select block
         initial_channel = None
         update_view_id = None
 
@@ -119,6 +119,10 @@ def build_paxminer_mapping_form(
 
 PAXMINER_MAPPING_FORM = SdkBlockView(
     blocks=[
+        SectionBlock(
+            block_id="paxminer-mapping-instructions",
+            text="Use this tool *after* your paxminer data has been migrated (ie after you migration date). The tool allows you to re-assign imported paxminer events to a different AO, as sometimes the migration script will get it wrong. Notes:\n - Include AOs that starfished prior to your migration, to preserve the historical data with the local AO that generated it\n - Updates to PAX Vault are not instant, please wait up to an hour for these changes to be reflected",  # noqa: E501
+        ),
         InputBlock(
             label="Originating Channel",
             block_id=PAXMINER_ORIGINATING_CHANNEL,
@@ -126,6 +130,7 @@ PAXMINER_MAPPING_FORM = SdkBlockView(
                 action_id=PAXMINER_ORIGINATING_CHANNEL,
             ),
             dispatch_action=True,
+            hint="Unarchive the channel if you don't see it in the list.",
         ),
         DividerBlock(),
         SectionBlock(
