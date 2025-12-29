@@ -28,7 +28,7 @@ from features.calendar.event_preblast import (
 )
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, home_schedule_query
+from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, get_aoq_users, home_schedule_query
 from utilities.helper_functions import get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -64,7 +64,10 @@ def build_home_form(
     user_is_admin = safe_get(metadata, "user_is_admin")
     if user_is_admin is None:
         admin_users = get_admin_users(region_record.org_id, region_record.team_id)
-        user_is_admin = any(u[0].id == user_id for u in admin_users)
+        aoq_users = get_aoq_users(region_record.org_id)
+        print(f"Admin users: {[u[0].id for u in admin_users]}")
+        print(f"AOQ users: {[u.id for u in aoq_users]}")
+        user_is_admin = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()

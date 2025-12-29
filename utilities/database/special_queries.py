@@ -331,6 +331,21 @@ def get_position_users(org_id: int, region_org_id: int, slack_team_id: str) -> L
         return output
 
 
+def get_aoq_users(region_org_id: int) -> List[User]:
+    with get_session() as session:
+        query = (
+            session.query(User)
+            .join(Position_x_Org_x_User, Position_x_Org_x_User.user_id == User.id)
+            .join(Position, Position.id == Position_x_Org_x_User.position_id)
+            .join(Org, Org.id == Position_x_Org_x_User.org_id)
+            .filter(
+                Position.name == "Site Q",
+                Org.parent_id == region_org_id,
+            )
+        )
+        return query.all()
+
+
 def get_admin_users(org_id: int, slack_team_id: str) -> List[tuple[User, SlackUser]]:
     with get_session() as session:
         query = (
