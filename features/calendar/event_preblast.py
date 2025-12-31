@@ -376,13 +376,16 @@ def send_preblast(
     blocks = [
         *preblast_info.preblast_blocks,
         # orm.ActionsBlock(elements=preblast_info.action_blocks),
-        orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
+        orm.ActionsBlock(elements=deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)),
     ]
     q_attendance = next(
         (r for r in preblast_info.attendance_records if any(t.id == 2 for t in r.attendance_types)), None
     )
     q_user_id = safe_get(preblast_info.attendance_slack_dict, q_attendance)
-    if not q_user_id:
+    q_list = [
+        r for r in preblast_info.attendance_records if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+    ]
+    if not q_list:
         blocks[-1].elements.append(
             orm.ButtonElement(
                 label=":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
@@ -392,11 +395,7 @@ def send_preblast(
     metadata = {
         "event_instance_id": event_instance_id,
         "attendees": [r.user.id for r in preblast_info.attendance_records],
-        "qs": [
-            r.user.id
-            for r in preblast_info.attendance_records
-            if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-        ],
+        "qs": [r.user.id for r in q_list],
     }
     if not body:
         # this will happen if called outside a user interaction
@@ -642,7 +641,7 @@ def handle_event_preblast_action(
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
+                orm.ActionsBlock(elements=deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)),
             ]
             blocks = [b.as_form_field() for b in blocks]
 

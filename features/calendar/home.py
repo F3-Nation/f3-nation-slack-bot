@@ -652,7 +652,7 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         if preblast_info.event_record.preblast_ts:
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
+                orm.ActionsBlock(elements=copy.deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)),
             ]
             blocks = [b.as_form_field() for b in blocks]
             metadata = {
