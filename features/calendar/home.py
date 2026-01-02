@@ -20,7 +20,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from features.backblast import build_backblast_form
-from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS, event_instance
+from features.calendar import event_instance, get_preblast_action_buttons
 from features.calendar.event_preblast import (
     build_event_preblast_form,
     build_preblast_info,
@@ -654,19 +654,22 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     if update_post:
         preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
         if preblast_info.event_record.preblast_ts:
+            q_list = [
+                r.user.id
+                for r in preblast_info.attendance_records
+                if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+            ]  # noqa
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=copy.deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)),
+                orm.ActionsBlock(
+                    elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
+                ),
             ]
             blocks = [b.as_form_field() for b in blocks]
             metadata = {
                 "event_instance_id": event_instance_id,
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
-                "qs": [
-                    r.user.id
-                    for r in preblast_info.attendance_records
-                    if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-                ],  # noqa
+                "qs": q_list,
             }
             try:
                 client.chat_update(

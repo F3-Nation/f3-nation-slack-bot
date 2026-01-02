@@ -181,6 +181,8 @@ ACTION_MAPPER = {
     actions.PAXMINER_MAPPING: (paxminer_mapping.build_paxminer_mapping_form, False),
     paxminer_mapping.PAXMINER_ORIGINATING_CHANNEL: (paxminer_mapping.build_paxminer_mapping_form, False),
     paxminer_mapping.PAXMINER_REGION: (paxminer_mapping.build_paxminer_mapping_form, False),
+    actions.FILL_BACKBLAST_BUTTON: (backblast.backblast_middleware, True),
+    actions.NEW_PREBLAST_BUTTON: (event_preblast.preblast_middleware, True),
 }
 
 ACTION_PREFIXES = [

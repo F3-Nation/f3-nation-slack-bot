@@ -111,6 +111,49 @@ def backblast_middleware(
             return
         else:
             build_backblast_form(body, client, logger, context, region_record)
+    elif safe_get(body, "actions", 0, "action_id") == actions.FILL_BACKBLAST_BUTTON:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
+        event_instance = DbManager.get(EventInstance, event_instance_id)
+        if event_instance.backblast_ts:
+            form = copy.deepcopy(forms.ALREADY_POSTED_FORM)
+            form.update_modal(
+                client=client,
+                view_id=safe_get(body, actions.LOADING_ID),
+                title_text="Backblast",
+                callback_id=actions.ALREADY_POSTED,
+                submit_button_text="None",
+            )
+            try:
+                blocks = safe_get(body, "message", "blocks")
+                blocks[-1].get("elements").pop(-1)  # remove the fill backblast button
+                client.chat_update(
+                    channel=safe_get(body, "container", "channel_id"),
+                    ts=safe_get(body, "container", "message_ts"),
+                    text=safe_get(body, "message", "text"),
+                    blocks=blocks,
+                )
+            except Exception as e:
+                logger.error(f"Error updating message to remove fill backblast button: {e}")
+            return
+        else:
+            user_id = get_user(
+                safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
+            ).user_id
+            attendance_records = DbManager.find_records(
+                Attendance,
+                filters=[
+                    Attendance.event_instance_id == event_instance_id,
+                    Attendance.user_id == user_id,
+                    Attendance.attendance_x_attendance_types.any(
+                        Attendance_x_AttendanceType.attendance_type_id.in_([2, 3])
+                    ),
+                    Attendance.is_planned,
+                ],
+                joinedloads=[Attendance.attendance_x_attendance_types],
+            )
+            admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+            if attendance_records or any(any(u[0].id == user_id for u in admin_users)):
+                build_backblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     else:
         user = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger)
         user_id = user.user_id
@@ -244,11 +287,20 @@ def build_backblast_form(
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-        if action_id not in [actions.BACKBLAST_FILL_SELECT, actions.MSG_EVENT_BACKBLAST_BUTTON]:
+        if action_id not in [
+            actions.BACKBLAST_FILL_SELECT,
+            actions.MSG_EVENT_BACKBLAST_BUTTON,
+            actions.FILL_BACKBLAST_BUTTON,
+        ]:
             moleskin_block = safe_get(body, "message", "blocks", 1)
             moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
         else:
-            moleskin_block = None
+            if already_posted:
+                print("Event already has backblast, loading existing rich block")
+                print(event_record.backblast_rich)
+                moleskin_block = [block for block in event_record.backblast_rich if block["type"] == "rich_text"][0]
+            else:
+                moleskin_block = None
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
@@ -335,7 +387,7 @@ def build_backblast_form(
     if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
         backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
     # backblast_metadata = None
-    if action_id == actions.BACKBLAST_EDIT_BUTTON:
+    if action_id == actions.BACKBLAST_EDIT_BUTTON or event_record.backblast_ts:
         callback_id = actions.BACKBLAST_EDIT_CALLBACK_ID
         backblast_metadata["channel_id"] = safe_get(body, "container", "channel_id")
         backblast_metadata["message_ts"] = safe_get(body, "container", "message_ts")

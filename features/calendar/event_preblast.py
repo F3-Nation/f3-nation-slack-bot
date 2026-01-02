@@ -20,7 +20,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from features import preblast_legacy
-from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
+from features.calendar import get_preblast_action_buttons
 from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
@@ -373,11 +373,6 @@ def send_preblast(
 ):
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
-    blocks = [
-        *preblast_info.preblast_blocks,
-        # orm.ActionsBlock(elements=preblast_info.action_blocks),
-        orm.ActionsBlock(elements=deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)),
-    ]
     q_attendance = next(
         (r for r in preblast_info.attendance_records if any(t.id == 2 for t in r.attendance_types)), None
     )
@@ -385,12 +380,12 @@ def send_preblast(
     q_list = [
         r for r in preblast_info.attendance_records if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
     ]
-    if not q_list:
-        blocks[-1].elements.append(
-            orm.ButtonElement(
-                label=":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
-            )
-        )
+    blocks = [
+        *preblast_info.preblast_blocks,
+        orm.ActionsBlock(
+            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
+        ),
+    ]
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
         "event_instance_id": event_instance_id,
@@ -641,7 +636,7 @@ def handle_event_preblast_action(
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)),
+                orm.ActionsBlock(elements=get_preblast_action_buttons(has_q=True, event_instance_id=event_instance_id)),
             ]
             blocks = [b.as_form_field() for b in blocks]
 
@@ -705,13 +700,7 @@ def handle_event_preblast_action(
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": q_id_list,
             }
-            button_blocks = deepcopy(PREBLAST_MESSAGE_ACTION_ELEMENTS)
-            if not q_id_list:
-                button_blocks.append(
-                    orm.ButtonElement(
-                        ":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
-                    )
-                )
+            button_blocks = get_preblast_action_buttons(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
             blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
