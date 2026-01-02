@@ -28,6 +28,7 @@ LOW_REZ_IMAGE_SIZE = 1000
 LOCAL_DEVELOPMENT = os.environ.get("LOCAL_DEVELOPMENT", "").lower() in ("1", "true", "yes")
 SOCKET_MODE = os.environ.get("SOCKET_MODE", "").lower() in ("1", "true", "yes")
 ENABLE_DEBUGGING = os.environ.get("ENABLE_DEBUGGING", "false").lower() == "true"
+ALL_USERS_ARE_ADMINS = os.environ.get("ALL_USERS_ARE_ADMINS", "false").lower() == "true"
 
 SLACK_STATE_S3_BUCKET_NAME = "ENV_SLACK_STATE_S3_BUCKET_NAME"
 SLACK_INSTALLATION_S3_BUCKET_NAME = "ENV_SLACK_INSTALLATION_S3_BUCKET_NAME"

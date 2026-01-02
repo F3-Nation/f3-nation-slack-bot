@@ -6,6 +6,7 @@ from logging import Logger
 import pytz
 from slack_sdk.web import WebClient
 
+from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import (
@@ -205,6 +206,7 @@ def handle_preblast_edit_button(
         or user_is_admin
         or (user_id == preblast_data[actions.PREBLAST_Q])
         or (user_id in preblast_data[actions.PREBLAST_OP])
+        or constants.ALL_USERS_ARE_ADMINS
     )
 
     if allow_edit:
