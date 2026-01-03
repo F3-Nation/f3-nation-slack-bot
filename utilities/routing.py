@@ -181,8 +181,10 @@ ACTION_MAPPER = {
     actions.PAXMINER_MAPPING: (paxminer_mapping.build_paxminer_mapping_form, False),
     paxminer_mapping.PAXMINER_ORIGINATING_CHANNEL: (paxminer_mapping.build_paxminer_mapping_form, False),
     paxminer_mapping.PAXMINER_REGION: (paxminer_mapping.build_paxminer_mapping_form, False),
-    actions.FILL_BACKBLAST_BUTTON: (backblast.backblast_middleware, True),
+    actions.PREBLAST_FILL_BACKBLAST_BUTTON: (backblast.backblast_middleware, True),
     actions.NEW_PREBLAST_BUTTON: (event_preblast.preblast_middleware, True),
+    actions.BACKBLAST_NOQ_SELECT: (backblast.build_backblast_form, True),
+    actions.BACKBLAST_FILL_BUTTON: (backblast.build_backblast_form, True),
 }
 
 ACTION_PREFIXES = [
@@ -196,6 +198,7 @@ ACTION_PREFIXES = [
     actions.EVENT_INSTANCE_EDIT_DELETE,
     actions.EVENT_TYPE_EDIT_DELETE,
     event_tag.EVENT_TAG_EDIT_DELETE,
+    actions.BACKBLAST_FILL_BUTTON,
 ]
 
 VIEW_CLOSED_MAPPER = {

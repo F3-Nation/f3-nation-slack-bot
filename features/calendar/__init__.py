@@ -24,7 +24,7 @@ def get_preblast_action_buttons(has_q: bool = True, event_instance_id: int = Non
         buttons.append(
             orm.ButtonElement(
                 label=":back: Fill Backblast",
-                action=actions.FILL_BACKBLAST_BUTTON,
+                action=actions.PREBLAST_FILL_BACKBLAST_BUTTON,
                 value=str(event_instance_id),
             )
         )
