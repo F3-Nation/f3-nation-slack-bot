@@ -90,13 +90,14 @@ def backblast_middleware(
     context: dict,
     region_record: SlackSettings,
 ):
+    action_id = safe_get(body, "actions", 0, "action_id") or ""
     if (
         region_record.org_id is None
         or (safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now())
         > datetime.now()
     ):
         backblast_legacy.build_backblast_form(body, client, logger, context, region_record)
-    elif safe_get(body, "actions", 0, "action_id") == actions.MSG_EVENT_BACKBLAST_BUTTON:
+    elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
         event_instance = DbManager.get(EventInstance, event_instance_id)
         if event_instance.backblast_ts:
@@ -112,9 +113,8 @@ def backblast_middleware(
         else:
             build_backblast_form(body, client, logger, context, region_record)
     elif (
-        safe_get(body, "actions", 0, "action_id") == actions.PREBLAST_FILL_BACKBLAST_BUTTON
-        or safe_get(body, "actions", 0, "action_id")[: len(actions.BACKBLAST_FILL_BUTTON)]
-        == actions.BACKBLAST_FILL_BUTTON
+        action_id == actions.PREBLAST_FILL_BACKBLAST_BUTTON
+        or action_id[: len(actions.BACKBLAST_FILL_BUTTON)] == actions.BACKBLAST_FILL_BUTTON
     ):
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
         event_instance = DbManager.get(EventInstance, event_instance_id)
@@ -319,7 +319,7 @@ def build_backblast_form(
     trigger_id = safe_get(body, "trigger_id")
     backblast_metadata = safe_get(body, "message", "metadata", "event_payload") or {}
     view_metadata = safe_convert(safe_get(body, "view", "private_metadata") or "{}", json.loads)
-    action_id = safe_get(body, "actions", 0, "action_id")
+    action_id = safe_get(body, "actions", 0, "action_id") or ""
     f3_user_id = get_user(user_id, region_record, client, logger).user_id
     is_scheduled = True
     if event_instance_id:
