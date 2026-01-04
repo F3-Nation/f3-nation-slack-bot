@@ -198,7 +198,6 @@ def backblast_middleware(
                     EventInstance.org_id == region_record.org_id,
                     EventInstance.org.has(Org.parent_id == region_record.org_id),
                 ),
-                EventInstance.meta.is_(None),
             ],
         )
 
