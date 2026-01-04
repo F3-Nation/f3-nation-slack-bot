@@ -76,6 +76,19 @@ class InputBlock(BaseBlock):
 
 
 @dataclass
+class HeaderBlock(BaseBlock):
+    def get_selected_value(self, input_data):
+        return None
+
+    def as_form_field(self):
+        block = {
+            "type": "header",
+            "text": self.make_label_field(),
+        }
+        return block
+
+
+@dataclass
 class RichTextBlock(BaseBlock):
     label: Dict[str, Any] = None
 
@@ -171,6 +184,8 @@ class ButtonElement(BaseAction):
             j["confirm"] = self.confirm
         if self.url:
             j["url"] = self.url
+        if self.confirm:
+            j["confirm"] = self.confirm.as_form_field()
         return j
 
 

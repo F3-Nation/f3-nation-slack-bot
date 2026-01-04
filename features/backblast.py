@@ -111,7 +111,11 @@ def backblast_middleware(
             return
         else:
             build_backblast_form(body, client, logger, context, region_record)
-    elif safe_get(body, "actions", 0, "action_id") == actions.FILL_BACKBLAST_BUTTON:
+    elif (
+        safe_get(body, "actions", 0, "action_id") == actions.PREBLAST_FILL_BACKBLAST_BUTTON
+        or safe_get(body, "actions", 0, "action_id")[: len(actions.BACKBLAST_FILL_BUTTON)]
+        == actions.BACKBLAST_FILL_BUTTON
+    ):
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
         event_instance = DbManager.get(EventInstance, event_instance_id)
         if event_instance.backblast_ts:
@@ -180,34 +184,107 @@ def backblast_middleware(
                 ),
             ],
         )
+        no_q_event_records = event_attendance_query(
+            attendance_filter=[
+                Attendance.is_planned,
+                not_(Attendance.attendance_types.any(AttendanceType.id.in_([2, 3]))),
+            ],
+            event_filter=[
+                EventInstance.start_date <= current_date_cst(),
+                EventInstance.backblast_ts.is_(None),
+                EventInstance.is_active,
+                or_(
+                    EventInstance.org_id == region_record.org_id,
+                    EventInstance.org.has(Org.parent_id == region_record.org_id),
+                ),
+                EventInstance.meta.is_(None),
+            ],
+        )
 
         if event_records:
-            select_block = slack_orm.InputBlock(
-                label="Select a past Q",
-                action=actions.BACKBLAST_FILL_SELECT,
+            # sort by most recent date first
+            event_records.sort(key=lambda r: r.start_date, reverse=True)
+            select_blocks = [
+                slack_orm.HeaderBlock(label=":point_up:Select From Recent Qs:"),
+                slack_orm.ActionsBlock(
+                    elements=[
+                        slack_orm.ButtonElement(
+                            label=f"{r.start_date.strftime('%m/%d')} {r.org.name} {' / '.join([t.name for t in r.event_types])}",  # noqa: E501
+                            action=f"{actions.BACKBLAST_FILL_BUTTON}_{r.id}",
+                            value=str(r.id),
+                        )
+                        for r in event_records[:4]
+                    ],
+                ),
+            ]
+            if len(event_records) > 4:
+                select_blocks.append(
+                    slack_orm.InputBlock(
+                        label="All past Qs",
+                        action=actions.BACKBLAST_FILL_SELECT,
+                        dispatch_action=True,
+                        optional=False,
+                        element=slack_orm.StaticSelectElement(
+                            placeholder="Select an event",
+                            options=slack_orm.as_selector_options(
+                                names=[
+                                    f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
+                                    for r in event_records
+                                ],
+                                values=[str(r.id) for r in event_records],
+                            ),
+                        ),
+                        hint="If not listed above",
+                    )
+                )
+        else:
+            select_blocks = [
+                slack_orm.SectionBlock(label="No past events for you to send a backblast for!"),
+            ]
+
+        no_q_event_records.sort(key=lambda r: r.start_date, reverse=True)
+        blocks = [
+            *select_blocks,
+            slack_orm.DividerBlock(),
+            slack_orm.SectionBlock(label="*Or, select from a list of recent events with no Q assigned:*"),
+            slack_orm.InputBlock(
+                label="Recent unclaimed Qs",
+                action=actions.BACKBLAST_NOQ_SELECT,
                 dispatch_action=True,
+                optional=False,
                 element=slack_orm.StaticSelectElement(
                     placeholder="Select an event",
                     options=slack_orm.as_selector_options(
                         names=[
                             f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
-                            for r in event_records
+                            for r in no_q_event_records
                         ],
-                        values=[str(r.id) for r in event_records],
+                        values=[str(r.id) for r in no_q_event_records[:20]],
+                    ),
+                    confirm=slack_orm.ConfirmObject(
+                        title="Are you sure?",
+                        text="You are selecting an event with no assigned Q. Selecting it will assign you as the Q for this event. Do you want to proceed?",  # noqa
+                        confirm="Yes, I'm sure",
+                        deny="Whups, never mind",
                     ),
                 ),
-            )
-        else:
-            select_block = slack_orm.SectionBlock(label="No past events for you to send a backblast for!")
-
-        blocks = [
-            select_block,
+            ),
+            slack_orm.DividerBlock(),
+            slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
             slack_orm.ActionsBlock(
                 elements=[
                     slack_orm.ButtonElement(
-                        label=":heavy_plus_sign: New Unscheduled Event", action=actions.BACKBLAST_NEW_BLANK_BUTTON
-                    ),  # TODO: need to build this form out fully
-                    slack_orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
+                        label="New Unscheduled Event",
+                        action=actions.BACKBLAST_NEW_BLANK_BUTTON,
+                        confirm=slack_orm.ConfirmObject(
+                            title="Are you sure?",
+                            text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                            confirm="Yes, I'm sure",
+                            deny="Whups, never mind",
+                            style="danger",
+                        ),
+                    ),
+                    # slack_orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
                 ]
             ),
         ]
@@ -243,6 +320,7 @@ def build_backblast_form(
     backblast_metadata = safe_get(body, "message", "metadata", "event_payload") or {}
     view_metadata = safe_convert(safe_get(body, "view", "private_metadata") or "{}", json.loads)
     action_id = safe_get(body, "actions", 0, "action_id")
+    f3_user_id = get_user(user_id, region_record, client, logger).user_id
     is_scheduled = True
     if event_instance_id:
         pass
@@ -250,9 +328,25 @@ def build_backblast_form(
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
+    elif action_id[: len(actions.BACKBLAST_FILL_BUTTON)] == actions.BACKBLAST_FILL_BUTTON:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
     elif action_id == actions.BACKBLAST_NEW_BLANK_BUTTON or view_metadata.get("is_unscheduled") == "true":
         event_instance_id = None
         is_scheduled = False
+        event_record = None
+    elif action_id == actions.BACKBLAST_NOQ_SELECT:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+        try:
+            DbManager.create_record(
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=f3_user_id,
+                    is_planned=True,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # assign as Q
+                )
+            )
+        except Exception as e:
+            logger.error(f"Error creating attendance record for backblast no-Q select: {e}")
     else:
         event_instance_id = safe_get(backblast_metadata, "event_instance_id")
     update_view_id = safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
@@ -281,6 +375,8 @@ def build_backblast_form(
             for r in attendance_records
             if bool({t.id for t in r.attendance_types}.intersection([2])) and attendance_slack_dict[r]
         ]
+        if not q_list and safe_get(body, "actions", 0, "action_id") == actions.BACKBLAST_NOQ_SELECT:
+            q_list = [user_id]
         coq_list = [
             attendance_slack_dict[r]
             for r in attendance_records
@@ -290,7 +386,7 @@ def build_backblast_form(
         if action_id not in [
             actions.BACKBLAST_FILL_SELECT,
             actions.MSG_EVENT_BACKBLAST_BUTTON,
-            actions.FILL_BACKBLAST_BUTTON,
+            actions.PREBLAST_FILL_BACKBLAST_BUTTON,
         ]:
             moleskin_block = safe_get(body, "message", "blocks", 1)
             moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
@@ -387,7 +483,7 @@ def build_backblast_form(
     if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
         backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
     # backblast_metadata = None
-    if action_id == actions.BACKBLAST_EDIT_BUTTON or event_record.backblast_ts:
+    if action_id == actions.BACKBLAST_EDIT_BUTTON or safe_get(event_record, "backblast_ts"):
         callback_id = actions.BACKBLAST_EDIT_CALLBACK_ID
         backblast_metadata["channel_id"] = safe_get(body, "container", "channel_id")
         backblast_metadata["message_ts"] = safe_get(body, "container", "message_ts")
