@@ -22,7 +22,7 @@ from f3_data_models.models import (
     User,
 )
 from f3_data_models.utils import _joinedloads, get_session
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, exists, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
@@ -262,6 +262,39 @@ def event_attendance_query(attendance_filter: List[Any] = None, event_filter: Li
         query = _joinedloads(EventInstance, query, "all")
         event_records = session.scalars(query).unique().all()
         return event_records
+
+
+def event_instances_without_attendance_types(
+    *,
+    excluded_attendance_type_ids: list[int],
+    event_filter: List[Any] = None,
+) -> List[EventInstance]:
+    """
+    Returns EventInstances where there are NO Attendance records with any of the given attendance type IDs.
+    This includes events with zero Attendance rows.
+    """
+    with get_session() as session:
+        q_attendance_exists = (
+            select(1)
+            .select_from(Attendance)
+            .join(
+                Attendance_x_AttendanceType,
+                Attendance_x_AttendanceType.attendance_id == Attendance.id,
+            )
+            .where(
+                Attendance.event_instance_id == EventInstance.id,
+                Attendance_x_AttendanceType.attendance_type_id.in_(excluded_attendance_type_ids),
+            )
+        )
+
+        query = (
+            select(EventInstance)
+            .filter(*(event_filter or []))
+            .filter(~exists(q_attendance_exists))
+            .order_by(EventInstance.start_date, EventInstance.start_time)
+        )
+        query = _joinedloads(EventInstance, query, "all")
+        return session.scalars(query).unique().all()
 
 
 def get_user_permission_list(user_id: int, org_id: int) -> list[Permission]:

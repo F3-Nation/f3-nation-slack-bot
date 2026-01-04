@@ -28,7 +28,11 @@ from sqlmodel import func
 from features import backblast_legacy
 from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import event_attendance_query, get_admin_users
+from utilities.database.special_queries import (
+    event_attendance_query,
+    event_instances_without_attendance_types,
+    get_admin_users,
+)
 from utilities.helper_functions import (
     current_date_cst,
     get_pax,
@@ -184,11 +188,8 @@ def backblast_middleware(
                 ),
             ],
         )
-        no_q_event_records = event_attendance_query(
-            attendance_filter=[
-                Attendance.is_planned,
-                not_(Attendance.attendance_types.any(AttendanceType.id.in_([2, 3]))),
-            ],
+        no_q_event_records = event_instances_without_attendance_types(
+            excluded_attendance_type_ids=[2, 3],
             event_filter=[
                 EventInstance.start_date <= current_date_cst(),
                 EventInstance.backblast_ts.is_(None),
@@ -246,48 +247,52 @@ def backblast_middleware(
         blocks = [
             *select_blocks,
             slack_orm.DividerBlock(),
-            slack_orm.SectionBlock(label="*Or, select from a list of recent events with no Q assigned:*"),
-            slack_orm.InputBlock(
-                label="Recent unclaimed Qs",
-                action=actions.BACKBLAST_NOQ_SELECT,
-                dispatch_action=True,
-                optional=False,
-                element=slack_orm.StaticSelectElement(
-                    placeholder="Select an event",
-                    options=slack_orm.as_selector_options(
-                        names=[
-                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
-                            for r in no_q_event_records
-                        ],
-                        values=[str(r.id) for r in no_q_event_records[:20]],
-                    ),
-                    confirm=slack_orm.ConfirmObject(
-                        title="Are you sure?",
-                        text="You are selecting an event with no assigned Q. Selecting it will assign you as the Q for this event. Do you want to proceed?",  # noqa
-                        confirm="Yes, I'm sure",
-                        deny="Whups, never mind",
-                    ),
-                ),
-            ),
-            slack_orm.DividerBlock(),
-            slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
-            slack_orm.ActionsBlock(
-                elements=[
-                    slack_orm.ButtonElement(
-                        label="New Unscheduled Event",
-                        action=actions.BACKBLAST_NEW_BLANK_BUTTON,
+        ]
+        if no_q_event_records:
+            (slack_orm.SectionBlock(label="*Or, select from a list of recent events with no Q assigned:*"),)
+            blocks += [
+                slack_orm.InputBlock(
+                    label="Recent unclaimed Qs",
+                    action=actions.BACKBLAST_NOQ_SELECT,
+                    dispatch_action=True,
+                    optional=False,
+                    element=slack_orm.StaticSelectElement(
+                        placeholder="Select an event",
+                        options=slack_orm.as_selector_options(
+                            names=[
+                                f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
+                                for r in no_q_event_records
+                            ],
+                            values=[str(r.id) for r in no_q_event_records[:20]],
+                        ),
                         confirm=slack_orm.ConfirmObject(
                             title="Are you sure?",
-                            text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                            text="You are selecting an event with no assigned Q. Selecting it will assign you as the Q for this event. Do you want to proceed?",  # noqa
                             confirm="Yes, I'm sure",
                             deny="Whups, never mind",
-                            style="danger",
                         ),
                     ),
-                    # slack_orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
-                ]
-            ),
-        ]
+                ),
+                slack_orm.DividerBlock(),
+            ]
+            blocks += [
+                slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
+                slack_orm.ActionsBlock(
+                    elements=[
+                        slack_orm.ButtonElement(
+                            label="New Unscheduled Event",
+                            action=actions.BACKBLAST_NEW_BLANK_BUTTON,
+                            confirm=slack_orm.ConfirmObject(
+                                title="Are you sure?",
+                                text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                                confirm="Yes, I'm sure",
+                                deny="Whups, never mind",
+                                style="danger",
+                            ),
+                        ),
+                    ]
+                ),
+            ]
         form = slack_orm.BlockView(blocks=blocks)
         form.update_modal(
             client=client,
