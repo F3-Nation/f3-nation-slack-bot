@@ -1,9 +1,11 @@
 import os
 import sys
 
+from sqlalchemy import case, select, update
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from f3_data_models.models import Org_x_SlackSpace, SlackSpace, SlackUser
-from f3_data_models.utils import DbManager
+from f3_data_models.models import Attendance, EventInstance, Org, Org_x_SlackSpace, SlackSpace, SlackUser, User
+from f3_data_models.utils import DbManager, get_session
 from slack_sdk import WebClient
 from slack_sdk.errors import SlackApiError
 
@@ -65,5 +67,55 @@ def update_slack_users(force=False):
             continue
 
 
+def update_home_regions():
+    users_without_home_region = DbManager.find_records(cls=User, filters=[User.home_region_id.is_(None)])
+    print(f"Found {len(users_without_home_region)} users without home region.")
+    # option 1: find the first event they attended and set that region as their home region
+    # option 2: find the org_id from their slack user associations
+    if users_without_home_region:
+        with get_session() as session:
+            first_event_subquery = (
+                select(
+                    case(
+                        (Org.org_type == "region", Org.id),
+                        else_=Org.parent_id,
+                    ).label("region_id")
+                )
+                .select_from(EventInstance)
+                .join(Attendance, Attendance.event_instance_id == EventInstance.id)
+                .join(Org, Org.id == EventInstance.org_id)
+                .filter(Attendance.user_id == User.id)
+                .order_by(EventInstance.start_date, EventInstance.start_time)
+                .limit(1)
+                .correlate(User)
+            )
+
+            slack_space_subquery = (
+                select(Org_x_SlackSpace.org_id)
+                .join(SlackSpace, SlackSpace.id == Org_x_SlackSpace.slack_space_id)
+                .join(SlackUser, SlackUser.slack_team_id == SlackSpace.team_id)
+                .filter(SlackUser.user_id == User.id)
+                .limit(1)
+                .correlate(User)
+            )
+
+            update_query = (
+                update(User)
+                .where(User.id.in_([user.id for user in users_without_home_region]))
+                .values(
+                    {
+                        User.home_region_id: case(
+                            (first_event_subquery.exists(), first_event_subquery.scalar_subquery()),
+                            (slack_space_subquery.exists(), slack_space_subquery.scalar_subquery()),
+                            else_=User.home_region_id,
+                        )
+                    }
+                )
+            )
+            session.execute(update_query)
+            session.commit()
+
+
 if __name__ == "__main__":
     update_slack_users()
+    update_home_regions()
