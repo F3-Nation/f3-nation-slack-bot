@@ -160,7 +160,7 @@ def backblast_middleware(
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
             admin_users = get_admin_users(region_record.org_id, region_record.team_id)
-            if attendance_records or any(any(u[0].id == user_id for u in admin_users)):
+            if attendance_records or any(u[0].id == user_id for u in admin_users):
                 build_backblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     else:
         user = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger)
