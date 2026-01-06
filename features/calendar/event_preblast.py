@@ -24,7 +24,11 @@ from features.calendar import get_preblast_action_buttons
 from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import event_attendance_query, get_admin_users
+from utilities.database.special_queries import (
+    event_attendance_query,
+    event_instances_without_attendance_types,
+    get_admin_users,
+)
 from utilities.helper_functions import (
     current_date_cst,
     get_location_display_name,
@@ -99,35 +103,118 @@ def build_event_preblast_select_form(
         ],
     )
 
-    if event_records:
-        select_block = orm.InputBlock(
-            label="Select an upcoming Q",
-            action=actions.EVENT_PREBLAST_SELECT,
-            dispatch_action=True,
-            element=orm.StaticSelectElement(
-                placeholder="Select an event",
-                options=orm.as_selector_options(
-                    names=[
-                        f"{r.start_date} {r.org.name} {r.event_types[0].name}" for r in event_records
-                    ],  # TODO: handle multiple event types and current data format
-                    values=[str(r.id) for r in event_records],
-                ),
+    # Query for events without a Q assigned
+    no_q_event_records = event_instances_without_attendance_types(
+        excluded_attendance_type_ids=[2, 3],
+        event_filter=[
+            EventInstance.start_date >= current_date_cst(),
+            EventInstance.preblast_ts.is_(None),
+            EventInstance.is_active,
+            or_(
+                EventInstance.org_id == region_record.org_id,
+                EventInstance.org.has(Org.parent_id == region_record.org_id),
             ),
-        )
+        ],
+    )
+
+    # Section 1: User's upcoming Qs
+    if event_records:
+        # Sort by soonest date first
+        event_records.sort(key=lambda r: r.start_date)
+        select_blocks = [
+            orm.HeaderBlock(label=":point_up: Select From Upcoming Qs:"),
+            orm.ActionsBlock(
+                elements=[
+                    orm.ButtonElement(
+                        label=f"{r.start_date.strftime('%m/%d')} {r.org.name} {' / '.join([t.name for t in r.event_types])}",  # noqa: E501
+                        action=f"{actions.EVENT_PREBLAST_FILL_BUTTON}_{r.id}",
+                        value=str(r.id),
+                    )
+                    for r in event_records[:4]
+                ],
+            ),
+        ]
+        if len(event_records) > 4:
+            select_blocks.append(
+                orm.InputBlock(
+                    label="All upcoming Qs",
+                    action=actions.EVENT_PREBLAST_SELECT,
+                    dispatch_action=True,
+                    optional=False,
+                    element=orm.StaticSelectElement(
+                        placeholder="Select an event",
+                        options=orm.as_selector_options(
+                            names=[
+                                f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
+                                for r in event_records
+                            ],
+                            values=[str(r.id) for r in event_records],
+                        ),
+                    ),
+                    hint="If not listed above",
+                )
+            )
     else:
-        select_block = orm.SectionBlock(label="No upcoming events for you to send a preblast for!")
+        select_blocks = [
+            orm.SectionBlock(
+                label="Looks like you are caught up! You have no upcoming Qs that have not already been posted for."
+            ),  # noqa
+        ]
 
     blocks = [
-        select_block,
+        *select_blocks,
+        orm.DividerBlock(),
+    ]
+
+    # Section 2: Events without a Q
+    if no_q_event_records:
+        blocks += [
+            orm.InputBlock(
+                label="Upcoming events without a Q",
+                action=actions.EVENT_PREBLAST_NOQ_SELECT,
+                dispatch_action=True,
+                optional=False,
+                element=orm.StaticSelectElement(
+                    placeholder="Select an event",
+                    options=orm.as_selector_options(
+                        names=[
+                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
+                            for r in no_q_event_records
+                        ],
+                        values=[str(r.id) for r in no_q_event_records[:20]],
+                    ),
+                    confirm=orm.ConfirmObject(
+                        title="Are you sure?",
+                        text="You are selecting an event with no assigned Q. Selecting it will assign you as the Q for this event. Do you want to proceed?",  # noqa
+                        confirm="Yes, I'm sure",
+                        deny="Whups, never mind",
+                    ),
+                ),
+            ),
+            orm.DividerBlock(),
+        ]
+
+    # Section 3: Action buttons
+    blocks += [
+        orm.SectionBlock(label="Or, create a preblast for an event *not on the calendar:*"),
         orm.ActionsBlock(
             elements=[
                 orm.ButtonElement(
-                    label=":heavy_plus_sign: New Unscheduled Event", action=actions.EVENT_PREBLAST_NEW_BUTTON
+                    label="New Unscheduled Event",
+                    action=actions.EVENT_PREBLAST_NEW_BUTTON,
+                    confirm=orm.ConfirmObject(
+                        title="Are you sure?",
+                        text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                        confirm="Yes, I'm sure",
+                        deny="Whups, never mind",
+                        style="danger",
+                    ),
                 ),
                 orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
             ]
         ),
     ]
+
     form = orm.BlockView(blocks=blocks)
     update_view_id = safe_get(body, "view", "id") or safe_get(body, actions.LOADING_ID)
     form.update_modal(
@@ -146,10 +233,34 @@ def handle_event_preblast_select(
     context: dict,
     region_record: SlackSettings,
 ):
-    event_instance_id = safe_get(body, "actions", 0, "selected_option", "value")
+    action_id = safe_get(body, "actions", 0, "action_id") or ""
     view_id = safe_get(body, "view", "id")
+
+    # Handle fill button click (action_id starts with EVENT_PREBLAST_FILL_BUTTON)
+    if action_id[: len(actions.EVENT_PREBLAST_FILL_BUTTON)] == actions.EVENT_PREBLAST_FILL_BUTTON:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
+    # Handle no-Q select with Q assignment
+    elif action_id == actions.EVENT_PREBLAST_NOQ_SELECT:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+        # Assign the user as Q for this event
+        slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+        user_id = get_user(slack_user_id, region_record, client, logger).user_id
+        try:
+            attendance_record = Attendance(
+                event_instance_id=event_instance_id,
+                user_id=user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # Q type
+                is_planned=True,
+            )
+            DbManager.create_record(attendance_record)
+        except Exception as e:
+            logger.error(f"Error assigning Q for event {event_instance_id}: {e}")
+    # Handle dropdown select
+    else:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+
     build_event_preblast_form(
-        body, client, logger, context, region_record, event_instance_id=int(event_instance_id), update_view_id=view_id
+        body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
     )
 
 

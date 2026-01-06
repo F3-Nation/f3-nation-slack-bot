@@ -185,6 +185,8 @@ ACTION_MAPPER = {
     actions.NEW_PREBLAST_BUTTON: (event_preblast.preblast_middleware, True),
     actions.BACKBLAST_NOQ_SELECT: (backblast.build_backblast_form, True),
     actions.BACKBLAST_FILL_BUTTON: (backblast.build_backblast_form, True),
+    actions.EVENT_PREBLAST_FILL_BUTTON: (event_preblast.handle_event_preblast_select, False),
+    actions.EVENT_PREBLAST_NOQ_SELECT: (event_preblast.handle_event_preblast_select, False),
 }
 
 ACTION_PREFIXES = [
@@ -199,6 +201,7 @@ ACTION_PREFIXES = [
     actions.EVENT_TYPE_EDIT_DELETE,
     event_tag.EVENT_TAG_EDIT_DELETE,
     actions.BACKBLAST_FILL_BUTTON,
+    actions.EVENT_PREBLAST_FILL_BUTTON,
 ]
 
 VIEW_CLOSED_MAPPER = {
