@@ -303,10 +303,20 @@ def build_event_preblast_form(
                 ),
             }
         )
+        # if start_date is more than 24 hours away, default to sending 24 hours before
+        if (
+            record.start_date > current_date_cst()
+            and (record.start_date - current_date_cst()).days >= 1
+            and not record.preblast_ts
+        ):
+            schedule_default = "Send a day before the event"
+        else:
+            schedule_default = "Send now"
         initial_values = {
             actions.EVENT_PREBLAST_TITLE: record.name,
             actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich or region_record.preblast_moleskin_template,
             actions.EVENT_PREBLAST_START_TIME: record.start_time[:2] + ":" + record.start_time[2:],
+            actions.EVENT_PREBLAST_SEND_OPTIONS: schedule_default,
             # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
         if record.location:
@@ -324,7 +334,8 @@ def build_event_preblast_form(
         form.set_initial_values(initial_values)
         title_text = "Edit Event Preblast"
         submit_button_text = "Update"
-        if not preblast_channel or not view_id or preblast_info.event_record.preblast_ts:
+
+        if not preblast_channel or preblast_info.event_record.preblast_ts:
             form.blocks = form.blocks[:-1]
             if not preblast_channel:
                 form.blocks.append(
