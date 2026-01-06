@@ -28,6 +28,7 @@ from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    _parse_view_private_metadata,
     current_date_cst,
     get_location_display_name,
     safe_convert,
@@ -58,7 +59,7 @@ def build_series_add_form(
     new_preblast: bool = False,
     loading_form: bool = False,
 ):
-    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    metadata = _parse_view_private_metadata(body)
     if safe_get(metadata, "series_id"):
         edit_event: Event = DbManager.get(
             Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
@@ -202,7 +203,7 @@ def build_series_add_form(
 
 
 def handle_series_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    metadata = _parse_view_private_metadata(body)
     form_data = SERIES_FORM.get_selected_values(body)
 
     end_date = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_DATE), datetime.strptime, ["%Y-%m-%d"])
@@ -606,15 +607,15 @@ def build_series_list_form(
             title_text=title_text,
             submit_button_text="None",
         )
-    else:
-        form.post_modal(
-            client=client,
-            trigger_id=safe_get(body, "trigger_id"),
-            title_text=title_text,
-            callback_id=actions.EDIT_DELETE_SERIES_CALLBACK_ID,
-            submit_button_text="None",
-            new_or_add="add",
-        )
+    # else:
+    #     form.post_modal(
+    #         client=client,
+    #         trigger_id=safe_get(body, "trigger_id"),
+    #         title_text=title_text,
+    #         callback_id=actions.EDIT_DELETE_SERIES_CALLBACK_ID,
+    #         submit_button_text="None",
+    #         new_or_add="add",
+    #     )
 
 
 def handle_series_edit_delete(

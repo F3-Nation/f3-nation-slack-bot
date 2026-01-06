@@ -1,5 +1,4 @@
 import copy
-import json
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import List
@@ -23,6 +22,7 @@ from features.calendar import event_preblast
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    _parse_view_private_metadata,
     current_date_cst,
     get_location_display_name,
     get_user,
@@ -79,8 +79,10 @@ def build_event_instance_add_form(
     new_preblast: bool = False,
     loading_form: bool = False,
 ):
-    parent_metadata = {"event_instance_id": edit_event_instance.id} if edit_event_instance else {}
-    view_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    parent_metadata = (
+        {"event_instance_id": edit_event_instance.id} if edit_event_instance else _parse_view_private_metadata(body)
+    )
+    view_metadata = _parse_view_private_metadata(body)
 
     if loading_form:
         update_view_id = add_loading_form(body, client, new_or_add="add")
@@ -225,7 +227,7 @@ def build_event_instance_add_form(
 def handle_event_instance_add(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    metadata = _parse_view_private_metadata(body)
     form = copy.deepcopy(INSTANCE_FORM)
     if safe_get(metadata, "is_preblast") == "True":
         form.blocks.insert(
@@ -317,7 +319,6 @@ def handle_event_instance_add(
             client,
             logger,
         )
-
     if safe_get(metadata, "event_instance_id"):
         # event_instance_id is passed in the metadata if this is an edit
         update_fields = event_instance_record.to_update_dict()
@@ -412,9 +413,6 @@ def build_event_instance_list_form(
             CALENDAR_MANAGE_EVENT_INSTANCE_DATE: safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_DATE),
         }
     )
-
-    print(len(records), "event instances found")
-    print(len(form.blocks), "blocks in the form")
 
     for s in records:
         label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]

@@ -194,6 +194,30 @@ def get_user(slack_user_id: str, region_record: SlackSettings, client: WebClient
         return user
 
 
+def _parse_view_private_metadata(body: dict) -> dict:
+    """Slack may send private_metadata as a dict, JSON string, or double-encoded JSON string."""
+    raw = safe_get(body, "view", "private_metadata")
+
+    if raw in (None, "", {}):
+        return {}
+
+    if isinstance(raw, dict):
+        return raw
+
+    value = raw
+    try:
+        # Try up to 2 decoding passes (handles values like "\"{\\\"event_instance_id\\\": 441}\"").
+        for _ in range(2):
+            if isinstance(value, str):
+                value = json.loads(value)
+            else:
+                break
+    except (TypeError, json.JSONDecodeError):
+        return {}
+
+    return value if isinstance(value, dict) else {}
+
+
 def create_user(slack_user_info: dict, home_region_id: int | None = None) -> SlackUser:
     email = safe_get(slack_user_info, "profile", "email")
     email = email or safe_get(slack_user_info, "id")  # this means it's a bot
