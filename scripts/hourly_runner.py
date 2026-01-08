@@ -67,6 +67,12 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
     except Exception as e:
         print(f"Error updating Slack users: {e}")
 
+    print("Updating home regions for users")
+    try:
+        update_slack_users.update_home_regions()
+    except Exception as e:
+        print(f"Error updating home regions for users: {e}")
+
     print("Running Paxminer migrations")
     try:
         paxminer_migration.check_and_run_paxminer_migration()

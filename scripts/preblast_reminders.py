@@ -23,7 +23,7 @@ from f3_data_models.models import (
 )
 from f3_data_models.utils import get_session
 from slack_sdk.web import WebClient
-from sqlalchemy import and_, func, select
+from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.orm import aliased
 
 from utilities.database.orm import SlackSettings
@@ -120,21 +120,24 @@ class PreblastList:
         session.close()
 
 
-def send_preblast_reminders():
+def send_preblast_reminders(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 5:00 PM and 6:00 PM, eventually configurable
-    if current_time.hour == 10:
+    if current_time.hour == 10 or force:
         preblast_list = PreblastList()
         preblast_list.pull_data(
             filters=[
                 EventInstance.start_date == current_date_cst() + timedelta(days=1),  # eventually configurable
                 EventInstance.preblast_ts.is_(None),  # not already sent
-                EventInstance.preblast_rich.is_(None),  # not already set
+                or_(
+                    EventInstance.preblast_rich.is_(None), EventInstance.preblast_rich.cast(String) == "null"
+                ),  # not already set
                 EventInstance.is_active,  # not canceled
             ]
         )
         preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
+        print(f"Found {len(preblast_list.items)} preblast reminders to send.")
 
         for preblast in preblast_list.items:
             # TODO: add some handling for missing stuff
@@ -173,4 +176,4 @@ def send_preblast_reminders():
 
 
 if __name__ == "__main__":
-    send_preblast_reminders()
+    send_preblast_reminders(force=True)

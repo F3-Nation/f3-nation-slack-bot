@@ -82,16 +82,26 @@ def update_submit_modal(client: WebClient, logger: Logger, text: str) -> Dict[st
 
 def add_loading_form(body: dict, client: WebClient, new_or_add: str = "new") -> str:
     trigger_id = safe_get(body, "trigger_id")
-    loading_form_response = forms.LOADING_FORM.post_modal(
-        client=client,
-        trigger_id=trigger_id,
-        title_text="Loading...",
-        submit_button_text="None",
-        callback_id="loading-id",
-        new_or_add=new_or_add,
-    )
+    if safe_get(body, "view", "id"):
+        loading_form_response = forms.LOADING_FORM.update_modal(
+            client=client,
+            view_id=safe_get(body, "view", "id"),
+            title_text="Loading...",
+            submit_button_text="None",
+            callback_id="loading-id",
+        )
+    else:
+        loading_form_response = forms.LOADING_FORM.post_modal(
+            client=client,
+            trigger_id=trigger_id,
+            title_text="Loading...",
+            submit_button_text="None",
+            callback_id="loading-id",
+            new_or_add=new_or_add,
+        )
     # wait 0.1 seconds
     time.sleep(0.3)
+    print(f"loading_form_response: {loading_form_response}")
     return safe_get(loading_form_response, "view", "id")
 
 

@@ -20,10 +20,14 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from features import preblast_legacy
-from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS
+from features.calendar import get_preblast_action_buttons
 from utilities import constants
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import event_attendance_query, get_admin_users
+from utilities.database.special_queries import (
+    event_attendance_query,
+    get_admin_users,
+)
 from utilities.helper_functions import (
     current_date_cst,
     get_location_display_name,
@@ -98,35 +102,86 @@ def build_event_preblast_select_form(
         ],
     )
 
+    # Section 1: User's upcoming Qs
     if event_records:
-        select_block = orm.InputBlock(
-            label="Select an upcoming Q",
-            action=actions.EVENT_PREBLAST_SELECT,
-            dispatch_action=True,
-            element=orm.StaticSelectElement(
-                placeholder="Select an event",
-                options=orm.as_selector_options(
-                    names=[
-                        f"{r.start_date} {r.org.name} {r.event_types[0].name}" for r in event_records
-                    ],  # TODO: handle multiple event types and current data format
-                    values=[str(r.id) for r in event_records],
-                ),
+        # Sort by soonest date first
+        event_records.sort(key=lambda r: r.start_date)
+        select_blocks = [
+            orm.HeaderBlock(label=":point_up: Select From Upcoming Qs:"),
+            orm.ActionsBlock(
+                elements=[
+                    orm.ButtonElement(
+                        label=f"{r.start_date.strftime('%m/%d')} {r.org.name} {' / '.join([t.name for t in r.event_types])}",  # noqa: E501
+                        action=f"{actions.EVENT_PREBLAST_FILL_BUTTON}_{r.id}",
+                        value=str(r.id),
+                    )
+                    for r in event_records[:4]
+                ],
             ),
-        )
+        ]
+        if len(event_records) > 4:
+            select_blocks.append(
+                orm.InputBlock(
+                    label="All upcoming Qs",
+                    action=actions.EVENT_PREBLAST_SELECT,
+                    dispatch_action=True,
+                    optional=False,
+                    element=orm.StaticSelectElement(
+                        placeholder="Select an event",
+                        options=orm.as_selector_options(
+                            names=[
+                                f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
+                                for r in event_records
+                            ],
+                            values=[str(r.id) for r in event_records],
+                        ),
+                    ),
+                    hint="If not listed above",
+                )
+            )
     else:
-        select_block = orm.SectionBlock(label="No upcoming events for you to send a preblast for!")
+        select_blocks = [
+            orm.SectionBlock(
+                label="Looks like you are caught up! You have no upcoming Qs that have not already been posted for."
+            ),  # noqa
+        ]
 
     blocks = [
-        select_block,
+        *select_blocks,
+        orm.DividerBlock(),
+    ]
+
+    # Section 2: Events without a Q
+    blocks += [
+        orm.SectionBlock(label="Sign up to Q for an upcoming event from the calendar:"),
         orm.ActionsBlock(
             elements=[
-                orm.ButtonElement(
-                    label=":heavy_plus_sign: New Unscheduled Event", action=actions.EVENT_PREBLAST_NEW_BUTTON
-                ),
                 orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
             ]
         ),
+        orm.DividerBlock(),
     ]
+
+    # Section 3: Unscheduled event
+    blocks += [
+        orm.SectionBlock(label="Or, create a preblast for an event *not on the calendar:*"),
+        orm.ActionsBlock(
+            elements=[
+                orm.ButtonElement(
+                    label="New Unscheduled Event",
+                    action=actions.EVENT_PREBLAST_NEW_BUTTON,
+                    confirm=orm.ConfirmObject(
+                        title="Are you sure?",
+                        text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                        confirm="Yes, I'm sure",
+                        deny="Whups, never mind",
+                        style="danger",
+                    ),
+                ),
+            ]
+        ),
+    ]
+
     form = orm.BlockView(blocks=blocks)
     update_view_id = safe_get(body, "view", "id") or safe_get(body, actions.LOADING_ID)
     form.update_modal(
@@ -145,10 +200,34 @@ def handle_event_preblast_select(
     context: dict,
     region_record: SlackSettings,
 ):
-    event_instance_id = safe_get(body, "actions", 0, "selected_option", "value")
+    action_id = safe_get(body, "actions", 0, "action_id") or ""
     view_id = safe_get(body, "view", "id")
+
+    # Handle fill button click (action_id starts with EVENT_PREBLAST_FILL_BUTTON)
+    if action_id[: len(actions.EVENT_PREBLAST_FILL_BUTTON)] == actions.EVENT_PREBLAST_FILL_BUTTON:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
+    # Handle no-Q select with Q assignment
+    elif action_id == actions.EVENT_PREBLAST_NOQ_SELECT:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+        # Assign the user as Q for this event
+        slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+        user_id = get_user(slack_user_id, region_record, client, logger).user_id
+        try:
+            attendance_record = Attendance(
+                event_instance_id=event_instance_id,
+                user_id=user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # Q type
+                is_planned=True,
+            )
+            DbManager.create_record(attendance_record)
+        except Exception as e:
+            logger.error(f"Error assigning Q for event {event_instance_id}: {e}")
+    # Handle dropdown select
+    else:
+        event_instance_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
+
     build_event_preblast_form(
-        body, client, logger, context, region_record, event_instance_id=int(event_instance_id), update_view_id=view_id
+        body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
     )
 
 
@@ -161,6 +240,9 @@ def build_event_preblast_form(
     event_instance_id: int = None,
     update_view_id: str = None,
 ):
+    if not update_view_id:
+        loading_view_id = add_loading_form(body, client, new_or_add="add" if safe_get(body, "view", "id") else "new")
+
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
     record = preblast_info.event_record
     view_id = safe_get(body, "view", "id")
@@ -188,9 +270,20 @@ def build_event_preblast_form(
                 ),
             }
         )
+        # if start_date is more than 24 hours away, default to sending 24 hours before
+        if (
+            record.start_date > current_date_cst()
+            and (record.start_date - current_date_cst()).days >= 1
+            and not record.preblast_ts
+        ):
+            schedule_default = "Send a day before the event"
+        else:
+            schedule_default = "Send now"
         initial_values = {
             actions.EVENT_PREBLAST_TITLE: record.name,
             actions.EVENT_PREBLAST_MOLESKINE_EDIT: record.preblast_rich or region_record.preblast_moleskin_template,
+            actions.EVENT_PREBLAST_START_TIME: record.start_time[:2] + ":" + record.start_time[2:],
+            actions.EVENT_PREBLAST_SEND_OPTIONS: schedule_default,
             # actions.EVENT_PREBLAST_TAG: safe_convert(getattr(record.event_tags, "id", None), str),
         }
         if record.location:
@@ -208,7 +301,8 @@ def build_event_preblast_form(
         form.set_initial_values(initial_values)
         title_text = "Edit Event Preblast"
         submit_button_text = "Update"
-        if not preblast_channel or not view_id or preblast_info.event_record.preblast_ts:
+
+        if not preblast_channel or preblast_info.event_record.preblast_ts:
             form.blocks = form.blocks[:-1]
             if not preblast_channel:
                 form.blocks.append(
@@ -243,30 +337,23 @@ def build_event_preblast_form(
     }
 
     if update_view_id:
-        form.update_modal(
-            client=client,
-            view_id=update_view_id,
-            title_text=title_text,
-            submit_button_text=submit_button_text,
-            parent_metadata=metadata,
-            callback_id=actions.EVENT_PREBLAST_CALLBACK_ID,
-        )
+        update_view_id = update_view_id
+        callback_id = actions.EVENT_PREBLAST_CALLBACK_ID
     else:
+        update_view_id = loading_view_id
         if view_id:
-            new_or_add = "add"
             callback_id = actions.EVENT_PREBLAST_CALLBACK_ID
         else:
-            new_or_add = "new"
             callback_id = actions.EVENT_PREBLAST_POST_CALLBACK_ID
-        form.post_modal(
-            client=client,
-            trigger_id=safe_get(body, "trigger_id"),
-            callback_id=callback_id,
-            title_text=title_text,
-            submit_button_text=submit_button_text,
-            new_or_add=new_or_add,
-            parent_metadata=metadata,
-        )
+
+    form.update_modal(
+        client=client,
+        view_id=update_view_id,
+        title_text=title_text,
+        submit_button_text=submit_button_text,
+        parent_metadata=metadata,
+        callback_id=callback_id,
+    )
 
 
 def handle_event_preblast_edit(
@@ -303,6 +390,7 @@ def handle_event_preblast_edit(
             client,
             logger,
         ),
+        EventInstance.start_time: safe_get(form_data, actions.EVENT_PREBLAST_START_TIME).replace(":", ""),
     }
     DbManager.update_record(EventInstance, event_instance_id, update_fields)
     DbManager.delete_records(
@@ -374,23 +462,24 @@ def send_preblast(
 ):
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
-    blocks = [
-        *preblast_info.preblast_blocks,
-        orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
-    ]
     q_attendance = next(
         (r for r in preblast_info.attendance_records if any(t.id == 2 for t in r.attendance_types)), None
     )
     q_user_id = safe_get(preblast_info.attendance_slack_dict, q_attendance)
+    q_list = [
+        r for r in preblast_info.attendance_records if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+    ]
+    blocks = [
+        *preblast_info.preblast_blocks,
+        orm.ActionsBlock(
+            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
+        ),
+    ]
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
         "event_instance_id": event_instance_id,
         "attendees": [r.user.id for r in preblast_info.attendance_records],
-        "qs": [
-            r.user.id
-            for r in preblast_info.attendance_records
-            if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-        ],
+        "qs": [r.user.id for r in q_list],
     }
     if not body:
         # this will happen if called outside a user interaction
@@ -636,7 +725,7 @@ def handle_event_preblast_action(
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
+                orm.ActionsBlock(elements=get_preblast_action_buttons(has_q=True, event_instance_id=event_instance_id)),
             ]
             blocks = [b.as_form_field() for b in blocks]
 
@@ -700,13 +789,7 @@ def handle_event_preblast_action(
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": q_id_list,
             }
-            button_blocks = PREBLAST_MESSAGE_ACTION_ELEMENTS
-            # if not q_id_list:
-            #     button_blocks.append(
-            #         orm.ButtonElement(
-            #             ":raising_hand: Take Q", action=actions.EVENT_PREBLAST_TAKE_Q, value=str(event_instance_id)
-            #         )
-            #     )
+            button_blocks = get_preblast_action_buttons(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
             blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
@@ -722,8 +805,11 @@ def handle_event_preblast_action(
                 icon_url=q_url,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:
-            admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
-            user_is_admin = any(u[0].id == user_id for u in admin_users)
+            if constants.ALL_USERS_ARE_ADMINS:
+                user_is_admin = True
+            else:
+                admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+                user_is_admin = any(u[0].id == user_id for u in admin_users)
             if (user_id in (safe_get(metadata, "qs") or [])) or user_is_admin:
                 build_event_preblast_form(
                     body, client, logger, context, region_record, event_instance_id=event_instance_id
@@ -779,6 +865,12 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             label="Location",
             action=actions.EVENT_PREBLAST_LOCATION,
             element=orm.StaticSelectElement(),
+            optional=False,
+        ),
+        orm.InputBlock(
+            label="Start Time",
+            action=actions.EVENT_PREBLAST_START_TIME,
+            element=orm.TimepickerElement(placeholder="Select start time"),
             optional=False,
         ),
         orm.InputBlock(

@@ -15,9 +15,9 @@ REGION_REPORTING_CHANNEL = "region_reporting_channel"
 REPORTING_CALLBACK_ID = "reporting_settings"
 MONTHLY_REPORT_OPTIONS = {
     "monthly_summary": "Region Monthly Summary",
-    "region_leaderboard": "Region Leaderboard",
+    # "region_leaderboard": "Region Leaderboard",
     "ao_monthly_summary": "AO Monthly Summary",
-    "ao_leaderboard": "AO Leaderboard",
+    # "ao_leaderboard": "AO Leaderboard",
 }
 RUN_MONTHLY_REPORTS_NOW = "run_monthly_reports_now"
 
@@ -34,12 +34,12 @@ def build_reporting_form(
     monthly_options = []
     if region_record.reporting_region_monthly_summary_enabled:
         monthly_options.append("monthly_summary")
-    if region_record.reporting_region_leaderboard_enabled:
-        monthly_options.append("region_leaderboard")
+    # if region_record.reporting_region_leaderboard_enabled:
+    #     monthly_options.append("region_leaderboard")
     if region_record.reporting_ao_monthly_summary_enabled:
         monthly_options.append("ao_monthly_summary")
-    if region_record.reporting_ao_leaderboard_enabled:
-        monthly_options.append("ao_leaderboard")
+    # if region_record.reporting_ao_leaderboard_enabled:
+    #     monthly_options.append("ao_leaderboard")
 
     form.set_initial_values(
         {
@@ -62,9 +62,9 @@ def handle_reporting_edit(body: dict, client: WebClient, logger: Logger, context
 
     selected_reports = form_data.get(MONTHLY_REPORTS_ENABLED) or []
     region_record.reporting_region_monthly_summary_enabled = "monthly_summary" in selected_reports
-    region_record.reporting_region_leaderboard_enabled = "region_leaderboard" in selected_reports
+    # region_record.reporting_region_leaderboard_enabled = "region_leaderboard" in selected_reports
     region_record.reporting_ao_monthly_summary_enabled = "ao_monthly_summary" in selected_reports
-    region_record.reporting_ao_leaderboard_enabled = "ao_leaderboard" in selected_reports
+    # region_record.reporting_ao_leaderboard_enabled = "ao_leaderboard" in selected_reports
     region_record.reporting_region_channel = form_data.get(REGION_REPORTING_CHANNEL)
 
     DbManager.update_records(

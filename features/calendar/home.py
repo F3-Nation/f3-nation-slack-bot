@@ -19,15 +19,17 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
-from features.calendar import PREBLAST_MESSAGE_ACTION_ELEMENTS, event_instance
+from features.backblast import build_backblast_form
+from features.calendar import event_instance, get_preblast_action_buttons
 from features.calendar.event_preblast import (
     build_event_preblast_form,
     build_preblast_info,
     get_preblast_channel,
 )
+from utilities import constants
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
-from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, home_schedule_query
+from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, get_aoq_users, home_schedule_query
 from utilities.helper_functions import get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
@@ -38,7 +40,9 @@ def handle_event_preblast_select_button(
     action = safe_get(body, "actions", 0, "action_id")
     view_id = safe_get(body, "view", "id")
     if action == actions.EVENT_PREBLAST_NEW_BUTTON:
-        event_instance.build_event_instance_add_form(body, client, logger, context, region_record, new_preblast=True)
+        event_instance.build_event_instance_add_form(
+            body, client, logger, context, region_record, new_preblast=True, loading_form=True
+        )
     elif action == actions.OPEN_CALENDAR_BUTTON:
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
@@ -61,7 +65,13 @@ def build_home_form(
     user_is_admin = safe_get(metadata, "user_is_admin")
     if user_is_admin is None:
         admin_users = get_admin_users(region_record.org_id, region_record.team_id)
-        user_is_admin = any(u[0].id == user_id for u in admin_users)
+        aoq_users = get_aoq_users(region_record.org_id)
+        print(f"Admin users: {[u[0].id for u in admin_users]}")
+        print(f"AOQ users: {[u.id for u in aoq_users]}")
+        if constants.ALL_USERS_ARE_ADMINS:
+            user_is_admin = True
+        else:
+            user_is_admin = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
@@ -218,6 +228,7 @@ def build_home_form(
     events: list[CalendarHomeQuery] = home_schedule_query(
         user_id, filter, limit=100, open_q_only=open_q_only, only_users_events=only_users_events
     )
+
     split_time = time.time()
     print(f"Home schedule query: {split_time - start_time}")
     start_time = time.time()
@@ -226,12 +237,14 @@ def build_home_form(
     active_date = datetime.date(2020, 1, 1)
     block_count = 1
     for event in events:
+        option_names: List[str] = []
         if block_count > 90:
             break
-        if event.user_q:
-            option_names = ["Edit Preblast"]
-        else:
-            option_names = ["View Preblast"]
+        if not user_is_admin:
+            if event.user_q:
+                option_names.append("Edit Preblast")
+            else:
+                option_names.append("View Preblast")
         if event.event.start_date != active_date:
             active_date = event.event.start_date
             blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
@@ -256,6 +269,8 @@ def build_home_form(
             label += " :pencil:"
         if user_is_admin:
             option_names.append("Assign Q")
+            option_names.append("Edit Preblast")
+            option_names.append("Edit Backblast")
         blocks.append(
             orm.SectionBlock(
                 label=label,
@@ -582,6 +597,8 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
 
     if action in ["View Preblast", "Edit Preblast"]:
         build_event_preblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
+    elif action == "Edit Backblast":
+        build_backblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
     elif action == "Take Q":
         attendance_record = DbManager.find_records(
             Attendance,
@@ -637,19 +654,22 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     if update_post:
         preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
         if preblast_info.event_record.preblast_ts:
+            q_list = [
+                r.user.id
+                for r in preblast_info.attendance_records
+                if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
+            ]  # noqa
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=PREBLAST_MESSAGE_ACTION_ELEMENTS),
+                orm.ActionsBlock(
+                    elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
+                ),
             ]
             blocks = [b.as_form_field() for b in blocks]
             metadata = {
                 "event_instance_id": event_instance_id,
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
-                "qs": [
-                    r.user.id
-                    for r in preblast_info.attendance_records
-                    if bool({t.id for t in r.attendance_types}.intersection([2, 3]))
-                ],  # noqa
+                "qs": q_list,
             }
             try:
                 client.chat_update(

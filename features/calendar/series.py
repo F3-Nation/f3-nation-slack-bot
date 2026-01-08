@@ -29,6 +29,7 @@ from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     MapUpdate,
     MapUpdateData,
+    _parse_view_private_metadata,
     current_date_cst,
     get_location_display_name,
     safe_convert,
@@ -37,6 +38,8 @@ from utilities.helper_functions import (
 )
 from utilities.slack import actions, orm
 
+META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
+
 
 def manage_series(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     action = safe_get(body, "actions", 0, "selected_option", "value")
@@ -44,7 +47,7 @@ def manage_series(body: dict, client: WebClient, logger: Logger, context: dict, 
     if action == "add":
         build_series_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
-        build_series_list_form(body, client, logger, context, region_record)
+        build_series_list_form(body, client, logger, context, region_record, loading_form=True)
 
 
 def build_series_add_form(
@@ -57,7 +60,7 @@ def build_series_add_form(
     new_preblast: bool = False,
     loading_form: bool = False,
 ):
-    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    metadata = _parse_view_private_metadata(body)
     if safe_get(metadata, "series_id"):
         edit_event: Event = DbManager.get(
             Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
@@ -137,8 +140,17 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_END_DATE: safe_convert(edit_event.end_date, datetime.strftime, ["%Y-%m-%d"]),
             actions.CALENDAR_ADD_SERIES_START_TIME: safe_convert(edit_event.start_time, lambda t: t[:2] + ":" + t[2:]),
             actions.CALENDAR_ADD_SERIES_END_TIME: safe_convert(edit_event.end_time, lambda t: t[:2] + ":" + t[2:]),
-            actions.CALENDAR_ADD_SERIES_HIGHLIGHT: ["True"] if edit_event.highlight else [],
         }
+
+        options = []
+        if safe_get(edit_event, "is_private"):
+            options.append("private")
+        if safe_get(edit_event, "meta") and safe_get(edit_event.meta, META_DO_NOT_SEND_AUTO_PREBLASTS):
+            options.append("no_auto_preblasts")
+        if safe_get(edit_event, "highlight"):
+            options.append("highlight")
+        if options:
+            initial_values[actions.CALENDAR_ADD_SERIES_OPTIONS] = options
 
         if edit_event.event_tags:
             initial_values[actions.CALENDAR_ADD_SERIES_TAG] = [
@@ -192,7 +204,7 @@ def build_series_add_form(
 
 
 def handle_series_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    metadata = _parse_view_private_metadata(body)
     form_data = SERIES_FORM.get_selected_values(body)
 
     end_date = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_DATE), datetime.strptime, ["%Y-%m-%d"])
@@ -223,6 +235,11 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     recurrence_interval = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_INTERVAL), int)
     index_within_interval = safe_convert(safe_get(form_data, actions.CALENDAR_ADD_SERIES_INDEX), int)
 
+    selected_options = safe_get(form_data, actions.CALENDAR_ADD_SERIES_OPTIONS) or []
+    is_private = "private" in selected_options
+    do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
+    highlight = "highlight" in selected_options
+
     if safe_get(form_data, actions.CALENDAR_ADD_SERIES_NAME):
         series_name = safe_get(form_data, actions.CALENDAR_ADD_SERIES_NAME)
     else:
@@ -233,6 +250,15 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
     day_of_weeks = safe_get(form_data, actions.CALENDAR_ADD_SERIES_DOW)
 
     if safe_get(metadata, "series_id"):
+        existing_series: Event = DbManager.get(
+            Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
+        )
+        merged_meta = dict(safe_get(existing_series, "meta") or {})
+        if do_not_send_auto_preblasts:
+            merged_meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
+        else:
+            merged_meta.pop(META_DO_NOT_SEND_AUTO_PREBLASTS, None)
+
         DbManager.update_record(
             Event,
             metadata["series_id"],
@@ -245,7 +271,9 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                     safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
                 ).strftime("%H%M"),
                 Event.end_time: end_time,
-                Event.highlight: safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
+                Event.is_private: is_private,
+                Event.meta: merged_meta,
+                Event.highlight: highlight,
                 Event.event_x_event_types: [EventType_x_Event(event_type_id=event_type_id)],
                 Event.event_x_event_tags: [EventTag_x_Event(event_tag_id=event_tag_id)] if event_tag_id else [],
             },
@@ -261,6 +289,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         trigger_map_revalidation(action="map.updated", map_update_data=MapUpdateData(eventId=metadata["series_id"]))
 
     else:
+        meta = {}
+        if do_not_send_auto_preblasts:
+            meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
+
         series_records = []
         for dow in day_of_weeks:
             series = Event(
@@ -282,7 +314,9 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                 index_within_interval=index_within_interval or edit_series_record.index_within_interval,
                 day_of_week=dow or edit_series_record.day_of_week,
                 is_active=True,
-                highlight=safe_get(form_data, actions.CALENDAR_ADD_SERIES_HIGHLIGHT) == ["True"],
+                is_private=is_private,
+                meta=meta,
+                highlight=highlight,
             )
             series_records.append(series)
         records = DbManager.create_records(series_records)
@@ -401,6 +435,8 @@ def create_events(
                             end_time=series.end_time,
                             is_active=True,
                             series_id=series.id,
+                            is_private=series.is_private,
+                            meta=series.meta,
                             highlight=series.highlight,
                         )
                         event_records.append(event)
@@ -436,6 +472,8 @@ def update_events(
             EventInstance.location_id: series.location_id,
             EventInstance.start_time: series.start_time,
             EventInstance.end_time: series.end_time,
+            EventInstance.is_private: series.is_private,
+            EventInstance.meta: series.meta,
             # EventInstance.name: series.name,
             EventInstance.description: series.description,
             EventInstance.highlight: series.highlight,
@@ -480,7 +518,11 @@ def build_series_list_form(
     context: dict,
     region_record: SlackSettings,
     update_view_id=None,
+    loading_form: bool = False,
 ):
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+
     filter_org = region_record.org_id
     filter_values = {}
     if safe_get(body, "actions", 0, "action_id") in [
@@ -553,15 +595,15 @@ def build_series_list_form(
             title_text=title_text,
             submit_button_text="None",
         )
-    else:
-        form.post_modal(
-            client=client,
-            trigger_id=safe_get(body, "trigger_id"),
-            title_text=title_text,
-            callback_id=actions.EDIT_DELETE_SERIES_CALLBACK_ID,
-            submit_button_text="None",
-            new_or_add="add",
-        )
+    # else:
+    #     form.post_modal(
+    #         client=client,
+    #         trigger_id=safe_get(body, "trigger_id"),
+    #         title_text=title_text,
+    #         callback_id=actions.EDIT_DELETE_SERIES_CALLBACK_ID,
+    #         submit_button_text="None",
+    #         new_or_add="add",
+    #     )
 
 
 def handle_series_edit_delete(
@@ -705,12 +747,29 @@ SERIES_FORM = orm.BlockView(
             optional=True,
         ),
         orm.InputBlock(
-            label="Highlight on Special Events Page?",
-            action=actions.CALENDAR_ADD_SERIES_HIGHLIGHT,
+            label="Options",
+            action=actions.CALENDAR_ADD_SERIES_OPTIONS,
             element=orm.CheckboxInputElement(
-                options=orm.as_selector_options(names=["Yes"], values=["True"]),
+                options=orm.as_selector_options(
+                    names=[
+                        "Make event private",
+                        "Do not send auto-preblasts",
+                        "Highlight on Special Events List",
+                    ],
+                    values=[
+                        "private",
+                        "no_auto_preblasts",
+                        "highlight",
+                    ],
+                    descriptions=[
+                        "Hides series from Maps and PAX Vault.",
+                        "Opts this series out of automated preblasts.",
+                        "Typically used for 2nd F events, convergences, etc.",
+                    ],
+                ),
             ),
-            hint="Primarily used for 2nd F events, convergences, etc.",
+            hint="If you want to exclude this series from stats, use the 'Off-The-Books' event tag.",
+            optional=True,
         ),
     ]
 )

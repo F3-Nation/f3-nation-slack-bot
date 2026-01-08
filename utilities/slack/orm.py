@@ -76,6 +76,19 @@ class InputBlock(BaseBlock):
 
 
 @dataclass
+class HeaderBlock(BaseBlock):
+    def get_selected_value(self, input_data):
+        return None
+
+    def as_form_field(self):
+        block = {
+            "type": "header",
+            "text": self.make_label_field(),
+        }
+        return block
+
+
+@dataclass
 class RichTextBlock(BaseBlock):
     label: Dict[str, Any] = None
 
@@ -171,6 +184,8 @@ class ButtonElement(BaseAction):
             j["confirm"] = self.confirm
         if self.url:
             j["url"] = self.url
+        if self.confirm:
+            j["confirm"] = self.confirm.as_form_field()
         return j
 
 
@@ -706,10 +721,13 @@ class CheckboxInputElement(BaseElement):
         return j
 
     def __make_option(self, option: SelectorOption):
-        return {
+        option_dict = {
             "text": {"type": "plain_text", "text": option.name, "emoji": True},
             "value": option.value,
         }
+        if option.description:
+            option_dict["description"] = {"type": "plain_text", "text": option.description, "emoji": True}
+        return option_dict
 
 
 @dataclass
@@ -836,7 +854,12 @@ class BlockView:
     def set_options(self, options: Dict[str, List[SelectorOption]]):
         for block in self.blocks:
             if block.action in options:
-                block.element.options = options[block.action]
+                option_list = options[block.action]
+                for option in option_list:
+                    option.name = option.name[:75]
+                    if option.description:
+                        option.description = option.description[:75]
+                block.element.options = option_list
 
     def as_form_field(self) -> List[dict]:
         return [b.as_form_field() for b in self.blocks]
@@ -892,7 +915,6 @@ class BlockView:
             res = client.views_open(trigger_id=trigger_id, view=view)
         elif new_or_add == "add":
             res = client.views_push(trigger_id=trigger_id, view=view)
-
         return res
 
     def update_modal(
@@ -905,7 +927,7 @@ class BlockView:
         parent_metadata: dict = None,
         close_button_text: str = "Close",
         notify_on_close: bool = False,
-    ):
+    ) -> dict:
         blocks = self.as_form_field()
 
         view = {
@@ -921,11 +943,18 @@ class BlockView:
         if submit_button_text != "None":
             view["submit"] = {"type": "plain_text", "text": submit_button_text}
 
-        if ENABLE_DEBUGGING:
-            view["external_id"] = actions.DEBUG_FORM_EXTERNAL_ID
-            client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view)
-        else:
-            client.views_update(view_id=view_id, view=view)
+        try:
+            if ENABLE_DEBUGGING:
+                view["external_id"] = actions.DEBUG_FORM_EXTERNAL_ID
+                res = client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view)
+            else:
+                res = client.views_update(view_id=view_id, view=view)
+        except Exception as e:
+            # TODO: handle "not found" errors; post new instead of update?
+            print(f"Failed to update modal: {e}")
+            res = None
+
+        return res
 
 
 def parse_welcome_template(template: str, user_id: str) -> List[BaseBlock]:

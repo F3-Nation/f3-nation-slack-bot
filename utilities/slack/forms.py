@@ -233,6 +233,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":bar_chart: Custom Field Settings",
                     action=actions.CONFIG_CUSTOM_FIELDS,
                 ),
+                orm.ButtonElement(
+                    label=":computer: Paxminer Mapping",
+                    action=actions.PAXMINER_MAPPING,
+                ),
             ],
         ),
     ]
@@ -909,7 +913,7 @@ ALREADY_POSTED_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(
             label="This backblast has already been posted! If you want to edit it, please use the "
-            "edit button in the original post.",
+            "edit button in the backblast post.",
             action=actions.ALREADY_POSTED,
         ),
         orm.ContextBlock(
