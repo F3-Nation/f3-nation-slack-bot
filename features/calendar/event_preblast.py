@@ -26,7 +26,6 @@ from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
     event_attendance_query,
-    event_instances_without_attendance_types,
     get_admin_users,
 )
 from utilities.helper_functions import (
@@ -103,20 +102,6 @@ def build_event_preblast_select_form(
         ],
     )
 
-    # Query for events without a Q assigned
-    no_q_event_records = event_instances_without_attendance_types(
-        excluded_attendance_type_ids=[2, 3],
-        event_filter=[
-            EventInstance.start_date >= current_date_cst(),
-            EventInstance.preblast_ts.is_(None),
-            EventInstance.is_active,
-            or_(
-                EventInstance.org_id == region_record.org_id,
-                EventInstance.org.has(Org.parent_id == region_record.org_id),
-            ),
-        ],
-    )
-
     # Section 1: User's upcoming Qs
     if event_records:
         # Sort by soonest date first
@@ -167,34 +152,17 @@ def build_event_preblast_select_form(
     ]
 
     # Section 2: Events without a Q
-    if no_q_event_records:
-        blocks += [
-            orm.InputBlock(
-                label="Upcoming events without a Q",
-                action=actions.EVENT_PREBLAST_NOQ_SELECT,
-                dispatch_action=True,
-                optional=False,
-                element=orm.StaticSelectElement(
-                    placeholder="Select an event",
-                    options=orm.as_selector_options(
-                        names=[
-                            f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
-                            for r in no_q_event_records
-                        ],
-                        values=[str(r.id) for r in no_q_event_records[:20]],
-                    ),
-                    confirm=orm.ConfirmObject(
-                        title="Are you sure?",
-                        text="You are selecting an event with no assigned Q. Selecting it will assign you as the Q for this event. Do you want to proceed?",  # noqa
-                        confirm="Yes, I'm sure",
-                        deny="Whups, never mind",
-                    ),
-                ),
-            ),
-            orm.DividerBlock(),
-        ]
+    blocks += [
+        orm.SectionBlock(label="Sign up to Q for an upcoming event from the calendar:"),
+        orm.ActionsBlock(
+            elements=[
+                orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
+            ]
+        ),
+        orm.DividerBlock(),
+    ]
 
-    # Section 3: Action buttons
+    # Section 3: Unscheduled event
     blocks += [
         orm.SectionBlock(label="Or, create a preblast for an event *not on the calendar:*"),
         orm.ActionsBlock(
@@ -210,7 +178,6 @@ def build_event_preblast_select_form(
                         style="danger",
                     ),
                 ),
-                orm.ButtonElement(label=":calendar: Open Calendar", action=actions.OPEN_CALENDAR_BUTTON),
             ]
         ),
     ]
