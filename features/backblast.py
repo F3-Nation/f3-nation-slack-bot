@@ -12,8 +12,6 @@ from f3_data_models.models import (
     Attendance_x_AttendanceType,
     AttendanceType,
     EventInstance,
-    EventTag,
-    EventTag_x_EventInstance,
     EventType_x_EventInstance,
     Org,
     Org_Type,
@@ -841,11 +839,6 @@ COUNT: {count}
         [EventType_x_EventInstance.event_instance_id == event_instance_id],
         fields={EventType_x_EventInstance.event_type_id: event_type},
     )  # TODO: handle multiple event types
-
-    if "is_scheduled" in metadata and metadata["is_scheduled"] is False:
-        otb_tag = safe_get(DbManager.find_records(EventTag, [EventTag.name == "Off-The-Books"]), 0)
-        if otb_tag and safe_get(otb_tag, "id") not in [t.id for t in event.event_tags]:
-            DbManager.create_record(EventTag_x_EventInstance(event_instance_id=event.id, event_tag_id=otb_tag.id))
 
     attendance_types = [2 if u.slack_id == the_q else 3 if u.slack_id in (the_coq or []) else 1 for u in db_users]
     attendance_records = [
