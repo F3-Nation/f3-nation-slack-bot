@@ -787,7 +787,7 @@ SERIES_FORM = orm.BlockView(
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides series from Maps.",
+                        "Hides series from Maps and Region Pages.",
                         "Can still be queried from BigQuery or custom dashboards.",
                         "Opts this series out of automated preblasts.",
                         "Shown in the calendar image channel if enabled.",
