@@ -673,6 +673,10 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         custom_fields["files"] = file_list
         custom_fields["file_ids"] = file_ids
 
+    if selected_options:
+        for option in selected_options:
+            custom_fields[option] = True
+
     msg_block = slack_orm.SectionBlock(label=post_msg)
 
     backblast_data.pop(actions.BACKBLAST_MOLESKIN, None)
