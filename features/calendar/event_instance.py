@@ -545,7 +545,7 @@ INSTANCE_FORM = orm.BlockView(
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides event from Maps.",
+                        "Hides event from Maps and Region Pages.",
                         "Can still be queried from BigQuery or custom dashboards.",
                         "Opts this event out of automated preblasts.",
                         "Shown in the calendar image channel if enabled.",
