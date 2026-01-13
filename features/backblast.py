@@ -12,8 +12,6 @@ from f3_data_models.models import (
     Attendance_x_AttendanceType,
     AttendanceType,
     EventInstance,
-    EventTag,
-    EventTag_x_EventInstance,
     EventType_x_EventInstance,
     Org,
     Org_Type,
@@ -46,6 +44,8 @@ from utilities.helper_functions import (
 )
 from utilities.slack import actions, forms
 from utilities.slack import orm as slack_orm
+
+META_EXCLUDE_FROM_PAX_VAULT = "exclude_from_pax_vault"
 
 
 def add_custom_field_blocks(
@@ -419,6 +419,12 @@ def build_backblast_form(
             # actions.BACKBLAST_EVENT_TYPE: str(event_record.event_types[0].id),  # picking the first for now
             # TODO: non-slack pax
         }
+        # Restore options checkbox state
+        options = []
+        if safe_get(event_metadata, META_EXCLUDE_FROM_PAX_VAULT):
+            options.append("exclude_from_pax_vault")
+        if options:
+            initial_backblast_data[actions.BACKBLAST_OPTIONS] = options
         backblast_metadata["event_instance_id"] = event_instance_id
     elif safe_get(backblast_metadata, actions.BACKBLAST_TITLE):
         initial_backblast_data = backblast_metadata
@@ -481,7 +487,6 @@ def build_backblast_form(
             }
             for r in attendance_non_slack_users
         ]
-        print(update_list)
         backblast_form.set_initial_values({actions.USER_OPTION_LOAD: update_list})
 
     if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
@@ -531,6 +536,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         event_type = event.event_types[0].id if event.event_types else None
         event_org = event.org
         backblast_data: dict = backblast_form.get_selected_values(body)
+        print(f"Backblast data from scheduled event: {backblast_data}")
     else:
         event = None
         date = None
@@ -557,6 +563,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event_type
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
     file_ids = safe_get(backblast_data, "file_ids") or []
+    selected_options = safe_get(backblast_data, actions.BACKBLAST_OPTIONS) or []
 
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     if files:
@@ -725,6 +732,14 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
             ).as_form_field()
         )
     blocks.append(edit_block.as_form_field())
+    if "exclude_from_pax_vault" in selected_options:
+        blocks.append(
+            slack_orm.ContextBlock(
+                element=slack_orm.ContextElement(
+                    initial_value="*Note: stats from this event will not be reflected in the PAX Vault.*"
+                )
+            ).as_form_field()
+        )
 
     moleskin_text = parse_rich_block(moleskin)
     moleskin_text_w_names = replace_user_channel_ids(
@@ -824,11 +839,6 @@ COUNT: {count}
         [EventType_x_EventInstance.event_instance_id == event_instance_id],
         fields={EventType_x_EventInstance.event_type_id: event_type},
     )  # TODO: handle multiple event types
-
-    if "is_scheduled" in metadata and metadata["is_scheduled"] is False:
-        otb_tag = safe_get(DbManager.find_records(EventTag, [EventTag.name == "Off-The-Books"]), 0)
-        if otb_tag and safe_get(otb_tag, "id") not in [t.id for t in event.event_tags]:
-            DbManager.create_record(EventTag_x_EventInstance(event_instance_id=event.id, event_tag_id=otb_tag.id))
 
     attendance_types = [2 if u.slack_id == the_q else 3 if u.slack_id in (the_coq or []) else 1 for u in db_users]
     attendance_records = [

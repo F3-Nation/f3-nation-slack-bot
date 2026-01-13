@@ -84,6 +84,7 @@ PREBLAST_FILL_BACKBLAST_BUTTON = "fill-backblast"
 NEW_PREBLAST_BUTTON = "new-preblast-button"
 BACKBLAST_NOQ_SELECT = "backblast-noq-select"
 BACKBLAST_FILL_BUTTON = "backblast-fill-button"
+BACKBLAST_OPTIONS = "backblast_options"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"

@@ -622,13 +622,13 @@ def build_preblast_info(
 
     location = ""
     if safe_get(event_record.org.meta, "slack_channel_id"):
-        location += f"<#{event_record.org.meta['slack_channel_id']}> - "
+        location += f"<#{event_record.org.meta['slack_channel_id']}>"
     if event_record.location:
         name = get_location_display_name(event_record.location)
         if event_record.location.latitude and event_record.location.longitude:
-            location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{name}>"
+            location += f" - <https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{name}>"
         else:
-            location += name
+            location += f" - {name}"
 
     event_details = f"*Preblast: {event_record.name}*"
     event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
@@ -865,7 +865,7 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             label="Location",
             action=actions.EVENT_PREBLAST_LOCATION,
             element=orm.StaticSelectElement(),
-            optional=False,
+            optional=True,
         ),
         orm.InputBlock(
             label="Start Time",

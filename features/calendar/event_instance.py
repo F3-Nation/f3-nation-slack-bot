@@ -58,6 +58,7 @@ CALENDAR_MANAGE_EVENT_INSTANCE_DATE = "calendar_manage_event_instance_date"
 
 
 META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
+META_EXCLUDE_FROM_PAX_VAULT = "exclude_from_pax_vault"
 
 
 def manage_event_instances(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -141,11 +142,6 @@ def build_event_instance_add_form(
 
     initial_values = {}
 
-    if new_preblast:
-        otb_tag_id = safe_get([t.id for t in region_org_record.event_tags if t.name == "Off-The-Books"], 0)
-        if otb_tag_id:
-            initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [str(otb_tag_id)]
-
     if edit_event_instance:
         initial_values = {
             CALENDAR_ADD_EVENT_INSTANCE_NAME: edit_event_instance.name,
@@ -172,6 +168,8 @@ def build_event_instance_add_form(
         options = []
         if safe_get(edit_event_instance, "is_private"):
             options.append("private")
+        if safe_get(edit_event_instance, "meta") and safe_get(edit_event_instance.meta, META_EXCLUDE_FROM_PAX_VAULT):
+            options.append("exclude_from_pax_vault")
         if safe_get(edit_event_instance, "meta") and safe_get(
             edit_event_instance.meta, META_DO_NOT_SEND_AUTO_PREBLASTS
         ):
@@ -243,6 +241,7 @@ def handle_event_instance_add(
 
     selected_options = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_OPTIONS) or []
     is_private = "private" in selected_options
+    exclude_from_pax_vault = "exclude_from_pax_vault" in selected_options
     do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
     highlight = "highlight" in selected_options
 
@@ -252,6 +251,10 @@ def handle_event_instance_add(
     else:
         merged_meta = {}
 
+    if exclude_from_pax_vault:
+        merged_meta[META_EXCLUDE_FROM_PAX_VAULT] = True
+    else:
+        merged_meta.pop(META_EXCLUDE_FROM_PAX_VAULT, None)
     if do_not_send_auto_preblasts:
         merged_meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
     else:
@@ -531,22 +534,24 @@ INSTANCE_FORM = orm.BlockView(
                 options=orm.as_selector_options(
                     names=[
                         "Make event private",
+                        "Exclude stats from PAX Vault",
                         "Do not send auto-preblasts",
                         "Highlight on Special Events List",
                     ],
                     values=[
                         "private",
+                        "exclude_from_pax_vault",
                         "no_auto_preblasts",
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides the upcoming event from Maps and PAX Vault.",
+                        "Hides event from Maps and Region Pages.",
+                        "Can still be queried from BigQuery or custom dashboards.",
                         "Opts this event out of automated preblasts.",
-                        "Typically used for 2nd F events, convergences, etc.",
+                        "Shown in the calendar image channel if enabled.",
                     ],
                 ),
             ),
-            hint="If you want to exclude this event from stats, use the 'Off-The-Books' event tag.",
             optional=True,
         ),
     ]

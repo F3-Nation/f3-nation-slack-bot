@@ -38,6 +38,7 @@ from utilities.helper_functions import (
 from utilities.slack import actions, orm
 
 META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
+META_EXCLUDE_FROM_PAX_VAULT = "exclude_from_pax_vault"
 
 
 def manage_series(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -144,6 +145,8 @@ def build_series_add_form(
         options = []
         if safe_get(edit_event, "is_private"):
             options.append("private")
+        if safe_get(edit_event, "meta") and safe_get(edit_event.meta, META_EXCLUDE_FROM_PAX_VAULT):
+            options.append("exclude_from_pax_vault")
         if safe_get(edit_event, "meta") and safe_get(edit_event.meta, META_DO_NOT_SEND_AUTO_PREBLASTS):
             options.append("no_auto_preblasts")
         if safe_get(edit_event, "highlight"):
@@ -236,6 +239,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     selected_options = safe_get(form_data, actions.CALENDAR_ADD_SERIES_OPTIONS) or []
     is_private = "private" in selected_options
+    exclude_from_pax_vault = "exclude_from_pax_vault" in selected_options
     do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
     highlight = "highlight" in selected_options
 
@@ -253,6 +257,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
         )
         merged_meta = dict(safe_get(existing_series, "meta") or {})
+        if exclude_from_pax_vault:
+            merged_meta[META_EXCLUDE_FROM_PAX_VAULT] = True
+        else:
+            merged_meta.pop(META_EXCLUDE_FROM_PAX_VAULT, None)
         if do_not_send_auto_preblasts:
             merged_meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
         else:
@@ -288,6 +296,8 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     else:
         meta = {}
+        if exclude_from_pax_vault:
+            meta[META_EXCLUDE_FROM_PAX_VAULT] = True
         if do_not_send_auto_preblasts:
             meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
 
@@ -654,6 +664,7 @@ SERIES_FORM = orm.BlockView(
             label="Default Location",
             action=actions.CALENDAR_ADD_SERIES_LOCATION,
             element=orm.StaticSelectElement(placeholder="Select the default location"),
+            optional=True,
         ),
         orm.InputBlock(
             label="Default Event Type",
@@ -765,18 +776,21 @@ SERIES_FORM = orm.BlockView(
                 options=orm.as_selector_options(
                     names=[
                         "Make event private",
+                        "Exclude stats from PAX Vault",
                         "Do not send auto-preblasts",
                         "Highlight on Special Events List",
                     ],
                     values=[
                         "private",
+                        "exclude_from_pax_vault",
                         "no_auto_preblasts",
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides series from Maps and PAX Vault.",
+                        "Hides series from Maps and Region Pages.",
+                        "Can still be queried from BigQuery or custom dashboards.",
                         "Opts this series out of automated preblasts.",
-                        "Typically used for 2nd F events, convergences, etc.",
+                        "Shown in the calendar image channel if enabled.",
                     ],
                 ),
             ),
