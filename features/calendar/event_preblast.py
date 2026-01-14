@@ -20,7 +20,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from features import preblast_legacy
-from features.calendar import get_preblast_action_buttons
+from features.calendar import get_preblast_action_blocks
 from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
@@ -471,9 +471,7 @@ def send_preblast(
     ]
     blocks = [
         *preblast_info.preblast_blocks,
-        orm.ActionsBlock(
-            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
-        ),
+        *get_preblast_action_blocks(has_q=len(q_list) > 0, event_instance_id=event_instance_id),
     ]
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
@@ -657,6 +655,25 @@ def build_preblast_info(
     )
 
 
+def route_preblast_overflow_action(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    action_value: str = body["actions"][0]["selected_option"]["value"]
+    metadata = safe_get(body, "message", "metadata", "event_payload")
+    if action_value.startswith(actions.EVENT_PREBLAST_EDIT):
+        body["actions"][0]["action_id"] = action_value.split("_")[0]
+        metadata["event_instance_id"] = int(action_value.split("_")[-1])
+    elif action_value.startswith(actions.PREBLAST_FILL_BACKBLAST_BUTTON):
+        body["actions"][0]["action_id"] = action_value.split("_")[0]
+        metadata["event_instance_id"] = int(action_value.split("_")[-1])
+    elif action_value == actions.NEW_PREBLAST_BUTTON:
+        body["actions"][0]["action_id"] = action_value
+
+    body["message"]["metadata"] = {"event_payload": metadata}
+    print(f"body after routing: {body}")
+    handle_event_preblast_action(body, client, logger, context, region_record)
+
+
 def handle_event_preblast_action(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
@@ -725,7 +742,9 @@ def handle_event_preblast_action(
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=get_preblast_action_buttons(has_q=True, event_instance_id=event_instance_id)),
+                *get_preblast_action_blocks(
+                    has_q=len(preblast_info.action_blocks) > 0, event_instance_id=event_instance_id
+                ),
             ]
             blocks = [b.as_form_field() for b in blocks]
 
@@ -789,8 +808,8 @@ def handle_event_preblast_action(
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": q_id_list,
             }
-            button_blocks = get_preblast_action_buttons(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
-            blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
+            button_blocks = get_preblast_action_blocks(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
+            blocks = [*preblast_info.preblast_blocks, *button_blocks]
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
             q_url = q_url[0]

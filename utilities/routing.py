@@ -187,6 +187,7 @@ ACTION_MAPPER = {
     actions.BACKBLAST_FILL_BUTTON: (backblast.build_backblast_form, True),
     actions.EVENT_PREBLAST_FILL_BUTTON: (event_preblast.handle_event_preblast_select, False),
     actions.EVENT_PREBLAST_NOQ_SELECT: (event_preblast.handle_event_preblast_select, False),
+    actions.PREBLAST_OVERFLOW_ACTION: (event_preblast.route_preblast_overflow_action, False),
 }
 
 ACTION_PREFIXES = [
