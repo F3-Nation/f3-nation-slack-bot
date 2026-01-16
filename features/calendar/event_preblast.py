@@ -1,7 +1,7 @@
 import json
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from logging import Logger
 from typing import List
 
@@ -721,6 +721,8 @@ def handle_event_preblast_action(
                 ],
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
+            # Touch EventInstance.updated so calendar images are regenerated
+            DbManager.update_record(EventInstance, event_instance_id, fields={"updated": datetime.now(timezone.utc)})
         if metadata.get("preblast_ts") and metadata["preblast_ts"] != "None":
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
