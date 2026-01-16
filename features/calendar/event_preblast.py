@@ -312,6 +312,20 @@ def build_event_preblast_form(
                         "the region through Backblast & Preblast Settings."
                     )
                 )
+            if preblast_info.event_record.preblast_ts and preblast_channel:
+                form.blocks.append(
+                    orm.InputBlock(
+                        label="How would you like to update the preblast?",
+                        action=actions.EVENT_PREBLAST_UPDATE_MODE,
+                        element=orm.RadioButtonsElement(
+                            options=orm.as_selector_options(
+                                names=["Update preblast", "Repost preblast"],
+                            ),
+                            initial_value="Update preblast",
+                        ),
+                        optional=False,
+                    )
+                )
         else:
             form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
         form.blocks.append(orm.ActionsBlock(elements=preblast_info.action_blocks))
@@ -430,6 +444,18 @@ def handle_event_preblast_edit(
         DbManager.create_records(new_records)
 
     if preblast_send:
+        # Get update mode directly from body since it's dynamically added to the form
+        update_mode = safe_get(
+            body,
+            "view",
+            "state",
+            "values",
+            actions.EVENT_PREBLAST_UPDATE_MODE,
+            actions.EVENT_PREBLAST_UPDATE_MODE,
+            "selected_option",
+            "value",
+        )
+        repost = update_mode == "Repost preblast"
         send_preblast(
             body,
             client,
@@ -437,6 +463,7 @@ def handle_event_preblast_edit(
             context,
             region_record,
             event_instance_id,
+            repost=repost,
         )
         # forms.SUBMIT_FORM_SUCCESS.update_modal(
         #     client=client,
@@ -459,6 +486,7 @@ def send_preblast(
     context: dict = None,
     region_record: SlackSettings = None,
     event_instance_id: int = None,
+    repost: bool = False,
 ):
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
@@ -494,21 +522,45 @@ def send_preblast(
         icon_url = q_url
     preblast_channel = get_preblast_channel(region_record, preblast_info)
 
-    if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts") and preblast_channel:
-        try:
-            client.chat_update(
-                channel=preblast_channel,
-                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
-                blocks=blocks,
-                text="Event Preblast",
-                metadata={"event_type": "preblast", "event_payload": metadata},
-                username=username,
-                icon_url=icon_url,
-            )
-        except Exception as e:
-            logger.error(
-                f"Error updating preblast message for event_instance_id {event_instance_id}: {e}"  # noqa
-            )
+    existing_ts = preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts")
+    if existing_ts and preblast_channel:
+        if repost:
+            # Delete the original message and create a new one
+            try:
+                client.chat_delete(
+                    channel=preblast_channel,
+                    ts=str(existing_ts),
+                )
+            except Exception as e:
+                logger.error(f"Error deleting original preblast message for event_instance_id {event_instance_id}: {e}")
+            # Post new message
+            try:
+                res = client.chat_postMessage(
+                    channel=preblast_channel,
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                    unfurl_links=False,
+                    username=username,
+                    icon_url=icon_url,
+                )
+                DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+            except Exception as e:
+                logger.error(f"Error posting new preblast message for event_instance_id {event_instance_id}: {e}")
+        else:
+            # Update existing message
+            try:
+                client.chat_update(
+                    channel=preblast_channel,
+                    ts=str(existing_ts),
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                    username=username,
+                    icon_url=icon_url,
+                )
+            except Exception as e:
+                logger.error(f"Error updating preblast message for event_instance_id {event_instance_id}: {e}")
     else:
         if not preblast_channel:
             preblast_channel = client.chat_postMessage(
