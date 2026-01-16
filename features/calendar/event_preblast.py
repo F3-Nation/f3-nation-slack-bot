@@ -252,7 +252,9 @@ def build_event_preblast_form(
     if action_value == "Edit Preblast" or preblast_info.user_is_q:
         form = deepcopy(EVENT_PREBLAST_FORM)
 
-        location_records: list[Location] = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
+        location_records: list[Location] = DbManager.find_records(
+            Location, [Location.org_id == region_record.org_id, Location.is_active]
+        )  # noqa
         event_tags: list[EventTag] = DbManager.find_records(
             EventTag, [or_(EventTag.specific_org_id == region_record.org_id, EventTag.specific_org_id.is_(None))]
         )

@@ -49,7 +49,9 @@ def build_ao_add_form(
     # Pull locations and event types for the region
     region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types])
     locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
+    locations = [loc for loc in locations if loc.is_active]
     event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
+    event_types = [et for et in event_types if et.is_active]
 
     form.set_options(
         {
