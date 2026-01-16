@@ -387,7 +387,10 @@ def build_backblast_form(
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-        if action_id not in [
+        if safe_get(event_metadata, "saved_moleskin"):
+            # Load moleskin from meta for "Save and send later" backblasts
+            moleskin_block = event_metadata["saved_moleskin"]
+        elif action_id not in [
             actions.BACKBLAST_FILL_SELECT,
             actions.MSG_EVENT_BACKBLAST_BUTTON,
             actions.PREBLAST_FILL_BACKBLAST_BUTTON,
@@ -498,6 +501,8 @@ def build_backblast_form(
         backblast_metadata["message_ts"] = safe_get(body, "container", "message_ts")
         backblast_metadata["files"] = safe_get(backblast_metadata, actions.BACKBLAST_FILE) or []
         backblast_metadata["file_ids"] = safe_get(backblast_metadata, "file_ids") or []
+        # Hide send options when editing - will send/update on submission
+        backblast_form.delete_block(actions.BACKBLAST_SEND_OPTIONS)
     else:
         callback_id = actions.BACKBLAST_CALLBACK_ID
 
@@ -559,6 +564,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     count = safe_get(backblast_data, actions.BACKBLAST_COUNT)
     moleskin = safe_get(backblast_data, actions.BACKBLAST_MOLESKIN)
     email_send = safe_get(backblast_data, actions.BACKBLAST_EMAIL_SEND)
+    send_options = safe_get(backblast_data, actions.BACKBLAST_SEND_OPTIONS)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
     event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event_type
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
@@ -749,6 +755,58 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     moleskin_text_w_names = replace_user_channel_ids(
         moleskin_text, region_record, client, logger
     )  # check this for efficiency
+
+    # Handle "Save and send later" option - save to DB but don't post to Slack
+    if create_or_edit == "create" and send_options == "Save and send later":
+        backblast_parsed = f"""Backblast! {title}
+Date: {the_date}
+AO: {event_org.name}
+Q: {q_name} {the_coqs_names}
+PAX: {pax_names}
+FNGs: {fngs_formatted}
+COUNT: {count}
+{moleskin_text_w_names}
+"""
+        # Store moleskin in meta so it can be loaded when user comes back to edit
+        custom_fields["saved_moleskin"] = moleskin
+        db_fields = {
+            EventInstance.start_date: the_date,
+            EventInstance.org_id: event_org.id,
+            EventInstance.backblast_ts: None,  # Not posted yet
+            EventInstance.backblast: backblast_parsed,
+            EventInstance.backblast_rich: [msg_block.as_form_field(), moleskin],
+            EventInstance.name: title,
+            EventInstance.pax_count: count,
+            EventInstance.fng_count: fng_count,
+            EventInstance.meta: custom_fields,
+            EventInstance.is_active: True,
+        }
+        DbManager.update_record(EventInstance, event_instance_id, fields=db_fields)
+        DbManager.update_records(
+            EventType_x_EventInstance,
+            [EventType_x_EventInstance.event_instance_id == event_instance_id],
+            fields={EventType_x_EventInstance.event_type_id: event_type},
+        )
+
+        attendance_types = [2 if u.slack_id == the_q else 3 if u.slack_id in (the_coq or []) else 1 for u in db_users]
+        attendance_records = [
+            Attendance(
+                event_instance_id=event_instance_id,
+                user_id=user.user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=attendance_type)],
+                is_planned=False,
+            )
+            for user, attendance_type in zip(db_users, attendance_types, strict=False)
+        ]
+        DbManager.create_records(attendance_records)
+
+        # Notify user that backblast was saved but not posted
+        client.chat_postMessage(
+            channel=user_id,
+            text=f"Your backblast for *{title}* has been saved but not posted yet. "
+            f"To post it later, use the /backblast command and select the event from your recent Qs.",
+        )
+        return
 
     if create_or_edit == "create":
         text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]

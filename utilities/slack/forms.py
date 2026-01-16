@@ -135,6 +135,17 @@ BACKBLAST_FORM = orm.BlockView(
                 initial_value="yes",
             ),
         ),
+        orm.InputBlock(
+            label="When to post backblast?",
+            action=actions.BACKBLAST_SEND_OPTIONS,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["Send now", "Save and send later"],
+                ),
+                initial_value="Send now",
+            ),
+        ),
     ]
 )
 
