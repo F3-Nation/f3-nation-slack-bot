@@ -49,7 +49,7 @@ def handle_request(
             # TODO: add area / sector as description
         )
         options = []
-        for org in org_records[:10]:
+        for org in org_records[:30]:
             display_name = org.name
             options.append(
                 {
