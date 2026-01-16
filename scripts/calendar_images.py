@@ -299,7 +299,7 @@ def generate_calendar_images(force: bool = False):
 
                             # Add timestamp footer row
                             now_cst = datetime.now(pytz.timezone("US/Central"))
-                            timestamp_str = f"This image was last updated at {now_cst.strftime('%B %d %I:%M %p')} CST"
+                            timestamp_str = f"Last updated at {now_cst.strftime('%m/%d %I:%M %p')} CST"
                             footer_row = dict.fromkeys(df2.columns, "")
                             footer_row["AO\nLocation"] = timestamp_str
                             df2 = pd.concat([df2, pd.DataFrame([footer_row])], ignore_index=True)
