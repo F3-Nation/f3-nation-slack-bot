@@ -363,9 +363,10 @@ def build_backblast_form(
         )
         event_metadata = event_record.meta or {}
         already_posted = event_record.backblast_ts is not None
+        already_saved = event_record.pax_count is not None
         attendance_records: List[Attendance] = DbManager.find_records(
             Attendance,
-            [Attendance.event_instance_id == event_instance_id, Attendance.is_planned != already_posted],
+            [Attendance.event_instance_id == event_instance_id, Attendance.is_planned != already_saved],
             joinedloads="all",
         )
         attendance_slack_dict = {
