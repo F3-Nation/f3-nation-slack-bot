@@ -470,7 +470,7 @@ def build_backblast_form(
         [r.name for r in org_event_types.event_types], [str(r.id) for r in org_event_types.event_types]
     )
 
-    if current_date_cst() < safe_get(event_record, "start_date"):
+    if current_date_cst() < (safe_get(event_record, "start_date") or current_date_cst()):
         initial_backblast_data[actions.BACKBLAST_SEND_OPTIONS] = "Save and send later"
 
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
