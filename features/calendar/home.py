@@ -197,9 +197,12 @@ def build_home_form(
         existing_filter_data = {}
 
     # Build the filter
-    start_date = safe_convert(
-        safe_get(existing_filter_data, actions.CALENDAR_HOME_DATE_FILTER), datetime.datetime.strptime, ["%Y-%m-%d"]
-    ) or datetime.datetime.now(tz=pytz.timezone("US/Central"))
+    start_date = (
+        safe_convert(
+            safe_get(existing_filter_data, actions.CALENDAR_HOME_DATE_FILTER), datetime.datetime.strptime, ["%Y-%m-%d"]
+        )
+        or datetime.datetime.now(tz=pytz.timezone("US/Central")).date()
+    )
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or ["Default"] != ["Default"]:
         filter_org_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER)]
