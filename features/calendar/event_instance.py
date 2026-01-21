@@ -1,5 +1,4 @@
 import copy
-import json
 from datetime import datetime, timedelta
 from logging import Logger
 from typing import List
@@ -23,6 +22,7 @@ from features.calendar import event_preblast
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    _parse_view_private_metadata,
     current_date_cst,
     get_location_display_name,
     get_user,
@@ -49,11 +49,16 @@ CALENDAR_ADD_EVENT_INSTANCE_DOW = "calendar_add_event_instance_dow"
 CALENDAR_ADD_EVENT_AO = "calendar_add_event_ao"
 CALENDAR_ADD_EVENT_INSTANCE_FREQUENCY = "calendar_add_event_instance_frequency"
 CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION = "calendar_add_event_instance_description"
+CALENDAR_ADD_EVENT_INSTANCE_OPTIONS = "calendar_add_event_instance_options"
 ADD_EVENT_INSTANCE_CALLBACK_ID = "add_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE = "calendar_manage_event_instance"
 EDIT_DELETE_EVENT_INSTANCE_CALLBACK_ID = "edit_delete_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE_AO = "calendar_manage_event_instance_ao"
 CALENDAR_MANAGE_EVENT_INSTANCE_DATE = "calendar_manage_event_instance_date"
+
+
+META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
+META_EXCLUDE_FROM_PAX_VAULT = "exclude_from_pax_vault"
 
 
 def manage_event_instances(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -62,7 +67,7 @@ def manage_event_instances(body: dict, client: WebClient, logger: Logger, contex
     if action == "add":
         build_event_instance_add_form(body, client, logger, context, region_record, loading_form=True)
     elif action == "edit":
-        build_event_instance_list_form(body, client, logger, context, region_record)
+        build_event_instance_list_form(body, client, logger, context, region_record, loading_form=True)
 
 
 def build_event_instance_add_form(
@@ -75,8 +80,10 @@ def build_event_instance_add_form(
     new_preblast: bool = False,
     loading_form: bool = False,
 ):
-    parent_metadata = {"event_instance_id": edit_event_instance.id} if edit_event_instance else {}
-    view_metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    parent_metadata = (
+        {"event_instance_id": edit_event_instance.id} if edit_event_instance else _parse_view_private_metadata(body)
+    )
+    view_metadata = _parse_view_private_metadata(body)
 
     if loading_form:
         update_view_id = add_loading_form(body, client, new_or_add="add")
@@ -101,7 +108,9 @@ def build_event_instance_add_form(
     aos: List[Org] = DbManager.find_records(
         Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
     )
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads="all")
+    region_org_record: Org = DbManager.get(
+        Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types, Org.event_tags]
+    )
     locations = [location for location in region_org_record.locations if location.is_active]
     location_records2 = DbManager.find_join_records2(
         Location,
@@ -133,11 +142,6 @@ def build_event_instance_add_form(
 
     initial_values = {}
 
-    if new_preblast:
-        otb_tag_id = safe_get([t.id for t in region_org_record.event_tags if t.name == "Off-The-Books"], 0)
-        if otb_tag_id:
-            initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [str(otb_tag_id)]
-
     if edit_event_instance:
         initial_values = {
             CALENDAR_ADD_EVENT_INSTANCE_NAME: edit_event_instance.name,
@@ -159,8 +163,21 @@ def build_event_instance_add_form(
             CALENDAR_ADD_EVENT_INSTANCE_END_TIME: safe_convert(
                 edit_event_instance.end_time, lambda t: t[:2] + ":" + t[2:]
             ),
-            CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT: ["True"] if edit_event_instance.highlight else [],
         }
+
+        options = []
+        if safe_get(edit_event_instance, "is_private"):
+            options.append("private")
+        if safe_get(edit_event_instance, "meta") and safe_get(edit_event_instance.meta, META_EXCLUDE_FROM_PAX_VAULT):
+            options.append("exclude_from_pax_vault")
+        if safe_get(edit_event_instance, "meta") and safe_get(
+            edit_event_instance.meta, META_DO_NOT_SEND_AUTO_PREBLASTS
+        ):
+            options.append("no_auto_preblasts")
+        if safe_get(edit_event_instance, "highlight"):
+            options.append("highlight")
+        if options:
+            initial_values[CALENDAR_ADD_EVENT_INSTANCE_OPTIONS] = options
         if edit_event_instance.event_tags:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [
                 str(edit_event_instance.event_tags[0].id)
@@ -208,7 +225,7 @@ def build_event_instance_add_form(
 def handle_event_instance_add(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    metadata = _parse_view_private_metadata(body)
     form = copy.deepcopy(INSTANCE_FORM)
     if safe_get(metadata, "is_preblast") == "True":
         form.blocks.insert(
@@ -221,6 +238,27 @@ def handle_event_instance_add(
             ),
         )
     form_data = form.get_selected_values(body)
+
+    selected_options = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_OPTIONS) or []
+    is_private = "private" in selected_options
+    exclude_from_pax_vault = "exclude_from_pax_vault" in selected_options
+    do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
+    highlight = "highlight" in selected_options
+
+    if safe_get(metadata, "event_instance_id"):
+        existing_event_instance: EventInstance = DbManager.get(EventInstance, metadata["event_instance_id"])
+        merged_meta = dict(safe_get(existing_event_instance, "meta") or {})
+    else:
+        merged_meta = {}
+
+    if exclude_from_pax_vault:
+        merged_meta[META_EXCLUDE_FROM_PAX_VAULT] = True
+    else:
+        merged_meta.pop(META_EXCLUDE_FROM_PAX_VAULT, None)
+    if do_not_send_auto_preblasts:
+        merged_meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
+    else:
+        merged_meta.pop(META_DO_NOT_SEND_AUTO_PREBLASTS, None)
 
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME):
         end_time: str = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME).replace(":", "")
@@ -272,7 +310,9 @@ def handle_event_instance_add(
         ),
         end_time=end_time,
         is_active=True,
-        highlight=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT) == ["True"],
+        is_private=is_private,
+        meta=merged_meta,
+        highlight=highlight,
         preblast_rich=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
     )
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST):
@@ -282,7 +322,6 @@ def handle_event_instance_add(
             client,
             logger,
         )
-
     if safe_get(metadata, "event_instance_id"):
         # event_instance_id is passed in the metadata if this is an edit
         update_fields = event_instance_record.to_update_dict()
@@ -298,12 +337,6 @@ def handle_event_instance_add(
     else:
         record = DbManager.create_record(event_instance_record)
     # trigger_map_revalidation()
-
-    if safe_get(metadata, "event_instance_id"):
-        body["actions"] = [{"action_id": CALENDAR_MANAGE_EVENT_INSTANCE}]
-        build_event_instance_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
-        )
 
     if safe_get(metadata, "is_preblast") == "True":
         # If this is for a new unscheduled event, we need to set attendance and post the preblast
@@ -327,9 +360,13 @@ def build_event_instance_list_form(
     context: dict,
     region_record: SlackSettings,
     update_view_id=None,
+    loading_form: bool = False,
 ):
     title_text = "Delete or Edit an Event"
     confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
+
+    if loading_form:
+        update_view_id = add_loading_form(body, client, new_or_add="add")
 
     start_date = current_date_cst()
     filter_org = region_record.org_id
@@ -380,9 +417,6 @@ def build_event_instance_list_form(
         }
     )
 
-    print(len(records), "event instances found")
-    print(len(form.blocks), "blocks in the form")
-
     for s in records:
         label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]
 
@@ -428,14 +462,16 @@ def handle_event_instance_edit_delete(
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "Edit":
-        event_instance: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
+        event_instance: EventInstance = DbManager.get(
+            EventInstance, event_instance_id, joinedloads=[EventInstance.event_types, EventInstance.event_tags]
+        )  # noqa
         build_event_instance_add_form(
             body, client, logger, context, region_record, edit_event_instance=event_instance, loading_form=True
         )  # noqa
     elif action == "Delete":
         DbManager.update_record(EventInstance, event_instance_id, fields={"is_active": False})
         build_event_instance_list_form(
-            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
 
 
@@ -492,12 +528,31 @@ INSTANCE_FORM = orm.BlockView(
             hint="If left blank, will default to the AO name + event type.",
         ),
         orm.InputBlock(
-            label="Highlight on Special Events Page?",
-            action=CALENDAR_ADD_EVENT_INSTANCE_HIGHLIGHT,
+            label="Options",
+            action=CALENDAR_ADD_EVENT_INSTANCE_OPTIONS,
             element=orm.CheckboxInputElement(
-                options=orm.as_selector_options(names=["Yes"], values=["True"]),
+                options=orm.as_selector_options(
+                    names=[
+                        "Make event private",
+                        "Exclude stats from PAX Vault",
+                        "Do not send auto-preblasts",
+                        "Highlight on Special Events List",
+                    ],
+                    values=[
+                        "private",
+                        "exclude_from_pax_vault",
+                        "no_auto_preblasts",
+                        "highlight",
+                    ],
+                    descriptions=[
+                        "Hides event from Maps and Region Pages.",
+                        "Can still be queried from BigQuery or custom dashboards.",
+                        "Opts this event out of automated preblasts.",
+                        "Shown in the calendar image channel if enabled.",
+                    ],
+                ),
             ),
-            hint="Primarily used for 2nd F events, convergences, etc.",
+            optional=True,
         ),
     ]
 )

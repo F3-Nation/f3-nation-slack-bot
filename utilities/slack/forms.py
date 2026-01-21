@@ -104,6 +104,21 @@ BACKBLAST_FORM = orm.BlockView(
                 initial_value="*Note:* anything you put here may be visible to the public, through dashboards, websites, etc. We encourage you to post private COT items (prayer requests, etc) in a separate post or reply to the backblast.",  # noqa: E501
             ),
         ),
+        orm.InputBlock(
+            label="Backblast Options",
+            action=actions.BACKBLAST_OPTIONS,
+            optional=True,
+            element=orm.CheckboxInputElement(
+                options=orm.as_selector_options(
+                    names=[
+                        "Exclude stats from PAX Vault",
+                    ],
+                    values=[
+                        "exclude_from_pax_vault",
+                    ],
+                )
+            ),
+        ),
         orm.DividerBlock(),
         # orm.InputBlock(
         #     label="Choose where to post this",
@@ -118,6 +133,17 @@ BACKBLAST_FORM = orm.BlockView(
             element=orm.RadioButtonsElement(
                 options=orm.as_selector_options(names=["Send Email", "Don't Send Email"], values=["yes", "no"]),
                 initial_value="yes",
+            ),
+        ),
+        orm.InputBlock(
+            label="When to post backblast?",
+            action=actions.BACKBLAST_SEND_OPTIONS,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["Send now", "Save and send later"],
+                ),
+                initial_value="Send now",
             ),
         ),
     ]
@@ -232,6 +258,10 @@ CONFIG_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":bar_chart: Custom Field Settings",
                     action=actions.CONFIG_CUSTOM_FIELDS,
+                ),
+                orm.ButtonElement(
+                    label=":computer: Paxminer Mapping",
+                    action=actions.PAXMINER_MAPPING,
                 ),
             ],
         ),
@@ -586,6 +616,18 @@ LOADING_FORM = orm.BlockView(
     ]
 )
 
+DEBUG_FORM = orm.BlockView(
+    blocks=[
+        orm.SectionBlock(label=":beetle: Debug Mode", action=actions.DEBUG),
+        orm.ContextBlock(
+            action="loading_context",
+            element=orm.ContextElement(
+                initial_value="If your call does not end in an updated view, you may have to close this manually.",  # noqa: E501
+            ),
+        ),
+    ]
+)
+
 ERROR_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(label=":warning: the following error occurred:", action=actions.ERROR_FORM_MESSAGE),
@@ -897,7 +939,7 @@ ALREADY_POSTED_FORM = orm.BlockView(
     blocks=[
         orm.SectionBlock(
             label="This backblast has already been posted! If you want to edit it, please use the "
-            "edit button in the original post.",
+            "edit button in the backblast post.",
             action=actions.ALREADY_POSTED,
         ),
         orm.ContextBlock(

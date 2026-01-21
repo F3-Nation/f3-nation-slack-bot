@@ -1,5 +1,9 @@
 import os
 
+import dotenv
+
+dotenv.load_dotenv()
+
 SLACK_BOT_TOKEN = "SLACK_BOT_TOKEN"
 SLACK_STATE_S3_BUCKET_NAME = "ENV_SLACK_STATE_S3_BUCKET_NAME"
 SLACK_INSTALLATION_S3_BUCKET_NAME = "ENV_SLACK_INSTALLATION_S3_BUCKET_NAME"
@@ -21,7 +25,10 @@ STRAVA_CLIENT_ID = "STRAVA_CLIENT_ID"
 STRAVA_CLIENT_SECRET = "STRAVA_CLIENT_SECRET"
 LOW_REZ_IMAGE_SIZE = 1000
 
-LOCAL_DEVELOPMENT = os.environ.get("LOCAL_DEVELOPMENT", "false").lower() == "true"
+LOCAL_DEVELOPMENT = os.environ.get("LOCAL_DEVELOPMENT", "").lower() in ("1", "true", "yes")
+SOCKET_MODE = os.environ.get("SOCKET_MODE", "").lower() in ("1", "true", "yes")
+ENABLE_DEBUGGING = os.environ.get("ENABLE_DEBUGGING", "false").lower() == "true"
+ALL_USERS_ARE_ADMINS = os.environ.get("ALL_USERS_ARE_ADMINS", "false").lower() == "true"
 
 SLACK_STATE_S3_BUCKET_NAME = "ENV_SLACK_STATE_S3_BUCKET_NAME"
 SLACK_INSTALLATION_S3_BUCKET_NAME = "ENV_SLACK_INSTALLATION_S3_BUCKET_NAME"
@@ -149,8 +156,8 @@ FREQUENCY_OPTIONS = {
     "values": ["Weekly", "Monthly"],
 }
 INTERVAL_OPTIONS = {
-    "names": ["Every", "Every Other", "Every Third", "Every Fourth"],
-    "values": ["1", "2", "3", "4"],
+    "names": ["Every", "Every Other", "Every Third", "Every Fourth", "Every Fifth"],
+    "values": ["1", "2", "3", "4", "5"],
 }
 
 ORG_TYPES = {

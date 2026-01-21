@@ -11,6 +11,7 @@ from slack_sdk.web import WebClient
 
 from features import db_admin
 from utilities import constants
+from utilities.constants import ALL_USERS_ARE_ADMINS
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users, get_position_users, make_user_admin
 from utilities.helper_functions import (
@@ -28,11 +29,14 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
     if body.get("text") == os.environ.get("DB_ADMIN_PASSWORD"):
         db_admin.build_db_admin_form(body, client, logger, context, region_record, update_view_id)
     else:
-        slack_user = get_user(user_id, region_record, client, logger)
-        # user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
-        # user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
-        admin_users = get_admin_users(region_record.org_id, region_record.team_id)
-        user_is_admin = any(u[0].id == slack_user.user_id for u in admin_users)
+        if ALL_USERS_ARE_ADMINS:
+            user_is_admin = True
+        else:
+            slack_user = get_user(user_id, region_record, client, logger)
+            # user_permissions = [p.name for p in get_user_permission_list(slack_user.user_id, region_record.org_id)]
+            # user_is_admin = constants.PERMISSIONS[constants.ALL_PERMISSIONS] in user_permissions
+            admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+            user_is_admin = any(u[0].id == slack_user.user_id for u in admin_users)
 
         if user_is_admin:
             config_form = copy.deepcopy(forms.CONFIG_FORM)
@@ -217,7 +221,7 @@ def build_config_slt_form(
     position_users = get_position_users(org_id, region_record.org_id, slack_team_id=region_record.team_id)
     aos: List[Org] = DbManager.find_records(
         cls=Org,
-        filters=[Org.parent_id == region_record.org_id],
+        filters=[Org.parent_id == region_record.org_id, Org.is_active],
     )
     level_options = [orm.SelectorOption(name="Region", value="0")]
     for a in aos:

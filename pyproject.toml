@@ -31,6 +31,9 @@ authors = ["Evan Petzoldt <evan.petzoldt@protonmail.com>"]
 readme = "README.md"
 package-mode = false
 
+[tool.poetry.requires-plugins]
+poetry-plugin-export = ">=1.8"
+
 [tool.poetry.dependencies]
 python = "^3.12"
 slack-bolt = "^1.18.1"
@@ -65,6 +68,7 @@ playwright = "^1.44.0"
 dataframe-image = "^0.2.7"
 pandas = "^2.2.2"
 alembic = "^1.13.0"
+debugpy = "^1.8.17"
 
 [build-system]
 requires = ["poetry-core"]

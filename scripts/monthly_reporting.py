@@ -134,11 +134,11 @@ def run_reporting_single_org(body: dict, client: WebClient, logger: any, context
 
 def cycle_all_orgs(run_org_id: int = None):
     current_time = datetime.now(pytz.timezone("US/Central"))
-    if run_org_id or (current_time.day == 2 and current_time.hour == 15):
+    if run_org_id or (current_time.day == 5 and current_time.hour == 15):
         records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[Org.is_active])
         region_orgs: List[Org] = [r[1] for r in records]
         slack_spaces: List[SlackSpace] = [r[2] for r in records]
-        org_leaderboard_dict = pull_org_leaderboard_data()
+        # org_leaderboard_dict = pull_org_leaderboard_data()
         monthly_summary_dict = pull_org_summary_data()
 
         if run_org_id is None:
@@ -147,9 +147,9 @@ def cycle_all_orgs(run_org_id: int = None):
                 try:
                     settings = SlackSettings(**slack.settings)
                     upload_files = []
-                    if org.id in org_leaderboard_dict:
-                        if settings.reporting_region_leaderboard_enabled and settings.reporting_region_channel:
-                            upload_files.append(create_post_leaders_plot(org_leaderboard_dict[org.id]))
+                    # if org.id in org_leaderboard_dict:
+                    #     if settings.reporting_region_leaderboard_enabled and settings.reporting_region_channel:
+                    #         upload_files.append(create_post_leaders_plot(org_leaderboard_dict[org.id]))
                     if org.id in monthly_summary_dict:
                         if settings.reporting_region_monthly_summary_enabled:
                             upload_files.append(create_org_monthly_summary(monthly_summary_dict[org.id]))
@@ -157,31 +157,30 @@ def cycle_all_orgs(run_org_id: int = None):
                     upload_files_to_slack(
                         upload_files,
                         settings,
-                        text="Here are your region's monthly reports!",
+                        text=f"Here are your region's monthly summaries! Looking for leaderboards? Find these and more at {os.getenv('STATS_URL')}/stats/region/{org.id}",  # noqa: E501
                         channel=settings.reporting_region_channel,
                     )
 
-                    if settings.reporting_ao_leaderboard_enabled or settings.reporting_ao_monthly_summary_enabled:
+                    if settings.reporting_ao_monthly_summary_enabled:
                         # AO reports
                         ao_orgs = DbManager.find_records(Org, filters=[Org.parent_id == org.id, Org.is_active])
                         for ao in ao_orgs:
                             upload_files = []
-                            if ao.id in org_leaderboard_dict and settings.reporting_ao_leaderboard_enabled:
-                                channel = ao.meta.get("slack_channel_id") or settings.backblast_destination_channel
-                                upload_files.append(create_post_leaders_plot(org_leaderboard_dict[ao.id]))
+                            channel = ao.meta.get("slack_channel_id") or settings.backblast_destination_channel
+                            # if ao.id in org_leaderboard_dict and settings.reporting_ao_leaderboard_enabled:
+                            # #     channel = ao.meta.get("slack_channel_id") or settings.backblast_destination_channel
+                            # #     upload_files.append(create_post_leaders_plot(org_leaderboard_dict[ao.id]))
                             if ao.id in monthly_summary_dict and settings.reporting_ao_monthly_summary_enabled:
                                 upload_files.append(create_org_monthly_summary(monthly_summary_dict[ao.id]))
                             upload_files_to_slack(
                                 upload_files,
                                 settings,
-                                text=f"Here are your ({ao.name}) monthly reports!",
+                                text=f"Here is your ({ao.name}) monthly summary! Looking for leaderboards? Find these and more at {os.getenv('STATS_URL')}/stats/region/{org.id}",  # noqa: E501
                                 channel=channel,
                             )
                 except Exception as e:
                     print(f"Error processing org {org.name} ({org.id}): {e}")
                     continue
-        else:
-            create_post_leaders_plot(org_leaderboard_dict[run_org_id])
 
 
 def pull_org_leaderboard_data() -> Dict[int, List[OrgUserLeaderboard]]:
@@ -582,6 +581,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     )
     ax.set_title("Total Posts", fontsize=14)
     # ax.set_ylabel("Total Posts", fontsize=12)
+    ax.set_ylim(bottom=0)
     ax.legend(loc="upper left")
     mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 
@@ -606,6 +606,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     )
     ax.set_title("Unique PAX", fontsize=14)
     # ax.set_ylabel("Unique PAX", fontsize=12)
+    ax.set_ylim(bottom=0)
     ax.legend(loc="upper left")
     mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 
@@ -631,6 +632,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
 
     ax.set_title("FNGs", fontsize=14)
     # ax.set_ylabel("FNGs", fontsize=12)
+    ax.set_ylim(bottom=0)
     ax.legend(loc="upper left")
     mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 

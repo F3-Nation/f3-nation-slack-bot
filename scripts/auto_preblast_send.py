@@ -118,7 +118,7 @@ class PreblastList:
         session.close()
 
 
-def send_automated_preblasts():
+def send_automated_preblasts(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     preblast_list = PreblastList()
@@ -131,6 +131,10 @@ def send_automated_preblasts():
     )
 
     for preblast in preblast_list.items:
+        # Respect per-event opt-out
+        if safe_get((preblast.event.meta or {}), "do_not_send_auto_preblasts"):
+            continue
+
         automated_option = safe_get(preblast.slack_settings.__dict__, "automated_preblast_option") or "disable"
         automated_hour = safe_get(preblast.slack_settings.__dict__, "automated_preblast_hour_cst")
 
@@ -139,7 +143,7 @@ def send_automated_preblasts():
             continue
 
         # If an hour is configured, require match to current hour
-        if automated_hour is not None and automated_hour != current_time.hour:
+        if automated_hour is not None and automated_hour != current_time.hour and not force:
             continue
 
         # Respect option semantics around Q assignment
@@ -162,4 +166,4 @@ def send_automated_preblasts():
 
 
 if __name__ == "__main__":
-    send_automated_preblasts()
+    send_automated_preblasts(force=True)

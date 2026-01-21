@@ -6,7 +6,9 @@ from slack_sdk.models.blocks.basic_components import Option
 from slack_sdk.models.views import View
 
 # slack_sdk.models.composition_objects.Option
+from utilities.constants import ENABLE_DEBUGGING
 from utilities.helper_functions import safe_get
+from utilities.slack import actions
 
 
 def as_selector_options(names: List[str], values: List[str] = None, descriptions: List[str] = None) -> List[Option]:
@@ -120,7 +122,12 @@ class SdkBlockView:
         for block in self.blocks:
             if isinstance(block, InputBlock) and block.block_id in options:
                 if hasattr(block.element, "options"):
-                    block.element.options = options[block.block_id]
+                    option_list = options[block.block_id]
+                    for option in option_list:
+                        option.label = option.label[:75]
+                        if option.description:
+                            option.description = option.description[:75]
+                    block.element.options = option_list
 
     def to_dict_list(self) -> List[dict]:
         """Serializes all blocks to a list of dictionaries."""
@@ -199,7 +206,10 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        if new_or_add == "new":
+        if ENABLE_DEBUGGING:
+            view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
+            return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
+        elif new_or_add == "new":
             return client.views_open(trigger_id=trigger_id, view=view.to_dict())
         elif new_or_add == "add":
             return client.views_push(trigger_id=trigger_id, view=view.to_dict())
@@ -214,6 +224,7 @@ class SdkBlockView:
         parent_metadata: dict = None,
         close_button_text: str = "Close",
         notify_on_close: bool = False,
+        external_id: str = None,
     ):
         """Updates an existing modal view."""
         view = View(
@@ -228,4 +239,14 @@ class SdkBlockView:
         if parent_metadata:
             view.private_metadata = json.dumps(parent_metadata)
 
-        return client.views_update(view_id=view_id, view=view.to_dict())
+        try:
+            if ENABLE_DEBUGGING:
+                view.external_id = actions.DEBUG_FORM_EXTERNAL_ID
+                return client.views_update(external_id=actions.DEBUG_FORM_EXTERNAL_ID, view=view.to_dict())
+            elif external_id:
+                return client.views_update(external_id=external_id, view=view.to_dict())
+            else:
+                return client.views_update(view_id=view_id, view=view.to_dict())
+        except Exception as e:
+            # TODO: handle "not found" errors; post new instead of update?
+            print(f"Failed to update modal: {e}")

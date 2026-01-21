@@ -23,14 +23,16 @@ from f3_data_models.models import (
 )
 from f3_data_models.utils import get_session
 from slack_sdk.web import WebClient
-from sqlalchemy import and_, func, select
+from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.orm import aliased
 
+from features.calendar.event_instance import META_DO_NOT_SEND_AUTO_PREBLASTS
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst
+from utilities.helper_functions import current_date_cst, safe_get
 from utilities.slack import actions, orm
 
-MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa
+MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. Thanks for leading!"  # noqa
+MSG_TEMPLATE_NOT_ABLE = " If you're not able to complete the form, I'll still send one out on your behalf."  # noqa
 
 
 @dataclass
@@ -120,21 +122,24 @@ class PreblastList:
         session.close()
 
 
-def send_preblast_reminders():
+def send_preblast_reminders(force: bool = False):
     # get the current time in US/Central timezone
     current_time = datetime.now(pytz.timezone("US/Central"))
     # check if the current time is between 5:00 PM and 6:00 PM, eventually configurable
-    if current_time.hour == 10:
+    if current_time.hour == 10 or force:
         preblast_list = PreblastList()
         preblast_list.pull_data(
             filters=[
                 EventInstance.start_date == current_date_cst() + timedelta(days=1),  # eventually configurable
                 EventInstance.preblast_ts.is_(None),  # not already sent
-                EventInstance.preblast_rich.is_(None),  # not already set
+                or_(
+                    EventInstance.preblast_rich.is_(None), EventInstance.preblast_rich.cast(String) == "null"
+                ),  # not already set
                 EventInstance.is_active,  # not canceled
             ]
         )
         preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
+        print(f"Found {len(preblast_list.items)} preblast reminders to send.")
 
         for preblast in preblast_list.items:
             # TODO: add some handling for missing stuff
@@ -144,6 +149,11 @@ def send_preblast_reminders():
                 event_date=preblast.event.start_date.strftime("%m/%d"),
                 event_ao=preblast.org.name,
             )
+            if not (
+                safe_get(preblast.event.meta, META_DO_NOT_SEND_AUTO_PREBLASTS)
+                or preblast.slack_settings.automated_preblast_option == "disable"
+            ):
+                msg += MSG_TEMPLATE_NOT_ABLE
 
             slack_bot_token = preblast.slack_settings.bot_token
             if slack_bot_token and preblast.slack_user_id:
@@ -173,4 +183,4 @@ def send_preblast_reminders():
 
 
 if __name__ == "__main__":
-    send_preblast_reminders()
+    send_preblast_reminders(force=True)

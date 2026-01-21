@@ -7,6 +7,7 @@ from features import (
     custom_fields,
     db_admin,
     help,
+    paxminer_mapping,
     preblast,
     preblast_legacy,
     region,
@@ -79,6 +80,8 @@ VIEW_MAPPER = {
     actions.HOME_ASSIGN_Q_CALLBACK_ID: (home.handle_assign_q_form, False),
     actions.DB_ADMIN_CALLBACK_ID: (db_admin.handle_send_admin_announcement, False),
     reporting.REPORTING_CALLBACK_ID: (reporting.handle_reporting_edit, False),
+    actions.DB_ADMIN_LONG_RUN_CALLBACK_ID: (db_admin.handle_long_run_task, False),
+    paxminer_mapping.PAXMINER_MAPPING_ID: (paxminer_mapping.handle_paxminer_mapping_post, False),
 }
 
 ACTION_MAPPER = {
@@ -124,12 +127,12 @@ ACTION_MAPPER = {
     actions.EVENT_PREBLAST_EDIT: (event_preblast.handle_event_preblast_action, False),
     actions.EVENT_PREBLAST_SELECT: (event_preblast.handle_event_preblast_select, False),
     actions.EVENT_PREBLAST_NEW_BUTTON: (home.handle_event_preblast_select_button, False),
-    actions.OPEN_CALENDAR_BUTTON: (home.handle_event_preblast_select_button, False),
+    actions.OPEN_CALENDAR_BUTTON: (home.handle_event_preblast_select_button, True),
     actions.MSG_EVENT_PREBLAST_BUTTON: (event_preblast.handle_event_preblast_action, False),
-    actions.MSG_EVENT_BACKBLAST_BUTTON: (backblast.backblast_middleware, False),
+    actions.MSG_EVENT_BACKBLAST_BUTTON: (backblast.backblast_middleware, True),
     actions.MSG_EVENT_BACKBLAST_ALREADY_BUTTON: (handle_backblast_reminder_dismiss, False),
-    actions.BACKBLAST_FILL_SELECT: (backblast.build_backblast_form, False),
-    actions.BACKBLAST_NEW_BLANK_BUTTON: (backblast.build_backblast_form, False),
+    actions.BACKBLAST_FILL_SELECT: (backblast.build_backblast_form, True),
+    actions.BACKBLAST_NEW_BLANK_BUTTON: (backblast.build_backblast_form, True),
     actions.REGION_INFO_BUTTON: (region.build_region_form, False),
     actions.CONFIG_SPECIAL_EVENTS: (special_events.build_special_settings_form, False),
     actions.DB_ADMIN_UPGRADE: (db_admin.handle_db_admin_upgrade, False),
@@ -154,7 +157,7 @@ ACTION_MAPPER = {
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
     actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
     actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION: (db_admin.handle_trigger_map_revalidation, False),
-    actions.CONFIG_USER_SETTINGS: (user.build_user_form, False),
+    actions.CONFIG_USER_SETTINGS: (user.build_user_form, True),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE: (event_instance.manage_event_instances, False),
     actions.EVENT_INSTANCE_EDIT_DELETE: (event_instance.handle_event_instance_edit_delete, False),
     event_instance.CALENDAR_ADD_EVENT_INSTANCE_AO: (event_instance.build_event_instance_add_form, False),
@@ -174,6 +177,16 @@ ACTION_MAPPER = {
     actions.CONFIG_HELP_MENU: (help.build_help_menu, False),
     actions.CALENDAR_MANAGE_SERIES_AO: (series.build_series_list_form, False),
     actions.SETTINGS_BUTTON: (config.build_config_form, True),
+    actions.SECRET_MENU_LONG_RUN: (db_admin.build_long_run_task_form, False),
+    actions.PAXMINER_MAPPING: (paxminer_mapping.build_paxminer_mapping_form, False),
+    paxminer_mapping.PAXMINER_ORIGINATING_CHANNEL: (paxminer_mapping.build_paxminer_mapping_form, False),
+    paxminer_mapping.PAXMINER_REGION: (paxminer_mapping.build_paxminer_mapping_form, False),
+    actions.PREBLAST_FILL_BACKBLAST_BUTTON: (backblast.backblast_middleware, True),
+    actions.NEW_PREBLAST_BUTTON: (event_preblast.preblast_middleware, True),
+    actions.BACKBLAST_NOQ_SELECT: (backblast.build_backblast_form, True),
+    actions.BACKBLAST_FILL_BUTTON: (backblast.build_backblast_form, True),
+    actions.EVENT_PREBLAST_FILL_BUTTON: (event_preblast.handle_event_preblast_select, False),
+    actions.EVENT_PREBLAST_NOQ_SELECT: (event_preblast.handle_event_preblast_select, False),
 }
 
 ACTION_PREFIXES = [
@@ -187,6 +200,8 @@ ACTION_PREFIXES = [
     actions.EVENT_INSTANCE_EDIT_DELETE,
     actions.EVENT_TYPE_EDIT_DELETE,
     event_tag.EVENT_TAG_EDIT_DELETE,
+    actions.BACKBLAST_FILL_BUTTON,
+    actions.EVENT_PREBLAST_FILL_BUTTON,
 ]
 
 VIEW_CLOSED_MAPPER = {
@@ -202,6 +217,7 @@ EVENT_MAPPER = {
 OPTIONS_MAPPER = {
     actions.USER_OPTION_LOAD: (options.handle_request, False),
     user.USER_FORM_HOME_REGION: (options.handle_request, False),
+    paxminer_mapping.PAXMINER_REGION: (options.handle_request, False),
     connect.SELECT_REGION: (options.handle_request, False),
 }
 

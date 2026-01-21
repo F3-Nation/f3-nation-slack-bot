@@ -227,7 +227,7 @@ def generate_calendar_images(force: bool = False):
                         ):
                             # convert start_date from date to string
                             df.loc[:, "event_date"] = pd.to_datetime(df["start_date"])
-                            df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%m/%d")
+                            df.loc[:, "event_date_fmt"] = df["event_date"].dt.strftime("%Y/%m/%d")
                             df.loc[:, "event_time"] = df["start_time"]
                             df.loc[df["q_name"].isna(), "q_name"] = "OPEN!"
                             df.loc[:, "q_name"] = df["q_name"].str.replace(r"\s\(([\s\S]*?\))", "", regex=True)
@@ -296,6 +296,13 @@ def generate_calendar_images(force: bool = False):
                             df2.sort_values(by=["AO\nLocation2"], axis=0, inplace=True)
                             df2.drop(["AO\nLocation2"], axis=1, inplace=True)
                             df2.reset_index(inplace=True, drop=True)
+
+                            # Add timestamp footer row
+                            now_cst = datetime.now(pytz.timezone("US/Central"))
+                            timestamp_str = f"Last updated at {now_cst.strftime('%m/%d %I:%M %p')} CST"
+                            footer_row = dict.fromkeys(df2.columns, "")
+                            footer_row["AO\nLocation"] = timestamp_str
+                            df2 = pd.concat([df2, pd.DataFrame([footer_row])], ignore_index=True)
 
                             # Set CSS properties for th elements in dataframe
                             th_props = [
