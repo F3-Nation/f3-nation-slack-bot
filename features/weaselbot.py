@@ -1,11 +1,16 @@
+"""
+Weaselbot configuration module.
+
+NOTE: Achievement tagging functionality has been moved to features/achievements.py.
+This module now only handles Kotter Reports configuration and legacy achievement settings.
+For new achievement functionality, use the achievements module.
+"""
+
 import copy
-from datetime import datetime
 from logging import Logger
 
-import pytz
 from f3_data_models.models import (
     Achievement,
-    Achievement_x_User,
     SlackSpace,
 )
 from f3_data_models.utils import DbManager
@@ -15,103 +20,37 @@ from sqlalchemy.exc import ProgrammingError
 
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
-    get_user,
     safe_convert,
     safe_get,
     update_local_region_records,
 )
 from utilities.slack import actions, forms
-from utilities.slack import orm as slack_orm
 
 
+# =============================================================================
+# DEPRECATED: Use features.achievements.build_tag_achievement_form instead
+# =============================================================================
 def build_achievement_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    update_view_id = safe_get(body, actions.LOADING_ID)
-    achievement_form = copy.deepcopy(forms.ACHIEVEMENT_FORM)
-    callback_id = actions.ACHIEVEMENT_CALLBACK_ID
+    """
+    DEPRECATED: This function is kept for backwards compatibility.
+    Use features.achievements.build_tag_achievement_form instead.
+    """
+    from features.achievements import build_tag_achievement_form
 
-    # build achievement list
-    achievement_list = []
-    # gather achievements from paxminer org_id is the same as region_record.org_id or none
-    achievement_list: list[Achievement] = DbManager.find_records(
-        Achievement, [or_(Achievement.specific_org_id == region_record.org_id, Achievement.specific_org_id.is_(None))]
-    )
-
-    if achievement_list:
-        achievement_list = slack_orm.as_selector_options(
-            names=[achievement.name for achievement in achievement_list],
-            values=[str(achievement.id) for achievement in achievement_list],
-            descriptions=[achievement.description for achievement in achievement_list],
-        )
-    else:
-        achievement_list = slack_orm.as_selector_options(
-            names=["No achievements available"],
-            values=["None"],
-        )
-
-    achievement_form.set_initial_values(
-        {
-            actions.ACHIEVEMENT_DATE: datetime.now(pytz.timezone("US/Central")).strftime("%Y-%m-%d"),
-        }
-    )
-    achievement_form.set_options(
-        {
-            actions.ACHIEVEMENT_SELECT: achievement_list,
-        }
-    )
-
-    achievement_form.update_modal(
-        client=client,
-        view_id=update_view_id,
-        callback_id=callback_id,
-        title_text="Tag achievements",
-    )
+    return build_tag_achievement_form(body, client, logger, context, region_record)
 
 
+# =============================================================================
+# DEPRECATED: Use features.achievements.handle_tag_achievement instead
+# =============================================================================
 def handle_achievements_tag(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    achievement_data = forms.ACHIEVEMENT_FORM.get_selected_values(body)
-    achievement_pax_list = safe_get(achievement_data, actions.ACHIEVEMENT_PAX)
-    achievement_slack_user_list = [get_user(pax, region_record, client, logger) for pax in achievement_pax_list]
-    achievement_pax_list = [pax.user_id for pax in achievement_slack_user_list]
-    achievement_id = safe_convert(safe_get(achievement_data, actions.ACHIEVEMENT_SELECT), int)
-    achievement_date = datetime.strptime(safe_get(achievement_data, actions.ACHIEVEMENT_DATE), "%Y-%m-%d")
+    """
+    DEPRECATED: This function is kept for backwards compatibility.
+    Use features.achievements.handle_tag_achievement instead.
+    """
+    from features.achievements import handle_tag_achievement
 
-    achievement_info: Achievement = DbManager.get(Achievement, achievement_id)
-    achievement_name = achievement_info.name
-
-    # Get all achievements for the year
-    pax_awards: list[Achievement_x_User] = DbManager.find_records(
-        Achievement_x_User,
-        filters=[
-            Achievement_x_User.user_id.in_(achievement_pax_list),
-            Achievement_x_User.date_awarded >= datetime(achievement_date.year, 1, 1),
-            Achievement_x_User.date_awarded <= datetime(achievement_date.year, 12, 31),
-        ],
-    )
-    pax_awards_total = {}
-    pax_awards_this_achievement = {}
-    for pax in achievement_pax_list:
-        pax_awards_total[pax] = 0
-        pax_awards_this_achievement[pax] = 0
-    for award in pax_awards:
-        pax_awards_total[award.user_id] += 1
-        if award.achievement_id == achievement_id:
-            pax_awards_this_achievement[award.user_id] += 1
-
-    for pax in achievement_slack_user_list:
-        msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}*!"
-        msg += f" This is achievement #{pax_awards_total[pax.user_id] + 1} for him this year"
-        if pax_awards_this_achievement[pax.user_id] > 0:
-            msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} time this year for this achievement."
-        else:
-            msg += "."
-        client.chat_postMessage(channel=region_record.achievement_channel, text=msg)
-        DbManager.create_record(
-            Achievement_x_User(
-                user_id=pax.user_id,
-                date_awarded=achievement_date,
-                achievement_id=achievement_id,
-            ),
-        )
+    return handle_tag_achievement(body, client, logger, context, region_record)
 
 
 def build_config_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

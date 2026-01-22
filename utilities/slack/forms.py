@@ -231,10 +231,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":speech_balloon: Welcomebot Settings",
                     action=actions.CONFIG_WELCOME_MESSAGE,
                 ),
-                # orm.ButtonElement(
-                #     label=":sports_medal: Achievement Settings",
-                #     action=actions.CONFIG_WEASELBOT,
-                # ),
+                orm.ButtonElement(
+                    label=":sports_medal: Achievement Settings",
+                    action=actions.CONFIG_ACHIEVEMENTS,
+                ),
                 orm.ButtonElement(
                     label=":chart_with_upwards_trend: Reporting Settings",
                     action=actions.CONFIG_REPORTING,

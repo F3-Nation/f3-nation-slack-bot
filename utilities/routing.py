@@ -1,4 +1,5 @@
 from features import (
+    achievements,
     backblast,
     backblast_legacy,
     canvas,
@@ -39,7 +40,7 @@ COMMAND_MAPPER = {
     "/backblast": (backblast.backblast_middleware, True),
     "/preblast": (event_preblast.preblast_middleware, True),
     "/f3-nation-settings": (config.build_config_form, True),
-    "/tag-achievement": (weaselbot.build_achievement_form, True),
+    "/tag-achievement": (achievements.build_tag_achievement_form, True),
     "/f3-calendar": (home.build_home_form, True),
     "/help": (help.build_help_menu, False),
 }
@@ -59,7 +60,10 @@ VIEW_MAPPER = {
     actions.STRAVA_MODIFY_CALLBACK_ID: (strava.handle_strava_modify, False),
     actions.CUSTOM_FIELD_ADD_CALLBACK_ID: (custom_fields.handle_custom_field_add, False),
     actions.CUSTOM_FIELD_MENU_CALLBACK_ID: (custom_fields.handle_custom_field_menu, False),
-    actions.ACHIEVEMENT_CALLBACK_ID: (weaselbot.handle_achievements_tag, False),
+    actions.ACHIEVEMENT_CALLBACK_ID: (achievements.handle_tag_achievement, False),
+    actions.ACHIEVEMENT_TAG_CALLBACK_ID: (achievements.handle_tag_achievement, False),
+    actions.ACHIEVEMENT_CONFIG_CALLBACK_ID: (achievements.handle_config_form, False),
+    actions.ACHIEVEMENT_NEW_CALLBACK_ID: (achievements.handle_new_achievement_form, False),
     actions.WEASELBOT_CONFIG_CALLBACK_ID: (weaselbot.handle_config_form, False),
     actions.ADD_LOCATION_CALLBACK_ID: (location.handle_location_add, False),
     actions.ADD_AO_CALLBACK_ID: (ao.handle_ao_add, False),
@@ -98,6 +102,10 @@ ACTION_MAPPER = {
     actions.PREBLAST_NEW_BUTTON: (event_preblast.preblast_middleware, True),
     actions.PREBLAST_EDIT_BUTTON_LEGACY: (preblast_legacy.handle_preblast_edit_button, True),
     actions.CONFIG_WEASELBOT: (weaselbot.build_config_form, False),
+    actions.CONFIG_ACHIEVEMENTS: (achievements.build_config_form, False),
+    actions.ACHIEVEMENT_CONFIG_NEW_BTN: (achievements.build_new_achievement_form, False),
+    actions.ACHIEVEMENT_CONFIG_MANAGE_BTN: (achievements.build_manage_achievements_form, False),
+    actions.ACHIEVEMENT_MANAGE_OVERFLOW: (achievements.handle_manage_overflow, False),
     actions.CONFIG_WELCOME_MESSAGE: (welcome.build_welcome_message_form, False),
     actions.CONFIG_EMAIL: (config.build_config_email_form, False),
     actions.CONFIG_GENERAL: (config.build_config_general_form, False),
@@ -202,6 +210,7 @@ ACTION_PREFIXES = [
     event_tag.EVENT_TAG_EDIT_DELETE,
     actions.BACKBLAST_FILL_BUTTON,
     actions.EVENT_PREBLAST_FILL_BUTTON,
+    actions.ACHIEVEMENT_MANAGE_OVERFLOW,
 ]
 
 VIEW_CLOSED_MAPPER = {
@@ -226,7 +235,7 @@ SHORTCUT_MAPPER = {
     actions.PREBLAST_SHORTCUT: (event_preblast.preblast_middleware, True),
     actions.CALENDAR_SHORTCUT: (home.build_home_form, True),
     actions.SETTINGS_SHORTCUT: (config.build_config_form, True),
-    actions.TAG_ACHIEVEMENT_SHORTCUT: (weaselbot.build_achievement_form, True),
+    actions.TAG_ACHIEVEMENT_SHORTCUT: (achievements.build_tag_achievement_form, True),
 }
 
 MAIN_MAPPER = {

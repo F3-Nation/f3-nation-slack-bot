@@ -143,6 +143,7 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         first_f_ind = inc.get("first_f_ind")
         if first_f_ind is not None:
             base_filters.append(EventInstanceExpanded.first_f_ind == first_f_ind)
+            print(f"Applying include first_f_ind filter: {first_f_ind}")
         second_f_ind = inc.get("second_f_ind")
         if second_f_ind is not None:
             base_filters.append(EventInstanceExpanded.second_f_ind == second_f_ind)
@@ -237,7 +238,7 @@ def _compute_all_period_metrics(
 
     # Period expression
     if cadence == "weekly":
-        period_expr = func.extract("isoweek", EventInstanceExpanded.start_date)
+        period_expr = func.extract("week", EventInstanceExpanded.start_date)
     elif cadence == "monthly":
         period_expr = func.extract("month", EventInstanceExpanded.start_date)
     elif cadence == "quarterly":
@@ -411,6 +412,8 @@ def main():  # pragma: no cover - CLI
         "--today", type=str, help="Override today's date (YYYY-MM-DD, UTC) for backfilling / testing", default=None
     )
     args = parser.parse_args()
+    print(f"Auto-award achievements started at {datetime.now(UTC).isoformat()}")
+    print(f"Arguments: achievement_id={args.achievement_id}, dry_run={args.dry_run}, today={args.today}")
 
     today = datetime.strptime(args.today, "%Y-%m-%d").date() if args.today else datetime.now(UTC).date()
 

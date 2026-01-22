@@ -178,6 +178,18 @@ ACHIEVEMENT_SELECT = "achievement-select"
 ACHIEVEMENT_PAX = "achievement-pax"
 ACHIEVEMENT_DATE = "achievement-date"
 
+# Achievement config/management actions
+CONFIG_ACHIEVEMENTS = "config_achievements"
+ACHIEVEMENT_CONFIG_CALLBACK_ID = "achievement-config-id"
+ACHIEVEMENT_CONFIG_ENABLE = "achievement-config-enable"
+ACHIEVEMENT_CONFIG_CHANNEL = "achievement-config-channel"
+ACHIEVEMENT_CONFIG_NEW_BTN = "achievement-config-new-btn"
+ACHIEVEMENT_CONFIG_MANAGE_BTN = "achievement-config-manage-btn"
+ACHIEVEMENT_NEW_CALLBACK_ID = "achievement-new-id"
+ACHIEVEMENT_MANAGE_CALLBACK_ID = "achievement-manage-id"
+ACHIEVEMENT_MANAGE_OVERFLOW = "achievement-manage-overflow"
+ACHIEVEMENT_TAG_CALLBACK_ID = "achievement-tag-id"
+
 CONFIG_WEASELBOT = "config_weaselbot"
 WEASELBOT_ENABLE_FEATURES = "weaselbot_enable_features"
 WEASELBOT_ACHIEVEMENT_CHANNEL = "achievement_channel"
