@@ -378,6 +378,31 @@ def build_long_run_task_form(
     )
 
 
+def handle_refresh_cache(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    from utilities.helper_functions import update_local_region_records, update_local_slack_users
+
+    update_local_region_records()
+    update_local_slack_users()
+
+
+def handle_auto_preblast_send(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    from scripts.auto_preblast_send import send_automated_preblasts
+
+    send_automated_preblasts(force=True)
+
+
 def handle_long_run_task(
     body: dict,
     client: WebClient,
@@ -409,14 +434,6 @@ DB_ADMIN_FORM = orm.BlockView(
         orm.ActionsBlock(
             elements=[
                 orm.ButtonElement(
-                    label="Initialize New Region",
-                    action=actions.SECRET_MENU_MAKE_ORG,
-                ),
-                orm.ButtonElement(
-                    label="Calendar Images",
-                    action=actions.SECRET_MENU_CALENDAR_IMAGES,
-                ),
-                orm.ButtonElement(
                     label="AO Lineups",
                     action=actions.SECRET_MENU_AO_LINEUPS,
                 ),
@@ -427,14 +444,6 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Backblast Reminders",
                     action=actions.SECRET_MENU_BACKBLAST_REMINDERS,
-                ),
-                orm.ButtonElement(
-                    label="Update Canvas",
-                    action=actions.SECRET_MENU_UPDATE_CANVAS,
-                ),
-                orm.ButtonElement(
-                    label="Generate Event Instances",
-                    action=actions.SECRET_MENU_GENERATE_EVENT_INSTANCES,
                 ),
                 orm.ButtonElement(
                     label="Trigger Map Revalidation",
@@ -451,6 +460,14 @@ DB_ADMIN_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label="Test long run task",
                     action=actions.SECRET_MENU_LONG_RUN,
+                ),
+                orm.ButtonElement(
+                    label="Send Auto Preblasts",
+                    action=actions.SECRET_MENU_SEND_AUTO_PREBLASTS,
+                ),
+                orm.ButtonElement(
+                    label="Refresh Cache",
+                    action=actions.SECRET_MENU_REFRESH_CACHE,
                 ),
             ],
         ),
