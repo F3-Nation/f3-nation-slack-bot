@@ -159,6 +159,10 @@ INTERVAL_OPTIONS = {
     "names": ["Every", "Every Other", "Every Third", "Every Fourth", "Every Fifth"],
     "values": ["1", "2", "3", "4", "5"],
 }
+WEEK_INDEX_OPTIONS = {
+    "names": ["1st", "2nd", "3rd", "4th", "5th", "Last"],
+    "values": ["1", "2", "3", "4", "5", "0"],
+}
 
 ORG_TYPES = {
     "AO": 1,
