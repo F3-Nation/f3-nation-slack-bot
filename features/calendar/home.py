@@ -396,9 +396,10 @@ ASSIGN_Q_FORM = orm.BlockView(
         orm.InputBlock(
             label="Select User",
             action=actions.CALENDAR_HOME_ASSIGN_Q_USER,
-            element=orm.UsersSelectElement(
+            element=orm.MultiUsersSelectElement(
                 placeholder="Select a user to assign to the Q",
                 initial_value=None,
+                max_selected_items=1,
             ),
         ),
         orm.InputBlock(
@@ -442,7 +443,7 @@ def build_assign_q_form(
     if existing_q_slack_users:
         slack_user_id = [su.slack_id for su in existing_q_slack_users[0] if su.slack_team_id == region_record.team_id]
         print(f"Existing Q slack user: {slack_user_id}")
-        form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_USER: safe_get(slack_user_id, 0)})
+        form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_USER: slack_user_id[:1] if slack_user_id else None})
     existing_co_q_slack_users = [
         a.slack_users for a in attendance if any(at.type == "Co-Q" for at in a.attendance_types)
     ]
@@ -486,7 +487,8 @@ def handle_assign_q_form(
     event_instance_date = safe_get(metadata, "event_instance_date")
 
     # Get the selected user and co-Qs
-    q_slack_user_id = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER)
+    q_slack_user_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER) or []
+    q_slack_user_id = safe_get(q_slack_user_ids, 0)
     q_user_id = get_user(q_slack_user_id, region_record, client, logger).user_id if q_slack_user_id else None
     co_qs_slack_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
     co_qs_user_ids = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs_slack_ids]
