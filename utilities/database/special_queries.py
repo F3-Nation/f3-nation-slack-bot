@@ -349,6 +349,7 @@ def get_position_users(org_id: int, region_org_id: int, slack_team_id: str) -> L
                 and_(
                     or_(Position.org_type == org_type_level, Position.org_type.is_(None)),
                     or_(Position.org_id == region_org_id, Position.org_id.is_(None)),
+                    Position.is_active,
                 )
             )
             .order_by(Position.id)
