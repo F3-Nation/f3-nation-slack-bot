@@ -452,10 +452,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 #     label="Refresh Slack Users",
                 #     action=actions.SECRET_MENU_REFRESH_SLACK_USERS,
                 # ),
-                # orm.ButtonElement(
-                #     label="Update Bot Token",
-                #     action=actions.SECRET_MENU_UPDATE_BOT_TOKEN,
-                # ),
+                orm.ButtonElement(
+                    label="Update Bot Token",
+                    action=actions.SECRET_MENU_UPDATE_BOT_TOKEN,
+                ),
                 # orm.ButtonElement(
                 #     label="Test long run task",
                 #     action=actions.SECRET_MENU_LONG_RUN,
