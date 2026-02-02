@@ -330,7 +330,7 @@ def handle_send_admin_announcement(
             slack_space = record[0]
             org_x_slack_space = record[1]
             admin_users = get_admin_users(org_x_slack_space.org_id, slack_space.team_id)
-            slack_admin_ids = {u[1].slack_id for u in admin_users if safe_get(u, 1, "slack_id")}
+            slack_admin_ids = {safe_get(u, 1, "slack_id") for u in admin_users if safe_get(u, 1, "slack_id")}
             for slack_user_id in slack_admin_ids:
                 try:
                     ssl_context = ssl.create_default_context()
@@ -432,38 +432,38 @@ DB_ADMIN_FORM = orm.BlockView(
     blocks=[
         orm.ActionsBlock(
             elements=[
-                orm.ButtonElement(
-                    label="AO Lineups",
-                    action=actions.SECRET_MENU_AO_LINEUPS,
-                ),
-                orm.ButtonElement(
-                    label="Preblast Reminders",
-                    action=actions.SECRET_MENU_PREBLAST_REMINDERS,
-                ),
-                orm.ButtonElement(
-                    label="Backblast Reminders",
-                    action=actions.SECRET_MENU_BACKBLAST_REMINDERS,
-                ),
-                orm.ButtonElement(
-                    label="Trigger Map Revalidation",
-                    action=actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION,
-                ),
-                orm.ButtonElement(
-                    label="Refresh Slack Users",
-                    action=actions.SECRET_MENU_REFRESH_SLACK_USERS,
-                ),
-                orm.ButtonElement(
-                    label="Update Bot Token",
-                    action=actions.SECRET_MENU_UPDATE_BOT_TOKEN,
-                ),
-                orm.ButtonElement(
-                    label="Test long run task",
-                    action=actions.SECRET_MENU_LONG_RUN,
-                ),
-                orm.ButtonElement(
-                    label="Send Auto Preblasts",
-                    action=actions.SECRET_MENU_SEND_AUTO_PREBLASTS,
-                ),
+                # orm.ButtonElement(
+                #     label="AO Lineups",
+                #     action=actions.SECRET_MENU_AO_LINEUPS,
+                # ),
+                # orm.ButtonElement(
+                #     label="Preblast Reminders",
+                #     action=actions.SECRET_MENU_PREBLAST_REMINDERS,
+                # ),
+                # orm.ButtonElement(
+                #     label="Backblast Reminders",
+                #     action=actions.SECRET_MENU_BACKBLAST_REMINDERS,
+                # ),
+                # orm.ButtonElement(
+                #     label="Trigger Map Revalidation",
+                #     action=actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION,
+                # ),
+                # orm.ButtonElement(
+                #     label="Refresh Slack Users",
+                #     action=actions.SECRET_MENU_REFRESH_SLACK_USERS,
+                # ),
+                # orm.ButtonElement(
+                #     label="Update Bot Token",
+                #     action=actions.SECRET_MENU_UPDATE_BOT_TOKEN,
+                # ),
+                # orm.ButtonElement(
+                #     label="Test long run task",
+                #     action=actions.SECRET_MENU_LONG_RUN,
+                # ),
+                # orm.ButtonElement(
+                #     label="Send Auto Preblasts",
+                #     action=actions.SECRET_MENU_SEND_AUTO_PREBLASTS,
+                # ),
                 orm.ButtonElement(
                     label="Refresh Cache",
                     action=actions.SECRET_MENU_REFRESH_CACHE,
