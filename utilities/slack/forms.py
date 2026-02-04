@@ -104,6 +104,21 @@ BACKBLAST_FORM = orm.BlockView(
                 initial_value="*Note:* anything you put here may be visible to the public, through dashboards, websites, etc. We encourage you to post private COT items (prayer requests, etc) in a separate post or reply to the backblast.",  # noqa: E501
             ),
         ),
+        orm.InputBlock(
+            label="Backblast Options",
+            action=actions.BACKBLAST_OPTIONS,
+            optional=True,
+            element=orm.CheckboxInputElement(
+                options=orm.as_selector_options(
+                    names=[
+                        "Exclude stats from PAX Vault",
+                    ],
+                    values=[
+                        "exclude_from_pax_vault",
+                    ],
+                )
+            ),
+        ),
         orm.DividerBlock(),
         # orm.InputBlock(
         #     label="Choose where to post this",
@@ -118,6 +133,17 @@ BACKBLAST_FORM = orm.BlockView(
             element=orm.RadioButtonsElement(
                 options=orm.as_selector_options(names=["Send Email", "Don't Send Email"], values=["yes", "no"]),
                 initial_value="yes",
+            ),
+        ),
+        orm.InputBlock(
+            label="When to post backblast?",
+            action=actions.BACKBLAST_SEND_OPTIONS,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["Send now", "Save and send later"],
+                ),
+                initial_value="Send now",
             ),
         ),
     ]

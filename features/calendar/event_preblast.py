@@ -1,7 +1,7 @@
 import json
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from logging import Logger
 from typing import List
 
@@ -252,7 +252,9 @@ def build_event_preblast_form(
     if action_value == "Edit Preblast" or preblast_info.user_is_q:
         form = deepcopy(EVENT_PREBLAST_FORM)
 
-        location_records: list[Location] = DbManager.find_records(Location, [Location.org_id == region_record.org_id])
+        location_records: list[Location] = DbManager.find_records(
+            Location, [Location.org_id == region_record.org_id, Location.is_active]
+        )  # noqa
         event_tags: list[EventTag] = DbManager.find_records(
             EventTag, [or_(EventTag.specific_org_id == region_record.org_id, EventTag.specific_org_id.is_(None))]
         )
@@ -312,6 +314,20 @@ def build_event_preblast_form(
                         "the region through Backblast & Preblast Settings."
                     )
                 )
+            if preblast_info.event_record.preblast_ts and preblast_channel:
+                form.blocks.append(
+                    orm.InputBlock(
+                        label="How would you like to update the preblast?",
+                        action=actions.EVENT_PREBLAST_UPDATE_MODE,
+                        element=orm.RadioButtonsElement(
+                            options=orm.as_selector_options(
+                                names=["Update preblast", "Repost preblast"],
+                            ),
+                            initial_value="Update preblast",
+                        ),
+                        optional=False,
+                    )
+                )
         else:
             form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
         form.blocks.append(orm.ActionsBlock(elements=preblast_info.action_blocks))
@@ -362,11 +378,9 @@ def handle_event_preblast_edit(
     form_data = EVENT_PREBLAST_FORM.get_selected_values(body)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
-    callback_id = safe_get(body, "view", "callback_id")
 
     if (
         form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
-        or callback_id == actions.EVENT_PREBLAST_POST_CALLBACK_ID
         or (safe_get(metadata, "preblast_ts") or "None") != "None"
     ):
         preblast_send = True
@@ -430,6 +444,18 @@ def handle_event_preblast_edit(
         DbManager.create_records(new_records)
 
     if preblast_send:
+        # Get update mode directly from body since it's dynamically added to the form
+        update_mode = safe_get(
+            body,
+            "view",
+            "state",
+            "values",
+            actions.EVENT_PREBLAST_UPDATE_MODE,
+            actions.EVENT_PREBLAST_UPDATE_MODE,
+            "selected_option",
+            "value",
+        )
+        repost = update_mode == "Repost preblast"
         send_preblast(
             body,
             client,
@@ -437,6 +463,7 @@ def handle_event_preblast_edit(
             context,
             region_record,
             event_instance_id,
+            repost=repost,
         )
         # forms.SUBMIT_FORM_SUCCESS.update_modal(
         #     client=client,
@@ -459,6 +486,7 @@ def send_preblast(
     context: dict = None,
     region_record: SlackSettings = None,
     event_instance_id: int = None,
+    repost: bool = False,
 ):
     slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
     preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
@@ -494,21 +522,45 @@ def send_preblast(
         icon_url = q_url
     preblast_channel = get_preblast_channel(region_record, preblast_info)
 
-    if preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts") and preblast_channel:
-        try:
-            client.chat_update(
-                channel=preblast_channel,
-                ts=safe_get(metadata, "preblast_ts") or str(preblast_info.event_record.preblast_ts),
-                blocks=blocks,
-                text="Event Preblast",
-                metadata={"event_type": "preblast", "event_payload": metadata},
-                username=username,
-                icon_url=icon_url,
-            )
-        except Exception as e:
-            logger.error(
-                f"Error updating preblast message for event_instance_id {event_instance_id}: {e}"  # noqa
-            )
+    existing_ts = preblast_info.event_record.preblast_ts or safe_get(metadata, "preblast_ts")
+    if existing_ts and preblast_channel:
+        if repost:
+            # Delete the original message and create a new one
+            try:
+                client.chat_delete(
+                    channel=preblast_channel,
+                    ts=str(existing_ts),
+                )
+            except Exception as e:
+                logger.error(f"Error deleting original preblast message for event_instance_id {event_instance_id}: {e}")
+            # Post new message
+            try:
+                res = client.chat_postMessage(
+                    channel=preblast_channel,
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                    unfurl_links=False,
+                    username=username,
+                    icon_url=icon_url,
+                )
+                DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+            except Exception as e:
+                logger.error(f"Error posting new preblast message for event_instance_id {event_instance_id}: {e}")
+        else:
+            # Update existing message
+            try:
+                client.chat_update(
+                    channel=preblast_channel,
+                    ts=str(existing_ts),
+                    blocks=blocks,
+                    text="Event Preblast",
+                    metadata={"event_type": "preblast", "event_payload": metadata},
+                    username=username,
+                    icon_url=icon_url,
+                )
+            except Exception as e:
+                logger.error(f"Error updating preblast message for event_instance_id {event_instance_id}: {e}")
     else:
         if not preblast_channel:
             preblast_channel = client.chat_postMessage(
@@ -622,13 +674,13 @@ def build_preblast_info(
 
     location = ""
     if safe_get(event_record.org.meta, "slack_channel_id"):
-        location += f"<#{event_record.org.meta['slack_channel_id']}> - "
+        location += f"<#{event_record.org.meta['slack_channel_id']}>"
     if event_record.location:
         name = get_location_display_name(event_record.location)
         if event_record.location.latitude and event_record.location.longitude:
-            location += f"<https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{name}>"
+            location += f" - <https://www.google.com/maps/search/?api=1&query={event_record.location.latitude},{event_record.location.longitude}|{name}>"
         else:
-            location += name
+            location += f" - {name}"
 
     event_details = f"*Preblast: {event_record.name}*"
     event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
@@ -721,6 +773,8 @@ def handle_event_preblast_action(
                 ],
                 joinedloads=[Attendance.attendance_x_attendance_types],
             )
+            # Touch EventInstance.updated so calendar images are regenerated
+            DbManager.update_record(EventInstance, event_instance_id, fields={"updated": datetime.now(timezone.utc)})
         if metadata.get("preblast_ts") and metadata["preblast_ts"] != "None":
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
@@ -865,7 +919,7 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             label="Location",
             action=actions.EVENT_PREBLAST_LOCATION,
             element=orm.StaticSelectElement(),
-            optional=False,
+            optional=True,
         ),
         orm.InputBlock(
             label="Start Time",

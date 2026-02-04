@@ -129,8 +129,15 @@ def safe_get(data, *keys):
     try:
         result = data
         for k in keys:
-            # List index access
-            if isinstance(k, int) and isinstance(result, list):
+            # List/tuple index access
+            if isinstance(k, int) and isinstance(result, (list, tuple)):
+                if 0 <= k < len(result):
+                    result = result[k]
+                else:
+                    return None
+                continue
+            # SQLAlchemy Row index access (also supports integer indexing)
+            if isinstance(k, int) and hasattr(result, "_mapping"):
                 if 0 <= k < len(result):
                     result = result[k]
                 else:

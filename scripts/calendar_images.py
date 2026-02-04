@@ -297,6 +297,13 @@ def generate_calendar_images(force: bool = False):
                             df2.drop(["AO\nLocation2"], axis=1, inplace=True)
                             df2.reset_index(inplace=True, drop=True)
 
+                            # Add timestamp footer row
+                            now_cst = datetime.now(pytz.timezone("US/Central"))
+                            timestamp_str = f"Last updated at {now_cst.strftime('%m/%d %I:%M %p')} CST"
+                            footer_row = dict.fromkeys(df2.columns, "")
+                            footer_row["AO\nLocation"] = timestamp_str
+                            df2 = pd.concat([df2, pd.DataFrame([footer_row])], ignore_index=True)
+
                             # Set CSS properties for th elements in dataframe
                             th_props = [
                                 ("font-size", "15px"),

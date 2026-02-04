@@ -197,9 +197,12 @@ def build_home_form(
         existing_filter_data = {}
 
     # Build the filter
-    start_date = safe_convert(
-        safe_get(existing_filter_data, actions.CALENDAR_HOME_DATE_FILTER), datetime.datetime.strptime, ["%Y-%m-%d"]
-    ) or datetime.datetime.now(tz=pytz.timezone("US/Central"))
+    start_date = (
+        safe_convert(
+            safe_get(existing_filter_data, actions.CALENDAR_HOME_DATE_FILTER), datetime.datetime.strptime, ["%Y-%m-%d"]
+        )
+        or datetime.datetime.now(tz=pytz.timezone("US/Central")).date()
+    )
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or ["Default"] != ["Default"]:
         filter_org_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER)]
@@ -393,9 +396,10 @@ ASSIGN_Q_FORM = orm.BlockView(
         orm.InputBlock(
             label="Select User",
             action=actions.CALENDAR_HOME_ASSIGN_Q_USER,
-            element=orm.UsersSelectElement(
+            element=orm.MultiUsersSelectElement(
                 placeholder="Select a user to assign to the Q",
                 initial_value=None,
+                max_selected_items=1,
             ),
         ),
         orm.InputBlock(
@@ -439,7 +443,7 @@ def build_assign_q_form(
     if existing_q_slack_users:
         slack_user_id = [su.slack_id for su in existing_q_slack_users[0] if su.slack_team_id == region_record.team_id]
         print(f"Existing Q slack user: {slack_user_id}")
-        form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_USER: safe_get(slack_user_id, 0)})
+        form.set_initial_values({actions.CALENDAR_HOME_ASSIGN_Q_USER: slack_user_id[:1] if slack_user_id else None})
     existing_co_q_slack_users = [
         a.slack_users for a in attendance if any(at.type == "Co-Q" for at in a.attendance_types)
     ]
@@ -483,7 +487,8 @@ def handle_assign_q_form(
     event_instance_date = safe_get(metadata, "event_instance_date")
 
     # Get the selected user and co-Qs
-    q_slack_user_id = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER)
+    q_slack_user_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_USER) or []
+    q_slack_user_id = safe_get(q_slack_user_ids, 0)
     q_user_id = get_user(q_slack_user_id, region_record, client, logger).user_id if q_slack_user_id else None
     co_qs_slack_ids = safe_get(form_data, actions.CALENDAR_HOME_ASSIGN_Q_CO_QS) or []
     co_qs_user_ids = [get_user(co_q, region_record, client, logger).user_id for co_q in co_qs_slack_ids]
@@ -496,8 +501,10 @@ def handle_assign_q_form(
     )
 
     # Assign existing Q / Co-Qs to "HC"
+    q_changed = False
     for ea in existing_attendance_records:
         if any(at.type in ["Q", "Co-Q"] for at in ea.attendance_types):
+            q_changed = True
             if 1 not in [at.id for at in ea.attendance_types]:
                 DbManager.create_record(Attendance_x_AttendanceType(attendance_id=ea.id, attendance_type_id=1))
             DbManager.delete_records(
@@ -507,6 +514,12 @@ def handle_assign_q_form(
                     Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]),
                 ],
             )
+
+    # Touch EventInstance.updated so calendar images are regenerated when Q changes
+    if q_changed or q_user_id or co_qs_user_ids:
+        DbManager.update_record(
+            EventInstance, event_instance_id, fields={"updated": datetime.datetime.now(datetime.timezone.utc)}
+        )
 
     # Existing attendance records again (probably a better way to do this)
     existing_attendance_records = DbManager.find_records(

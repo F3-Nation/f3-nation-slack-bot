@@ -30,7 +30,7 @@ def handle_request(
             joinedloads=[User.home_region_org],
         )
         options = []
-        for user in user_records[:10]:
+        for user in user_records[:30]:
             display_name = user.f3_name
             if user.home_region_org:
                 display_name += f" ({user.home_region_org.name})"
@@ -49,7 +49,7 @@ def handle_request(
             # TODO: add area / sector as description
         )
         options = []
-        for org in org_records[:10]:
+        for org in org_records[:30]:
             display_name = org.name
             options.append(
                 {

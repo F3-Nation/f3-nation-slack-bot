@@ -26,11 +26,13 @@ from slack_sdk.web import WebClient
 from sqlalchemy import String, and_, func, or_, select
 from sqlalchemy.orm import aliased
 
+from features.calendar.event_instance import META_DO_NOT_SEND_AUTO_PREBLASTS
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import current_date_cst
+from utilities.helper_functions import current_date_cst, safe_get
 from utilities.slack import actions, orm
 
-MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. If you're not able to complete the form, I'll still send one out on your behalf. Thanks for leading!"  # noqa
+MSG_TEMPLATE = "Hey there, {q_name}! I see you have an upcoming {event_name} Q on {event_date} at {event_ao}. Please click the button below to fill out the preblast form below to let everyone know what to expect. Thanks for leading!"  # noqa
+MSG_TEMPLATE_NOT_ABLE = " If you're not able to complete the form, I'll still send one out on your behalf."  # noqa
 
 
 @dataclass
@@ -42,6 +44,7 @@ class PreblastItem:
     q_name: str
     slack_user_id: str
     q_avatar_url: str
+    slack_avatar_url: str
     slack_settings: SlackSettings
 
 
@@ -59,6 +62,7 @@ class PreblastList:
                 func.coalesce(SlackUser.user_name, User.f3_name).label("q_name"),
                 SlackUser.slack_id,
                 func.coalesce(User.avatar_url, SlackUser.avatar_url).label("q_avatar_url"),
+                SlackUser.avatar_url.label("slack_avatar_url"),
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
@@ -85,6 +89,7 @@ class PreblastList:
                 firstq_subquery.c.q_name,
                 firstq_subquery.c.slack_id,
                 firstq_subquery.c.q_avatar_url,
+                firstq_subquery.c.slack_avatar_url,
                 SlackSpace.settings,
             )
             .select_from(EventInstance)
@@ -112,7 +117,8 @@ class PreblastList:
                 q_name=r[4],
                 slack_user_id=r[5],
                 q_avatar_url=r[6],
-                slack_settings=SlackSettings(**r[7]),
+                slack_avatar_url=r[7],
+                slack_settings=SlackSettings(**r[8]),
             )
             for r in records
         ]
@@ -147,6 +153,11 @@ def send_preblast_reminders(force: bool = False):
                 event_date=preblast.event.start_date.strftime("%m/%d"),
                 event_ao=preblast.org.name,
             )
+            if not (
+                safe_get(preblast.event.meta, META_DO_NOT_SEND_AUTO_PREBLASTS)
+                or preblast.slack_settings.automated_preblast_option == "disable"
+            ):
+                msg += MSG_TEMPLATE_NOT_ABLE
 
             slack_bot_token = preblast.slack_settings.bot_token
             if slack_bot_token and preblast.slack_user_id:

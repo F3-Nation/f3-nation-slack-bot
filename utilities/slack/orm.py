@@ -657,6 +657,7 @@ class UsersSelectElement(BaseElement):
 @dataclass
 class MultiUsersSelectElement(BaseElement):
     initial_value: List[str] = None
+    max_selected_items: int = None
 
     def get_selected_value(self, input_data, action):
         return safe_get(input_data, action, action, "selected_users")
@@ -670,6 +671,8 @@ class MultiUsersSelectElement(BaseElement):
             j.update(self.make_placeholder_field())
         if self.initial_value:
             j["initial_users"] = self.initial_value
+        if self.max_selected_items:
+            j["max_selected_items"] = self.max_selected_items
         return j
 
 

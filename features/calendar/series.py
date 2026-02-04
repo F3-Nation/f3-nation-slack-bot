@@ -39,6 +39,7 @@ from utilities.helper_functions import (
 from utilities.slack import actions, orm
 
 META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
+META_EXCLUDE_FROM_PAX_VAULT = "exclude_from_pax_vault"
 
 
 def manage_series(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -145,6 +146,8 @@ def build_series_add_form(
         options = []
         if safe_get(edit_event, "is_private"):
             options.append("private")
+        if safe_get(edit_event, "meta") and safe_get(edit_event.meta, META_EXCLUDE_FROM_PAX_VAULT):
+            options.append("exclude_from_pax_vault")
         if safe_get(edit_event, "meta") and safe_get(edit_event.meta, META_DO_NOT_SEND_AUTO_PREBLASTS):
             options.append("no_auto_preblasts")
         if safe_get(edit_event, "highlight"):
@@ -161,7 +164,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_START_DATE: datetime.now().strftime("%Y-%m-%d"),
             actions.CALENDAR_ADD_SERIES_FREQUENCY: Event_Cadence.weekly.name,
             actions.CALENDAR_ADD_SERIES_INTERVAL: "1",
-            actions.CALENDAR_ADD_SERIES_INDEX: 1,
+            actions.CALENDAR_ADD_SERIES_INDEX: "1",
         }
 
     # This is triggered when the AO is selected, defaults are loaded for the location
@@ -237,6 +240,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     selected_options = safe_get(form_data, actions.CALENDAR_ADD_SERIES_OPTIONS) or []
     is_private = "private" in selected_options
+    exclude_from_pax_vault = "exclude_from_pax_vault" in selected_options
     do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
     highlight = "highlight" in selected_options
 
@@ -254,6 +258,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             Event, metadata["series_id"], joinedloads=[Event.event_types, Event.event_tags]
         )
         merged_meta = dict(safe_get(existing_series, "meta") or {})
+        if exclude_from_pax_vault:
+            merged_meta[META_EXCLUDE_FROM_PAX_VAULT] = True
+        else:
+            merged_meta.pop(META_EXCLUDE_FROM_PAX_VAULT, None)
         if do_not_send_auto_preblasts:
             merged_meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
         else:
@@ -290,6 +298,8 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
 
     else:
         meta = {}
+        if exclude_from_pax_vault:
+            meta[META_EXCLUDE_FROM_PAX_VAULT] = True
         if do_not_send_auto_preblasts:
             meta[META_DO_NOT_SEND_AUTO_PREBLASTS] = True
 
@@ -308,11 +318,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                     safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
                 ).strftime("%H%M"),
                 end_time=end_time,
-                recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY)
-                or edit_series_record.recurrence_pattern,
-                recurrence_interval=recurrence_interval or edit_series_record.recurrence_interval,
-                index_within_interval=index_within_interval or edit_series_record.index_within_interval,
-                day_of_week=dow or edit_series_record.day_of_week,
+                recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY),
+                recurrence_interval=recurrence_interval,
+                index_within_interval=index_within_interval,
+                day_of_week=dow,
                 is_active=True,
                 is_private=is_private,
                 meta=meta,
@@ -389,6 +398,13 @@ def update_from_map(request: Request) -> Response:
     return Response("OK", status=200)
 
 
+def _is_last_occurrence_of_dow_in_month(check_date: date, day_of_week_name: str) -> bool:
+    """Check if the given date is the last occurrence of that day of week in the month."""
+    # Check if there's another occurrence of this day of week in the same month
+    next_week = check_date + timedelta(days=7)
+    return next_week.month != check_date.month
+
+
 def create_events(
     records: list[Event],
     clear_first: bool = False,
@@ -400,7 +416,7 @@ def create_events(
         current_date = start_date
         end_date = series.end_date or start_date.replace(year=start_date.year + 2)
         max_interval = series.recurrence_interval or 1
-        index_within_interval = series.index_within_interval or 1
+        index_within_interval = series.index_within_interval if series.index_within_interval is not None else 1
         recurrence_pattern = series.recurrence_pattern or Event_Cadence.weekly
         current_interval = 1
         current_index = 0
@@ -418,7 +434,15 @@ def create_events(
         while current_date <= end_date:
             if current_date.strftime("%A").lower() == series.day_of_week.name:
                 current_index += 1
-                if (current_index == index_within_interval) or (recurrence_pattern.name == Event_Cadence.weekly.name):
+                # For index_within_interval=0, check if this is the last occurrence in the month
+                is_last_week_match = (
+                    index_within_interval == 0
+                    and recurrence_pattern.name == Event_Cadence.monthly.name
+                    and _is_last_occurrence_of_dow_in_month(current_date, series.day_of_week.name)
+                )
+                is_index_match = current_index == index_within_interval
+                is_weekly = recurrence_pattern.name == Event_Cadence.weekly.name
+                if is_last_week_match or is_index_match or is_weekly:
                     if current_interval == 1:
                         event = EventInstance(
                             name=series.name,
@@ -642,6 +666,7 @@ SERIES_FORM = orm.BlockView(
             label="Default Location",
             action=actions.CALENDAR_ADD_SERIES_LOCATION,
             element=orm.StaticSelectElement(placeholder="Select the default location"),
+            optional=True,
         ),
         orm.InputBlock(
             label="Default Event Type",
@@ -723,13 +748,13 @@ SERIES_FORM = orm.BlockView(
         orm.InputBlock(
             label="Which week of the month?",
             action=actions.CALENDAR_ADD_SERIES_INDEX,
-            element=orm.NumberInputElement(
-                placeholder="Enter the index",
-                is_decimal_allowed=False,
+            element=orm.StaticSelectElement(
+                placeholder="Select the week",
+                options=orm.as_selector_options(**constants.WEEK_INDEX_OPTIONS),
                 initial_value="1",
             ),
             optional=False,
-            hint="Only relevant if Month is selected above.",  # noqa
+            hint="Only relevant if Month is selected above. Select 'Last' for the last occurrence of the day in the month.",  # noqa
         ),
         orm.InputBlock(
             label="Series Name",
@@ -753,22 +778,24 @@ SERIES_FORM = orm.BlockView(
                 options=orm.as_selector_options(
                     names=[
                         "Make event private",
+                        "Exclude stats from PAX Vault",
                         "Do not send auto-preblasts",
                         "Highlight on Special Events List",
                     ],
                     values=[
                         "private",
+                        "exclude_from_pax_vault",
                         "no_auto_preblasts",
                         "highlight",
                     ],
                     descriptions=[
-                        "Hides series from Maps and PAX Vault.",
+                        "Hides series from Maps and Region Pages.",
+                        "Can still be queried from BigQuery or custom dashboards.",
                         "Opts this series out of automated preblasts.",
-                        "Typically used for 2nd F events, convergences, etc.",
+                        "Shown in the calendar image channel if enabled.",
                     ],
                 ),
             ),
-            hint="If you want to exclude this series from stats, use the 'Off-The-Books' event tag.",
             optional=True,
         ),
     ]
