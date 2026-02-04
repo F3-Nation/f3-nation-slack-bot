@@ -865,3 +865,23 @@ def get_user_names_legacy(
         return names, urls
     else:
         return names
+
+# Helper function to sort by name, ignoring any prefixes we might want to ignore
+# Example: The Name, should just be sorted as Name
+def sort_by_name(extractor):
+    prefixes = ("the ",)
+    prefixes = tuple(p.casefold() for p in prefixes)
+
+    def key(obj):
+        value = (extractor(obj) or "").strip()
+        folded = value.casefold()
+
+        for p in prefixes:
+            if folded.startswith(p):
+                folded = folded[len(p):]
+                break
+
+        return folded
+
+    return key
+
