@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 import requests
 from f3_data_models.models import SlackUser
 from f3_data_models.utils import DbManager
+from flask import Request, Response
 from requests_oauthlib import OAuth2Session
 from slack_sdk import WebClient
 
@@ -186,10 +187,10 @@ def build_strava_modify_form(
     )
 
 
-def strava_exchange_token(event) -> dict:
+def strava_exchange_token(request: Request) -> dict:
     """Exchanges a Strava auth code for an access token."""
-    team_id, user_id = event.get("queryStringParameters", {}).get("state").split("-")
-    code = event.get("queryStringParameters", {}).get("code")
+    team_id, user_id = request.args.get("state").split("-")
+    code = request.args.get("code")
     if not code:
         r = {
             "statusCode": 400,
@@ -252,7 +253,12 @@ def strava_exchange_token(event) -> dict:
             "headers": {},
         }
 
-        return r
+        return Response(
+            json.dumps(r["body"]),
+            status=r["statusCode"],
+            headers=r["headers"],
+            content_type="application/json",
+        )
 
 
 def check_and_refresh_strava_token(user_record: SlackUser) -> str:
