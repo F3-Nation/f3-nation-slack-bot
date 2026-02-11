@@ -186,7 +186,7 @@ def build_strava_modify_form(
     )
 
 
-def strava_exchange_token(event, context) -> dict:
+def strava_exchange_token(event) -> dict:
     """Exchanges a Strava auth code for an access token."""
     team_id, user_id = event.get("queryStringParameters", {}).get("state").split("-")
     code = event.get("queryStringParameters", {}).get("code")
