@@ -22,7 +22,6 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
-    lambda_function_host = safe_get(context, "lambda_request", "headers", "Host")
 
     backblast_ts = body["message"]["ts"]
     backblast_meta = safe_get(body, "message", "metadata", "event_payload") or json.loads(
@@ -42,11 +41,11 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
         or (user_id in (backblast_meta[actions.BACKBLAST_OP] or []))
     )
 
-    redirect_stage = "" if constants.LOCAL_DEVELOPMENT else "Prod/"
+    APP_URL = os.environ.get("APP_URL", "")
     if os.environ.get(constants.STRAVA_CLIENT_ID) and os.environ.get(constants.STRAVA_CLIENT_SECRET):
         oauth = OAuth2Session(
             client_id=os.environ[constants.STRAVA_CLIENT_ID],
-            redirect_uri=f"https://{lambda_function_host}/{redirect_stage}exchange_token",
+            redirect_uri=f"{APP_URL}/exchange_token",
             scope=["read,activity:read,activity:write"],
             state=f"{team_id}-{user_id}",
         )
