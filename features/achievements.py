@@ -980,7 +980,7 @@ def handle_tag_achievement(body: dict, client: WebClient, logger: Logger, contex
         msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}*!"
         msg += f" This is achievement #{pax_awards_total[pax.user_id] + 1} for him this year"
         if pax_awards_this_achievement[pax.user_id] > 0:
-            msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} time this year for this achievement."
+            msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} times this year for this achievement."
         else:
             msg += "."
         client.chat_postMessage(channel=region_record.achievement_channel, text=msg)

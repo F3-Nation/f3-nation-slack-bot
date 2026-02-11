@@ -33,21 +33,25 @@ If filter keys are unrecognised, they are ignored (logged at DEBUG level).
 from __future__ import annotations
 
 import os
+import ssl
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
-from f3_data_models.models import Achievement, Achievement_x_User
+from f3_data_models.models import Achievement, Achievement_x_User, Org_x_SlackSpace, SlackSpace, SlackUser, User
 from f3_data_models.utils import get_session
+from slack_sdk.web import WebClient
 from sqlalchemy import Integer, and_, distinct, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from utilities.database.orm import SlackSettings
 from utilities.database.orm.views import EventAttendance, EventInstanceExpanded
 
 # ---------------------------------------------------------------------------
@@ -404,10 +408,352 @@ def award_candidates(session: Session, candidates: Sequence[CandidateAward], dry
         print("Some awards already existed and were skipped.")
 
 
+# ---------------------------------------------------------------------------
+# Achievement posting logic
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AwardedUserInfo:
+    """Container for user info needed to post achievements."""
+
+    user_id: int
+    slack_user_id: str
+    user_name: str
+
+
+@dataclass
+class RegionAchievementGroup:
+    """Groups achievement candidates by region for posting."""
+
+    team_id: str
+    slack_settings: SlackSettings
+    bot_token: str
+    # Map of achievement_id -> list of (AwardedUserInfo, CandidateAward)
+    achievements: Dict[int, List[Tuple[AwardedUserInfo, CandidateAward]]]
+
+
+def _get_ssl_context():
+    """Create SSL context for Slack client."""
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    return ssl_context
+
+
+def _build_achievement_message(achievement: Achievement, user_tag: str) -> str:
+    """Build a message for a single achievement award."""
+    msg = f"🏆 *{achievement.name}*"
+    if achievement.description:
+        msg += f"\n_{achievement.description}_"
+    msg += f"\n\nEarned by {user_tag}!"
+    if achievement.image_url:
+        msg += f"\n{achievement.image_url}"
+    return msg
+
+
+def _build_achievement_blocks(achievement: Achievement, user_tag: str) -> List[Dict]:
+    """Build Slack blocks for a single achievement award."""
+    blocks = [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"🏆 *{achievement.name}*\nEarned by {user_tag}!"},
+        }
+    ]
+    if achievement.description:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"_{achievement.description}_"}]})
+    if achievement.image_url:
+        blocks.append({"type": "image", "image_url": achievement.image_url, "alt_text": achievement.name})
+    return blocks
+
+
+def _build_summary_message(achievement: Achievement, user_awards: List[Tuple[AwardedUserInfo, CandidateAward]]) -> str:
+    """Build a summary line for an achievement with multiple earners."""
+    user_mentions = []
+    user_counts: Dict[str, int] = defaultdict(int)
+
+    for user_info, _candidate in user_awards:
+        user_counts[user_info.slack_user_id] += 1
+
+    for slack_user_id, count in user_counts.items():
+        mention = f"<@{slack_user_id}>"
+        if count > 1:
+            mention += f" (x{count})"
+        user_mentions.append(mention)
+
+    earners = ", ".join(user_mentions)
+    desc = f": {achievement.description}" if achievement.description else ""
+    return f"🏆 *{achievement.name}*{desc}\nEarned by {earners}"
+
+
+def _build_dm_message(achievement: Achievement) -> str:
+    """Build a DM message for an individual achievement notification."""
+    msg = f"🎉 Congratulations! You've earned an achievement!\n\n🏆 *{achievement.name}*"
+    if achievement.description:
+        msg += f"\n_{achievement.description}_"
+    if achievement.image_url:
+        msg += f"\n{achievement.image_url}"
+    return msg
+
+
+def _build_dm_blocks(achievement: Achievement) -> List[Dict]:
+    """Build Slack blocks for an achievement DM."""
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"🎉 Congratulations! You've earned an achievement!\n\n🏆 *{achievement.name}*",
+            },
+        }
+    ]
+    if achievement.description:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"_{achievement.description}_"}]})
+    if achievement.image_url:
+        blocks.append({"type": "image", "image_url": achievement.image_url, "alt_text": achievement.name})
+    return blocks
+
+
+def post_achievements(session: Session, candidates: Sequence[CandidateAward], dry_run: bool) -> None:
+    """Post achievement notifications based on each region's settings.
+
+    Groups candidates by their home region's Slack space and posts according
+    to the region's achievement_send_option setting:
+    - post_individually: Post each achievement separately in achievement_channel
+    - post_summary: Post a daily summary grouped by achievement in achievement_channel
+    - send_in_dms_only: Send DM to each user for their achievements
+    """
+    if not candidates:
+        return
+
+    # Gather all unique user_ids and achievement_ids
+    user_ids = list({c.user_id for c in candidates})
+    achievement_ids = list({c.achievement_id for c in candidates})
+
+    # Load users with their home regions
+    users_query = select(User).filter(User.id.in_(user_ids))
+    users_by_id: Dict[int, User] = {u.id: u for u in session.scalars(users_query).all()}
+
+    # Load achievements
+    achievements_query = select(Achievement).filter(Achievement.id.in_(achievement_ids))
+    achievements_by_id: Dict[int, Achievement] = {a.id: a for a in session.scalars(achievements_query).all()}
+
+    # Find unique home_region_ids (filter out None)
+    home_region_ids = list({u.home_region_id for u in users_by_id.values() if u.home_region_id})
+    if not home_region_ids:
+        print("No users with home regions found. Skipping achievement posting.")
+        return
+
+    # Load SlackSpaces for home regions via Org_x_SlackSpace
+    slack_space_query = (
+        select(Org_x_SlackSpace.org_id, SlackSpace)
+        .join(SlackSpace, SlackSpace.id == Org_x_SlackSpace.slack_space_id)
+        .filter(Org_x_SlackSpace.org_id.in_(home_region_ids))
+    )
+    region_slack_spaces: Dict[int, SlackSpace] = {}
+    for org_id, slack_space in session.execute(slack_space_query).all():
+        region_slack_spaces[org_id] = slack_space
+
+    if not region_slack_spaces:
+        print("No Slack spaces found for user home regions. Skipping achievement posting.")
+        return
+
+    # Get all team_ids we need slack users for
+    team_ids = list({ss.team_id for ss in region_slack_spaces.values()})
+
+    # Load SlackUsers for all our users across all relevant teams
+    slack_users_query = select(SlackUser).filter(SlackUser.user_id.in_(user_ids), SlackUser.slack_team_id.in_(team_ids))
+    # Map: (user_id, team_id) -> SlackUser
+    slack_users_map: Dict[Tuple[int, str], SlackUser] = {}
+    for su in session.scalars(slack_users_query).all():
+        slack_users_map[(su.user_id, su.slack_team_id)] = su
+
+    # Group candidates by region (team_id)
+    region_groups: Dict[str, RegionAchievementGroup] = {}
+
+    for candidate in candidates:
+        user = users_by_id.get(candidate.user_id)
+        if not user or not user.home_region_id:
+            continue
+
+        slack_space = region_slack_spaces.get(user.home_region_id)
+        if not slack_space:
+            continue
+
+        team_id = slack_space.team_id
+        slack_user = slack_users_map.get((user.id, team_id))
+        if not slack_user:
+            continue
+
+        # Initialize group if needed
+        if team_id not in region_groups:
+            settings = SlackSettings(**slack_space.settings) if slack_space.settings else SlackSettings(team_id=team_id)
+            region_groups[team_id] = RegionAchievementGroup(
+                team_id=team_id,
+                slack_settings=settings,
+                bot_token=slack_space.bot_token,
+                achievements={},
+            )
+
+        group = region_groups[team_id]
+        user_info = AwardedUserInfo(
+            user_id=user.id,
+            slack_user_id=slack_user.slack_id,
+            user_name=slack_user.user_name or user.f3_name or "Unknown",
+        )
+
+        if candidate.achievement_id not in group.achievements:
+            group.achievements[candidate.achievement_id] = []
+        group.achievements[candidate.achievement_id].append((user_info, candidate))
+
+    # Post for each region based on settings
+    for team_id, group in region_groups.items():
+        settings = group.slack_settings
+
+        # Check if achievements are enabled
+        if not settings.send_achievements:
+            print(f"[{team_id}] Achievement posting disabled. Skipping.")
+            continue
+
+        send_option = settings.achievement_send_option or "post_summary"
+        achievement_channel = settings.achievement_channel
+
+        if not group.bot_token:
+            print(f"[{team_id}] No bot token available. Skipping.")
+            continue
+
+        if dry_run:
+            print(f"[DRY-RUN] [{team_id}] Would post achievements with option: {send_option}")
+            for ach_id, user_awards in group.achievements.items():
+                ach = achievements_by_id.get(ach_id)
+                ach_name = ach.name if ach else f"Achievement #{ach_id}"
+                users = [ui.user_name for ui, _ in user_awards]
+                print(f"  - {ach_name}: {', '.join(users)}")
+            continue
+
+        ssl_context = _get_ssl_context()
+        client = WebClient(group.bot_token, ssl=ssl_context)
+
+        if send_option == "post_individually":
+            _post_individually(client, achievement_channel, group, achievements_by_id, team_id)
+        elif send_option == "post_summary":
+            _post_summary(client, achievement_channel, group, achievements_by_id, team_id)
+        elif send_option == "send_in_dms_only":
+            _send_dms(client, group, achievements_by_id, team_id)
+        else:
+            print(f"[{team_id}] Unknown send_option: {send_option}. Defaulting to summary.")
+            _post_summary(client, achievement_channel, group, achievements_by_id, team_id)
+
+
+def _post_individually(
+    client: WebClient,
+    channel: str,
+    group: RegionAchievementGroup,
+    achievements_by_id: Dict[int, Achievement],
+    team_id: str,
+) -> None:
+    """Post each achievement as an individual message."""
+    if not channel:
+        print(f"[{team_id}] No achievement channel configured. Skipping individual posts.")
+        return
+
+    for ach_id, user_awards in group.achievements.items():
+        achievement = achievements_by_id.get(ach_id)
+        if not achievement:
+            continue
+
+        for user_info, _candidate in user_awards:
+            user_tag = f"<@{user_info.slack_user_id}>"
+            msg = _build_achievement_message(achievement, user_tag)
+            blocks = _build_achievement_blocks(achievement, user_tag)
+
+            try:
+                client.chat_postMessage(channel=channel, text=msg, blocks=blocks)
+                print(f"[{team_id}] Posted achievement '{achievement.name}' for {user_info.user_name}")
+            except Exception as e:
+                print(f"[{team_id}] Error posting achievement: {e}")
+
+
+def _post_summary(
+    client: WebClient,
+    channel: str,
+    group: RegionAchievementGroup,
+    achievements_by_id: Dict[int, Achievement],
+    team_id: str,
+) -> None:
+    """Post a single summary of all achievements earned."""
+    if not channel:
+        print(f"[{team_id}] No achievement channel configured. Skipping summary post.")
+        return
+
+    # Build sections with their corresponding achievements for image support
+    section_data: List[Tuple[Achievement, str]] = []
+    for ach_id, user_awards in group.achievements.items():
+        achievement = achievements_by_id.get(ach_id)
+        if not achievement:
+            continue
+
+        section_text = _build_summary_message(achievement, user_awards)
+        section_data.append((achievement, section_text))
+
+    if not section_data:
+        return
+
+    today_str = datetime.now(UTC).strftime("%B %d, %Y")
+    header = f"📊 *Achievement Summary for {today_str}*"
+    full_msg = header + "\n\n" + "\n\n".join([text for _, text in section_data])
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": f"📊 Achievement Summary for {today_str}"}},
+        {"type": "divider"},
+    ]
+    for achievement, section_text in section_data:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": section_text}})
+        if achievement.image_url:
+            blocks.append({"type": "image", "image_url": achievement.image_url, "alt_text": achievement.name})
+
+    try:
+        client.chat_postMessage(channel=channel, text=full_msg, blocks=blocks)
+        print(f"[{team_id}] Posted achievement summary with {len(section_data)} achievement types")
+    except Exception as e:
+        print(f"[{team_id}] Error posting achievement summary: {e}")
+
+
+def _send_dms(
+    client: WebClient,
+    group: RegionAchievementGroup,
+    achievements_by_id: Dict[int, Achievement],
+    team_id: str,
+) -> None:
+    """Send DMs to each user for their achievements."""
+    # Group by user to batch their achievements
+    user_achievements: Dict[str, List[Tuple[Achievement, CandidateAward]]] = defaultdict(list)
+
+    for ach_id, user_awards in group.achievements.items():
+        achievement = achievements_by_id.get(ach_id)
+        if not achievement:
+            continue
+
+        for user_info, _candidate in user_awards:
+            user_achievements[user_info.slack_user_id].append((achievement, _candidate))
+
+    for slack_user_id, achievements in user_achievements.items():
+        for achievement, _candidate in achievements:
+            msg = _build_dm_message(achievement)
+            blocks = _build_dm_blocks(achievement)
+
+            try:
+                client.chat_postMessage(channel=slack_user_id, text=msg, blocks=blocks)
+                print(f"[{team_id}] Sent DM for achievement '{achievement.name}' to {slack_user_id}")
+            except Exception as e:
+                print(f"[{team_id}] Error sending DM to {slack_user_id}: {e}")
+
+
 def main():  # pragma: no cover - CLI
     parser = argparse.ArgumentParser(description="Auto-award achievements")
     parser.add_argument("--achievement-id", type=int, help="Process only a single achievement id", default=None)
     parser.add_argument("--dry-run", action="store_true", help="Do not persist, only log actions")
+    parser.add_argument("--skip-post", action="store_true", help="Skip posting achievements to Slack")
     parser.add_argument(
         "--today", type=str, help="Override today's date (YYYY-MM-DD, UTC) for backfilling / testing", default=None
     )
@@ -430,6 +776,12 @@ def main():  # pragma: no cover - CLI
             award_candidates(session, cands, args.dry_run)
             total_candidates += len(cands)
             all_candidates.extend(cands)
+
+        # Post achievement notifications
+        if all_candidates and not args.skip_post:
+            print(f"\nPosting {len(all_candidates)} achievement notifications...")
+            post_achievements(session, all_candidates, args.dry_run)
+
         # save a csv of candidates for record-keeping
         if all_candidates and args.dry_run:
             with open(f"achievement_candidates_{today}.csv", "w") as f:
