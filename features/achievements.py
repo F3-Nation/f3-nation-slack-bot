@@ -62,6 +62,7 @@ from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
 ACHIEVEMENT_CONFIG_CALLBACK_ID = "achievement-config-id"
 ACHIEVEMENT_CONFIG_ENABLE = "achievement-config-enable"
 ACHIEVEMENT_CONFIG_CHANNEL = "achievement-config-channel"
+ACHIEVEMENT_CONFIG_SEND_OPTION = "achievement-config-send-option"
 ACHIEVEMENT_CONFIG_NEW_BTN = "achievement-config-new-btn"
 ACHIEVEMENT_CONFIG_MANAGE_BTN = "achievement-config-manage-btn"
 ACHIEVEMENT_CONFIG_ACHIEVEMENTS_LIST = "achievement-config-list"
@@ -287,6 +288,35 @@ class AchievementViews:
                 optional=True,
                 hint=PlainTextObject(text="Channel where achievement announcements will be posted"),
             ),
+            InputBlock(
+                label=PlainTextObject(text="How should achievements be posted?"),
+                element=RadioButtonsElement(
+                    options=[
+                        Option(
+                            text=PlainTextObject(text="Post each achievement individually"),
+                            value="post_individually",
+                            description=PlainTextObject(
+                                text="Warning! This can generate a lot of notifications in the achievement channel"
+                            ),
+                        ),
+                        Option(
+                            text=PlainTextObject(text="Post a daily summary"),
+                            value="post_summary",
+                            description=PlainTextObject(
+                                text="This will post a single summary of all the achievements earned each day"
+                            ),
+                        ),
+                        Option(
+                            text=PlainTextObject(text="Let PAX know individually"),
+                            value="send_in_dms_only",
+                            description=PlainTextObject(text="The achievement channel will not be used"),
+                        ),
+                    ],
+                    action_id=ACHIEVEMENT_CONFIG_SEND_OPTION,
+                ),
+                block_id=ACHIEVEMENT_CONFIG_SEND_OPTION,
+                optional=False,
+            ),
             DividerBlock(),
             SectionBlock(
                 text=MarkdownTextObject(text="*Manage Region Achievements*"),
@@ -315,6 +345,7 @@ class AchievementViews:
         # Set initial values
         initial_values = {
             ACHIEVEMENT_CONFIG_ENABLE: "enabled" if region_record.send_achievements else "disabled",
+            ACHIEVEMENT_CONFIG_SEND_OPTION: region_record.achievement_send_option or "post_summary",
         }
         if region_record.achievement_channel:
             initial_values[ACHIEVEMENT_CONFIG_CHANNEL] = region_record.achievement_channel
@@ -674,6 +705,7 @@ def handle_config_form(body: dict, client: WebClient, logger: Logger, context: d
     # Update settings
     region_record.send_achievements = 1 if form_data.get(ACHIEVEMENT_CONFIG_ENABLE) == "enabled" else 0
     region_record.achievement_channel = form_data.get(ACHIEVEMENT_CONFIG_CHANNEL)
+    region_record.achievement_send_option = form_data.get(ACHIEVEMENT_CONFIG_SEND_OPTION) or "post_summary"
 
     # Save to database
     DbManager.update_records(
