@@ -15,6 +15,7 @@ from utilities.helper_functions import (
     get_location_display_name,
     safe_convert,
     safe_get,
+    sort_by_name,
     trigger_map_revalidation,
     upload_files_to_storage,
 )
@@ -160,6 +161,8 @@ def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: d
         Org,
         [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)],
     )
+
+    ao_records.sort(key=sort_by_name(lambda x: x.name))
 
     blocks = [
         orm.SectionBlock(

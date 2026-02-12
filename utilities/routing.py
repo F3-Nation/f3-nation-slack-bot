@@ -9,6 +9,7 @@ from features import (
     db_admin,
     help,
     paxminer_mapping,
+    positions,
     preblast,
     preblast_legacy,
     region,
@@ -73,8 +74,9 @@ VIEW_MAPPER = {
     actions.EVENT_PREBLAST_POST_CALLBACK_ID: (event_preblast.handle_event_preblast_edit, False),
     actions.REGION_CALLBACK_ID: (region.handle_region_edit, False),
     actions.SPECIAL_EVENTS_CALLBACK_ID: (special_events.handle_special_settings_edit, False),
-    actions.CONFIG_SLT_CALLBACK_ID: (config.handle_config_slt_post, False),
-    actions.NEW_POSITION_CALLBACK_ID: (config.handle_new_position_post, False),
+    actions.CONFIG_SLT_CALLBACK_ID: (positions.handle_config_slt_post, False),
+    actions.NEW_POSITION_CALLBACK_ID: (positions.handle_new_position_post, False),
+    actions.EDIT_POSITION_CALLBACK_ID: (positions.handle_edit_position_post, False),
     connect.CONNECT_EXISTING_REGION_CALLBACK_ID: (connect.handle_existing_region_selection, False),
     connect.CREATE_NEW_REGION_CALLBACK_ID: (connect.handle_new_region_creation, False),
     actions.CALENDAR_CONFIG_GENERAL_CALLBACK_ID: (calendar_config.handle_calendar_config_general, False),
@@ -147,9 +149,11 @@ ACTION_MAPPER = {
     actions.DB_ADMIN_RESET: (db_admin.handle_db_admin_reset, False),
     actions.SECRET_MENU_CALENDAR_IMAGES: (db_admin.handle_calendar_image_refresh, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION: (db_admin.handle_paxminer_migration, False),
-    actions.CONFIG_SLT: (config.build_config_slt_form, False),
-    actions.SLT_LEVEL_SELECT: (config.build_config_slt_form, False),
-    actions.CONFIG_NEW_POSITION: (config.build_new_position_form, False),
+    actions.CONFIG_SLT: (positions.build_config_slt_form, False),
+    actions.SLT_LEVEL_SELECT: (positions.build_config_slt_form, False),
+    actions.CONFIG_NEW_POSITION: (positions.build_new_position_form, False),
+    actions.CONFIG_EDIT_POSITIONS: (positions.build_position_list_form, False),
+    actions.POSITION_EDIT_DELETE: (positions.handle_position_edit_delete, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION_ALL: (db_admin.handle_paxminer_migration_all, False),
     actions.CONFIG_CONNECT: (connect.build_connect_options_form, False),
     connect.CONNECT_EXISTING_REGION: (connect.build_existing_region_form, False),
@@ -195,6 +199,8 @@ ACTION_MAPPER = {
     actions.BACKBLAST_FILL_BUTTON: (backblast.build_backblast_form, True),
     actions.EVENT_PREBLAST_FILL_BUTTON: (event_preblast.handle_event_preblast_select, False),
     actions.EVENT_PREBLAST_NOQ_SELECT: (event_preblast.handle_event_preblast_select, False),
+    actions.SECRET_MENU_SEND_AUTO_PREBLASTS: (db_admin.handle_auto_preblast_send, False),
+    actions.SECRET_MENU_REFRESH_CACHE: (db_admin.handle_refresh_cache, False),
 }
 
 ACTION_PREFIXES = [
@@ -210,6 +216,7 @@ ACTION_PREFIXES = [
     event_tag.EVENT_TAG_EDIT_DELETE,
     actions.BACKBLAST_FILL_BUTTON,
     actions.EVENT_PREBLAST_FILL_BUTTON,
+    actions.POSITION_EDIT_DELETE,
     actions.ACHIEVEMENT_MANAGE_OVERFLOW,
 ]
 

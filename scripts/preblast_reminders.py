@@ -44,6 +44,7 @@ class PreblastItem:
     q_name: str
     slack_user_id: str
     q_avatar_url: str
+    slack_avatar_url: str
     slack_settings: SlackSettings
 
 
@@ -61,6 +62,7 @@ class PreblastList:
                 func.coalesce(SlackUser.user_name, User.f3_name).label("q_name"),
                 SlackUser.slack_id,
                 func.coalesce(User.avatar_url, SlackUser.avatar_url).label("q_avatar_url"),
+                SlackUser.avatar_url.label("slack_avatar_url"),
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
@@ -87,6 +89,7 @@ class PreblastList:
                 firstq_subquery.c.q_name,
                 firstq_subquery.c.slack_id,
                 firstq_subquery.c.q_avatar_url,
+                firstq_subquery.c.slack_avatar_url,
                 SlackSpace.settings,
             )
             .select_from(EventInstance)
@@ -114,7 +117,8 @@ class PreblastList:
                 q_name=r[4],
                 slack_user_id=r[5],
                 q_avatar_url=r[6],
-                slack_settings=SlackSettings(**r[7]),
+                slack_avatar_url=r[7],
+                slack_settings=SlackSettings(**r[8]),
             )
             for r in records
         ]

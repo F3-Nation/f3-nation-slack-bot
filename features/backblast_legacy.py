@@ -184,7 +184,7 @@ def build_backblast_form(body: dict, client: WebClient, logger: Logger, context:
         #         )
         #     }
         # )
-        if not ((region_record.email_enabled is not None) & (region_record.email_option_show is not None)):
+        if (region_record.email_enabled or 0) == 0 or (region_record.email_option_show or 0) == 0:
             backblast_form.delete_block(actions.BACKBLAST_EMAIL_SEND)
         backblast_metadata = None
         callback_id = actions.BACKBLAST_CALLBACK_ID_LEGACY

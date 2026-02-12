@@ -378,11 +378,9 @@ def handle_event_preblast_edit(
     form_data = EVENT_PREBLAST_FORM.get_selected_values(body)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
-    callback_id = safe_get(body, "view", "callback_id")
 
     if (
         form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
-        or callback_id == actions.EVENT_PREBLAST_POST_CALLBACK_ID
         or (safe_get(metadata, "preblast_ts") or "None") != "None"
     ):
         preblast_send = True

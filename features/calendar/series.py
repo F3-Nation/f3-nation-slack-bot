@@ -163,7 +163,7 @@ def build_series_add_form(
             actions.CALENDAR_ADD_SERIES_START_DATE: datetime.now().strftime("%Y-%m-%d"),
             actions.CALENDAR_ADD_SERIES_FREQUENCY: Event_Cadence.weekly.name,
             actions.CALENDAR_ADD_SERIES_INTERVAL: "1",
-            actions.CALENDAR_ADD_SERIES_INDEX: 1,
+            actions.CALENDAR_ADD_SERIES_INDEX: "1",
         }
 
     # This is triggered when the AO is selected, defaults are loaded for the location
@@ -316,11 +316,10 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
                     safe_get(form_data, actions.CALENDAR_ADD_SERIES_START_TIME), "%H:%M"
                 ).strftime("%H%M"),
                 end_time=end_time,
-                recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY)
-                or edit_series_record.recurrence_pattern,
-                recurrence_interval=recurrence_interval or edit_series_record.recurrence_interval,
-                index_within_interval=index_within_interval or edit_series_record.index_within_interval,
-                day_of_week=dow or edit_series_record.day_of_week,
+                recurrence_pattern=safe_get(form_data, actions.CALENDAR_ADD_SERIES_FREQUENCY),
+                recurrence_interval=recurrence_interval,
+                index_within_interval=index_within_interval,
+                day_of_week=dow,
                 is_active=True,
                 is_private=is_private,
                 meta=meta,
@@ -411,6 +410,13 @@ def update_from_map(request: Request) -> Response:
     return Response("OK", status=200)
 
 
+def _is_last_occurrence_of_dow_in_month(check_date: date, day_of_week_name: str) -> bool:
+    """Check if the given date is the last occurrence of that day of week in the month."""
+    # Check if there's another occurrence of this day of week in the same month
+    next_week = check_date + timedelta(days=7)
+    return next_week.month != check_date.month
+
+
 def create_events(
     records: list[Event],
     clear_first: bool = False,
@@ -422,7 +428,7 @@ def create_events(
         current_date = start_date
         end_date = series.end_date or start_date.replace(year=start_date.year + 2)
         max_interval = series.recurrence_interval or 1
-        index_within_interval = series.index_within_interval or 1
+        index_within_interval = series.index_within_interval if series.index_within_interval is not None else 1
         recurrence_pattern = series.recurrence_pattern or Event_Cadence.weekly
         current_interval = 1
         current_index = 0
@@ -440,7 +446,15 @@ def create_events(
         while current_date <= end_date:
             if current_date.strftime("%A").lower() == series.day_of_week.name:
                 current_index += 1
-                if (current_index == index_within_interval) or (recurrence_pattern.name == Event_Cadence.weekly.name):
+                # For index_within_interval=0, check if this is the last occurrence in the month
+                is_last_week_match = (
+                    index_within_interval == 0
+                    and recurrence_pattern.name == Event_Cadence.monthly.name
+                    and _is_last_occurrence_of_dow_in_month(current_date, series.day_of_week.name)
+                )
+                is_index_match = current_index == index_within_interval
+                is_weekly = recurrence_pattern.name == Event_Cadence.weekly.name
+                if is_last_week_match or is_index_match or is_weekly:
                     if current_interval == 1:
                         event = EventInstance(
                             name=series.name,
@@ -746,13 +760,13 @@ SERIES_FORM = orm.BlockView(
         orm.InputBlock(
             label="Which week of the month?",
             action=actions.CALENDAR_ADD_SERIES_INDEX,
-            element=orm.NumberInputElement(
-                placeholder="Enter the index",
-                is_decimal_allowed=False,
+            element=orm.StaticSelectElement(
+                placeholder="Select the week",
+                options=orm.as_selector_options(**constants.WEEK_INDEX_OPTIONS),
                 initial_value="1",
             ),
             optional=False,
-            hint="Only relevant if Month is selected above.",  # noqa
+            hint="Only relevant if Month is selected above. Select 'Last' for the last occurrence of the day in the month.",  # noqa
         ),
         orm.InputBlock(
             label="Series Name",
@@ -794,7 +808,6 @@ SERIES_FORM = orm.BlockView(
                     ],
                 ),
             ),
-            hint="If you want to exclude this series from stats, use the 'Off-The-Books' event tag.",
             optional=True,
         ),
     ]

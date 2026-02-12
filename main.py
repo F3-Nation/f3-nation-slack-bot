@@ -82,6 +82,10 @@ if not LOCAL_DEVELOPMENT:
             logging.info("GCP Event")
             return scripts.handle(request)
         elif request.path == "/exchange_token":
+            logging.info("Strava token exchange request")
+            logging.info(f"Request query parameters: {request.args}")
+            logging.info(f"Request headers: {request.headers}")
+            logging.info(f"Request body: {request.get_data(as_text=True)}")
             return strava.strava_exchange_token(request)
         elif request.path[:6] == "/slack":
             slack_handler = SlackRequestHandler(app=app)

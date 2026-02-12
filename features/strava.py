@@ -6,8 +6,9 @@ from logging import Logger
 from typing import Any, Dict, List
 
 import requests
-from f3_data_models.models import SlackUser
+from f3_data_models.models import SlackUser, User
 from f3_data_models.utils import DbManager
+from flask import Request, Response
 from requests_oauthlib import OAuth2Session
 from slack_sdk import WebClient
 
@@ -22,7 +23,6 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     team_id = safe_get(body, "team_id") or safe_get(body, "team", "id")
     channel_id = safe_get(body, "channel_id") or safe_get(body, "channel", "id")
-    lambda_function_host = safe_get(context, "lambda_request", "headers", "Host")
 
     backblast_ts = body["message"]["ts"]
     backblast_meta = safe_get(body, "message", "metadata", "event_payload") or json.loads(
@@ -42,11 +42,11 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
         or (user_id in (backblast_meta[actions.BACKBLAST_OP] or []))
     )
 
-    redirect_stage = "" if constants.LOCAL_DEVELOPMENT else "Prod/"
+    APP_URL = os.environ.get("APP_URL", "")
     if os.environ.get(constants.STRAVA_CLIENT_ID) and os.environ.get(constants.STRAVA_CLIENT_SECRET):
         oauth = OAuth2Session(
             client_id=os.environ[constants.STRAVA_CLIENT_ID],
-            redirect_uri=f"https://{lambda_function_host}/{redirect_stage}exchange_token",
+            redirect_uri=f"{APP_URL}/exchange_token",
             scope=["read,activity:read,activity:write"],
             state=f"{team_id}-{user_id}",
         )
@@ -90,8 +90,9 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
             strava_blocks = auth_blocks
         else:
             title_text = "Choose Activity"
-            user_record = user_records[0]
-            strava_recent_activities = get_strava_activities(user_record)
+            slack_user_record = user_records[0]
+            user: User = DbManager.get(User, slack_user_record.user_id)
+            strava_recent_activities = get_strava_activities(user) if user else []
 
             logger.info(f"recent activities found: {strava_recent_activities}")
             if len(strava_recent_activities) == 0:
@@ -187,10 +188,10 @@ def build_strava_modify_form(
     )
 
 
-def strava_exchange_token(event, context) -> dict:
+def strava_exchange_token(request: Request) -> dict:
     """Exchanges a Strava auth code for an access token."""
-    team_id, user_id = event.get("queryStringParameters", {}).get("state").split("-")
-    code = event.get("queryStringParameters", {}).get("code")
+    team_id, user_id = request.args.get("state").split("-")
+    code = request.args.get("code")
     if not code:
         r = {
             "statusCode": 400,
@@ -220,49 +221,47 @@ def strava_exchange_token(event, context) -> dict:
 
         response_json = response.json()
 
-        user_records: List[SlackUser] = DbManager.find_records(
+        slack_user_records: List[SlackUser] = DbManager.find_records(
             SlackUser, filters=[SlackUser.slack_id == user_id, SlackUser.slack_team_id == team_id]
         )
-        if user_records:
-            user_record = user_records[0]
-            DbManager.update_record(
-                cls=SlackUser,
-                id=user_record.id,
-                fields={
-                    SlackUser.strava_access_token: response_json["access_token"],
-                    SlackUser.strava_refresh_token: response_json["refresh_token"],
-                    SlackUser.strava_expires_at: datetime.fromtimestamp(response_json["expires_at"]),
-                    SlackUser.strava_athlete_id: response_json["athlete"]["id"],
-                },
-            )
-        else:
-            DbManager.create_record(
-                SlackUser(
-                    slack_team_id=team_id,
-                    slack_id=user_id,
-                    strava_access_token=response_json["access_token"],
-                    strava_refresh_token=response_json["refresh_token"],
-                    strava_expires_at=datetime.fromtimestamp(response_json["expires_at"]),
-                    strava_athlete_id=response_json["athlete"]["id"],
-                )
-            )
+        msg = "Authorization unsuccessful. Please try again or contact support if the issue persists."
+        if slack_user_records:
+            user_id = safe_get(slack_user_records, 0, "user_id")
+            if user_id:
+                user: User = DbManager.get(User, user_id)
+                if user:
+                    user_meta = user.meta or {}
+                    user_meta["strava_athlete_id"] = response_json["athlete"]["id"]
+                    user_meta["strava_access_token"] = response_json["access_token"]
+                    user_meta["strava_refresh_token"] = response_json["refresh_token"]
+                    user_meta["strava_expires_at"] = response_json["expires_at"]
+                    DbManager.update_record(User, user_id, {User.meta: user_meta})
+                    msg = "Authorization successful! You can return to Slack."
 
         r = {
             "statusCode": 200,
-            "body": {"message": "Authorization successful! You can return to Slack."},
+            "body": {"message": msg},
             "headers": {},
         }
 
-        return r
+        return Response(
+            json.dumps(r["body"]),
+            status=r["statusCode"],
+            headers=r["headers"],
+            content_type="application/json",
+        )
 
 
-def check_and_refresh_strava_token(user_record: SlackUser) -> str:
+def check_and_refresh_strava_token(user: User) -> str:
     """Check if a Strava token is expired and refresh it if necessary."""
-    if not user_record.strava_access_token:
+    user_meta = user.meta or {}
+    access_token = user_meta.get("strava_access_token")
+    if not access_token:
         return None
 
+    expires_at = user_meta.get("strava_expires_at", 0)
     if (
-        user_record.strava_expires_at < datetime.now()
+        expires_at < datetime.now().timestamp()
         and os.environ.get(constants.STRAVA_CLIENT_ID)
         and os.environ.get(constants.STRAVA_CLIENT_SECRET)
     ):
@@ -272,34 +271,28 @@ def check_and_refresh_strava_token(user_record: SlackUser) -> str:
             data={
                 "client_id": os.environ["STRAVA_CLIENT_ID"],
                 "client_secret": os.environ["STRAVA_CLIENT_SECRET"],
-                "refresh_token": user_record.strava_refresh_token,
+                "refresh_token": user_meta.get("strava_refresh_token"),
                 "grant_type": "refresh_token",
             },
         )
         res.raise_for_status()
         data = res.json()
         access_token = data["access_token"]
-        DbManager.update_record(
-            cls=SlackUser,
-            id=user_record.id,
-            fields={
-                SlackUser.strava_access_token: data["access_token"],
-                SlackUser.strava_refresh_token: data["refresh_token"],
-                SlackUser.strava_expires_at: datetime.fromtimestamp(data["expires_at"]),
-            },
-        )
-    else:
-        access_token = user_record.strava_access_token
+        user_meta["strava_access_token"] = data["access_token"]
+        user_meta["strava_refresh_token"] = data["refresh_token"]
+        user_meta["strava_expires_at"] = data["expires_at"]
+        DbManager.update_record(User, user.id, {User.meta: user_meta})
 
     return access_token
 
 
-def get_strava_activities(user_record: SlackUser) -> List[Dict]:
+def get_strava_activities(user: User) -> List[Dict]:
     """Get a list of Strava activities for a user."""
-    if not user_record.strava_access_token:
+    user_meta = user.meta or {}
+    if not user_meta.get("strava_access_token"):
         return []
 
-    access_token = check_and_refresh_strava_token(user_record)
+    access_token = check_and_refresh_strava_token(user)
     request_url = "https://www.strava.com/api/v3/athlete/activities"
     res = requests.get(request_url, headers={"Authorization": f"Bearer {access_token}"}, params={"per_page": 10})
     res.raise_for_status()
@@ -326,12 +319,13 @@ def update_strava_activity(
     Returns:
         dict: Updated Strava activity data
     """
-    user_records: List[SlackUser] = DbManager.find_records(
+    slack_user_records: List[SlackUser] = DbManager.find_records(
         SlackUser, filters=[SlackUser.slack_id == user_id, SlackUser.slack_team_id == team_id]
     )
-    user_record = user_records[0]
+    slack_user_record = slack_user_records[0]
+    user: User = DbManager.get(User, slack_user_record.user_id)
 
-    access_token = check_and_refresh_strava_token(user_record)
+    access_token = check_and_refresh_strava_token(user)
     request_url = f"https://www.strava.com/api/v3/activities/{strava_activity_id}"
     res = requests.put(
         request_url,
@@ -363,12 +357,13 @@ def get_strava_activity(
     Returns:
         dict: Strava activity data
     """
-    user_records: List[SlackUser] = DbManager.find_records(
+    slack_user_records: List[SlackUser] = DbManager.find_records(
         SlackUser, filters=[SlackUser.slack_id == user_id, SlackUser.slack_team_id == team_id]
     )
-    user_record = user_records[0]
+    slack_user_record = slack_user_records[0]
+    user: User = DbManager.get(User, slack_user_record.user_id)
 
-    access_token = check_and_refresh_strava_token(user_record)
+    access_token = check_and_refresh_strava_token(user)
 
     request_url = f"https://www.strava.com/api/v3/activities/{strava_activity_id}"
     res = requests.get(

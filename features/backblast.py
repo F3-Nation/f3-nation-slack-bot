@@ -610,6 +610,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     all_pax = list(set([the_q] + (the_coq or []) + pax))
     db_users: List[SlackUser] = [get_user(p, region_record, client, logger) for p in all_pax]
+    db_ids = []
+    db_users_deduped = []
+    for u in db_users:
+        if u.user_id not in db_ids:
+            db_users_deduped.append(u)
+            db_ids.append(u.user_id)
+    db_users = db_users_deduped
     auto_count = len(all_pax)
     pax_names_list = [user.user_name for user in db_users]
 
@@ -861,16 +868,27 @@ COUNT: {count}
 
     elif create_or_edit == "edit":
         text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]
-        res = client.chat_update(
-            channel=message_channel,
-            ts=message_ts,
-            text=text,
-            username=f"{q_name} (via F3 Nation)",
-            icon_url=q_url,
-            blocks=blocks,
-            metadata={"event_type": "backblast", "event_payload": backblast_data},
-        )
-        logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
+        try:
+            res = client.chat_update(
+                channel=message_channel,
+                ts=message_ts,
+                text=text,
+                username=f"{q_name} (via F3 Nation)",
+                icon_url=q_url,
+                blocks=blocks,
+                metadata={"event_type": "backblast", "event_payload": backblast_data},
+            )
+            logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
+        except Exception as e:
+            logger.warning(f"Error updating backblast message in Slack, posting a new one: {e}")
+            res = client.chat_postMessage(
+                channel=destination_channel,
+                text=text,
+                username=f"{q_name} (via F3 Nation)",
+                icon_url=q_url,
+                blocks=blocks,
+                metadata={"event_type": "backblast", "event_payload": backblast_data},
+            )
 
     # res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 
