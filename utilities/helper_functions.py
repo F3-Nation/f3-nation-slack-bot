@@ -74,6 +74,7 @@ class MapUpdate:
     version: str
     timestamp: str
     action: str
+    source: str
     data: MapUpdateData
 
 
@@ -83,6 +84,7 @@ def trigger_map_revalidation(action: str = None, map_update_data: MapUpdateData 
             version="1.0",
             timestamp=datetime.now(pytz.utc).isoformat(),
             action=action,
+            source="slackbot",
             data=map_update_data,
         )
     else:

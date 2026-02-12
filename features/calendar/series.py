@@ -357,6 +357,10 @@ def update_from_map(request: Request) -> Response:
 
     if request.json:
         try:
+            # Check source early and ignore if from slackbot
+            source = safe_get(request.json, "source")
+            if source == "slackbot":
+                return Response("OK", status=200)
             response_data = safe_get(request.json, "data") or {}
             map_update_data = MapUpdateData(
                 eventId=safe_convert(safe_get(response_data, "eventId"), int),
@@ -367,6 +371,7 @@ def update_from_map(request: Request) -> Response:
                 version=safe_get(request.json, "version"),
                 timestamp=safe_get(request.json, "timestamp"),
                 action=safe_get(request.json, "action"),
+                source=source,
                 data=map_update_data,
             )
             if map_update.data.orgId:
