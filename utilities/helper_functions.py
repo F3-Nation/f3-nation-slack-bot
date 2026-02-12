@@ -1,6 +1,8 @@
+import dataclasses
 import json
 import os
 import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from logging import Logger
 from typing import Any, Dict, List, Tuple
@@ -46,7 +48,54 @@ def get_location_display_name(location: Location) -> str:
         return "Unnamed Location"
 
 
-def trigger_map_revalidation():
+@dataclass
+class MapUpdateData:
+    eventId: int | None = None
+    locationId: int | None = None
+    orgId: int | None = None
+
+
+@dataclass
+class MapUpdate:
+    """
+    Sample payload:
+    {
+        "version": "1.0",
+        "timestamp": "2025-05-07T19:45:12Z",
+        "action": "map.updated", // OR map.created / map.deleted
+        "data": {
+            "eventId":   1123,   // may be null / omitted
+            "locationId": 987,   // may be null / omitted
+            "orgId":     null.   // may be null / omitted
+        } // likely in the future I will send the actual data here too (like new address)
+    }
+    """
+
+    version: str
+    timestamp: str
+    action: str
+    source: str
+    data: MapUpdateData
+
+
+def trigger_map_revalidation(action: str = None, map_update_data: MapUpdateData = None) -> bool:
+    if action and map_update_data:
+        update_info = MapUpdate(
+            version="1.0",
+            timestamp=datetime.now(pytz.utc).isoformat(),
+            action=action,
+            source="slackbot",
+            data=map_update_data,
+        )
+    else:
+        update_info = None
+
+    if not os.environ.get("MAP_REVALIDATION_URL"):
+        print(
+            f"Map revalidation URL not set. Would have sent: {dataclasses.asdict(update_info) if update_info else 'No data'}"  # noqa
+        )
+        return True
+
     try:
         response = requests.post(
             url=os.environ.get("MAP_REVALIDATION_URL"),
@@ -54,6 +103,7 @@ def trigger_map_revalidation():
                 "Content-Type": "application/json",
                 "x-api-key": os.environ.get("MAP_REVALIDATION_KEY"),
             },
+            data=json.dumps(dataclasses.asdict(update_info)) if update_info else None,
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
@@ -866,6 +916,7 @@ def get_user_names_legacy(
     else:
         return names
 
+
 # Helper function to sort by name, ignoring any prefixes we might want to ignore
 # Example: The Name, should just be sorted as Name
 def sort_by_name(extractor):
@@ -878,10 +929,9 @@ def sort_by_name(extractor):
 
         for p in prefixes:
             if folded.startswith(p):
-                folded = folded[len(p):]
+                folded = folded[len(p) :]
                 break
 
         return folded
 
     return key
-

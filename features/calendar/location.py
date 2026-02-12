@@ -10,7 +10,14 @@ from slack_sdk.web import WebClient
 from features.calendar import ao
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
-from utilities.helper_functions import get_location_display_name, safe_convert, safe_get, sort_by_name, trigger_map_revalidation
+from utilities.helper_functions import (
+    MapUpdateData,
+    get_location_display_name,
+    safe_convert,
+    safe_get,
+    sort_by_name,
+    trigger_map_revalidation,
+)
 from utilities.slack import actions, orm
 
 
@@ -122,9 +129,13 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
         update_dict = location.__dict__
         update_dict.pop("_sa_instance_state")
         DbManager.update_record(Location, metadata["location_id"], fields=update_dict)
+        action = "map.updated"
+        locationId = metadata["location_id"]
     else:
-        location = DbManager.create_record(location)
-    trigger_map_revalidation()
+        location: Location = DbManager.create_record(location)
+        action = "map.created"
+        locationId = location.id
+    trigger_map_revalidation(action=action, map_update_data=MapUpdateData(locationId=locationId))
 
     if safe_get(metadata, "update_view_id"):
         update_metadata = {
@@ -212,7 +223,7 @@ def handle_location_edit_delete(
         )
     elif action == "Delete":
         DbManager.update_record(Location, location_id, fields={"is_active": False})
-        trigger_map_revalidation()
+        trigger_map_revalidation(action="map.deleted", map_update_data=MapUpdateData(locationId=location_id))
 
 
 LOCATION_FORM = orm.BlockView(

@@ -1,6 +1,5 @@
 import copy
 import json
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from logging import Logger
 from typing import List
@@ -28,6 +27,8 @@ from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    MapUpdate,
+    MapUpdateData,
     _parse_view_private_metadata,
     current_date_cst,
     get_location_display_name,
@@ -293,6 +294,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         build_series_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
+        trigger_map_revalidation(action="map.updated", map_update_data=MapUpdateData(eventId=metadata["series_id"]))
 
     else:
         meta = {}
@@ -327,26 +329,12 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             )
             series_records.append(series)
         records = DbManager.create_records(series_records)
+        for record in records:
+            trigger_map_revalidation(action="map.created", map_update_data=MapUpdateData(eventId=record.id))
         if records:
             event_ids = [record.id for record in records]
             records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
             create_events(records)
-    trigger_map_revalidation()
-
-
-@dataclass
-class MapUpdateData:
-    eventId: int | None
-    locationId: int | None
-    orgId: int | None
-
-
-@dataclass
-class MapUpdate:
-    version: str
-    timestamp: str
-    action: str
-    data: MapUpdateData
 
 
 def update_from_map(request: Request) -> Response:
@@ -369,6 +357,10 @@ def update_from_map(request: Request) -> Response:
 
     if request.json:
         try:
+            # Check source early and ignore if from slackbot
+            source = safe_get(request.json, "source")
+            if source == "slackbot":
+                return Response("OK", status=200)
             response_data = safe_get(request.json, "data") or {}
             map_update_data = MapUpdateData(
                 eventId=safe_convert(safe_get(response_data, "eventId"), int),
@@ -379,6 +371,7 @@ def update_from_map(request: Request) -> Response:
                 version=safe_get(request.json, "version"),
                 timestamp=safe_get(request.json, "timestamp"),
                 action=safe_get(request.json, "action"),
+                source=source,
                 data=map_update_data,
             )
             if map_update.data.orgId:
@@ -658,7 +651,7 @@ def handle_series_edit_delete(
             [EventInstance.series_id == series_id, EventInstance.start_date >= current_date_cst()],
             fields={"is_active": False},
         )
-        trigger_map_revalidation()
+        trigger_map_revalidation(action="map.deleted", map_update_data=MapUpdateData(eventId=series_id))
         # set private_metadata to indicate this is a series
         body["view"]["private_metadata"] = json.dumps({"is_series": "True"})
         build_series_list_form(
