@@ -15,6 +15,7 @@ from utilities.helper_functions import (
     get_location_display_name,
     safe_convert,
     safe_get,
+    sort_by_name,
     trigger_map_revalidation,
 )
 from utilities.slack import actions, orm
@@ -170,6 +171,7 @@ def build_location_list_form(
         [Location.org_id == Org.id, Org.parent_id == region_record.org_id, Location.is_active],
     )
     location_records.extend(record[0] for record in location_records2)
+    location_records.sort(key=sort_by_name(get_location_display_name))
 
     blocks = [
         orm.SectionBlock(
