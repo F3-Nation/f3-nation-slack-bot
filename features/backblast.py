@@ -632,7 +632,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         )
         dr_pax_names = []
         for u in dr_pax_users:
-            db_users.append(SlackUser(user_id=u.id, slack_id=u.id, user_name=u.f3_name))
+            if u.id not in db_ids:
+                db_users.append(SlackUser(user_id=u.id, slack_id=u.id, user_name=u.f3_name))
+                db_ids.append(u.id)
             if u.home_region_org:
                 dr_pax_names.append(f"{u.f3_name} ({u.home_region_org.name})")
             else:

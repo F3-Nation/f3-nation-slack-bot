@@ -67,7 +67,7 @@ BACKBLAST_FORM = orm.BlockView(
             element=orm.MultiUsersSelectElement(placeholder="Select the PAX..."),
         ),
         orm.InputBlock(
-            label="Downrange PAX",
+            label="PAX not in this Slack space",
             action=actions.USER_OPTION_LOAD,
             optional=True,
             element=orm.MultiExternalSelectElement(placeholder="Type to search..."),
