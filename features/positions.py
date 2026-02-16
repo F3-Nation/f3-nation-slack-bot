@@ -31,6 +31,8 @@ def build_config_slt_form(
         org_id = org_id if org_id != 0 else region_record.org_id
         update_view_id = safe_get(body, "view", "id")
     else:
+        update_view_id = safe_get(body, actions.LOADING_ID)
+        print(f"update_view_id: {update_view_id}")
         org_id = selected_org_id or region_record.org_id
 
     position_users = get_position_users(org_id, region_record.org_id, slack_team_id=region_record.team_id)

@@ -141,7 +141,7 @@ ACTION_MAPPER = {
     actions.DB_ADMIN_RESET: (db_admin.handle_db_admin_reset, False),
     actions.SECRET_MENU_CALENDAR_IMAGES: (db_admin.handle_calendar_image_refresh, False),
     actions.SECRET_MENU_PAXMINER_MIGRATION: (db_admin.handle_paxminer_migration, False),
-    actions.CONFIG_SLT: (positions.build_config_slt_form, False),
+    actions.CONFIG_SLT: (positions.build_config_slt_form, True),
     actions.SLT_LEVEL_SELECT: (positions.build_config_slt_form, False),
     actions.CONFIG_NEW_POSITION: (positions.build_new_position_form, False),
     actions.CONFIG_EDIT_POSITIONS: (positions.build_position_list_form, False),
