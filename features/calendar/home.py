@@ -500,19 +500,18 @@ def handle_assign_q_form(
         joinedloads=[Attendance.slack_users, Attendance.attendance_types],
     )
 
-    # Assign existing Q / Co-Qs to "HC"
+    # Delete existing Q / Co-Q attendance records entirely
     q_changed = False
     for ea in existing_attendance_records:
         if any(at.type in ["Q", "Co-Q"] for at in ea.attendance_types):
             q_changed = True
-            if 1 not in [at.id for at in ea.attendance_types]:
-                DbManager.create_record(Attendance_x_AttendanceType(attendance_id=ea.id, attendance_type_id=1))
             DbManager.delete_records(
                 cls=Attendance_x_AttendanceType,
-                filters=[
-                    Attendance_x_AttendanceType.attendance_id == ea.id,
-                    Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]),
-                ],
+                filters=[Attendance_x_AttendanceType.attendance_id == ea.id],
+            )
+            DbManager.delete_records(
+                cls=Attendance,
+                filters=[Attendance.id == ea.id],
             )
 
     # Touch EventInstance.updated so calendar images are regenerated when Q changes
