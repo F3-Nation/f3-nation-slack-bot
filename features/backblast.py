@@ -791,8 +791,6 @@ FNGs: {fngs_formatted}
 COUNT: {count}
 {moleskin_text_w_names}
 """
-        # Store moleskin in meta so it can be loaded when user comes back to edit
-        custom_fields["saved_moleskin"] = moleskin
         db_fields = {
             EventInstance.start_date: the_date,
             EventInstance.org_id: event_org.id,
@@ -948,12 +946,6 @@ COUNT: {count}
         for user, attendance_type in zip(db_users, attendance_types, strict=False)
     ]
     DbManager.create_records(attendance_records)
-
-    # builders.update_submit_modal(
-    #     client=client,
-    #     logger=logger,
-    #     text="Your backblast has been saved and posted successfully!",
-    # )
 
 
 def handle_backblast_edit_button(
