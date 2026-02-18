@@ -357,6 +357,7 @@ def build_backblast_form(
 
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     attendance_non_slack_users = []
+    is_paxminer_backblast = False
     if event_instance_id:
         event_record: EventInstance = DbManager.get(
             EventInstance, event_instance_id, joinedloads=[EventInstance.org, EventInstance.event_types]
@@ -393,13 +394,8 @@ def build_backblast_form(
             if event_record.backblast_rich and len(event_record.backblast_rich) > 0:
                 moleskin_block = [block for block in event_record.backblast_rich if block["type"] == "rich_text"][0]
             elif event_record.backblast:
-                # extract the moleskin portion of the backblast and put it in a rich text block
-                # capture everything after the COUNT: # line as the moleskin
-                moleskin_text = (
-                    event_record.backblast.split("COUNT:")[1].split("\n", 1)[1].strip()
-                    if "COUNT:" in event_record.backblast and "\n" in event_record.backblast.split("COUNT:")[1]
-                    else ""
-                )
+                # this will happen when trying to edit a backblast from the old paxminer system
+                is_paxminer_backblast = True
                 moleskin_block = {
                     "type": "rich_text",
                     "elements": [
@@ -408,12 +404,18 @@ def build_backblast_form(
                             "elements": [
                                 {
                                     "type": "text",
-                                    "text": moleskin_text,
+                                    "text": event_record.backblast,
                                 }
                             ],
                         }
                     ],
                 }
+                # find moleskin block number and add hint to edit form about legacy backblast
+                for i, block in enumerate(backblast_form.blocks):
+                    if block.action == actions.BACKBLAST_MOLESKIN:
+                        backblast_form.blocks[
+                            i
+                        ].hint = ":warning: This backblast was created in paxminer. If resaving, we recommend deleting the header lines so they are not duplicated."  # noqa: E501
         else:
             moleskin_block = None
         initial_backblast_data = {
@@ -481,7 +483,7 @@ def build_backblast_form(
         [r.name for r in org_event_types.event_types], [str(r.id) for r in org_event_types.event_types]
     )
 
-    if current_date_cst() < (safe_get(event_record, "start_date") or current_date_cst()):
+    if (current_date_cst() < (safe_get(event_record, "start_date") or current_date_cst())) or is_paxminer_backblast:
         initial_backblast_data[actions.BACKBLAST_SEND_OPTIONS] = "Save and send later"
 
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
