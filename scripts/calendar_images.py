@@ -5,6 +5,7 @@ from typing import List
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import random
+import shutil
 from datetime import datetime, timedelta
 
 import boto3
@@ -35,6 +36,8 @@ from sqlalchemy.orm import aliased, joinedload
 from utilities.constants import EVENT_TAG_COLORS, GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.helper_functions import current_date_cst, safe_get, update_local_region_records
 from utilities.slack import actions
+
+DB_SCHEMA = os.getenv("DATABASE_SCHEMA", "f3_staging")
 
 
 def time_int_to_str(time: int) -> str:
@@ -344,10 +347,15 @@ def generate_calendar_images(force: bool = False):
                             # create calendar image
                             random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
                             filename = f"{region_id}-{week}-{random_chars}.png"
+                            filename_static = f"{region_id}-{week}.png"
                             if LOCAL_DEVELOPMENT:
                                 dfi.export(df_styled, filename, table_conversion="playwright")
                             else:
                                 dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
+                                if DB_SCHEMA == "f3_prod":
+                                    shutil.copyfile(
+                                        f"/mnt/calendar-images/{filename}", f"/mnt/calendar-images/{filename_static}"
+                                    )
 
                             # upload to s3 and remove local file
                             slack_app_settings = region_org_record[2].settings
