@@ -388,23 +388,34 @@ def build_backblast_form(
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-        if safe_get(event_metadata, "saved_moleskin"):
-            # Load moleskin from meta for "Save and send later" backblasts
-            moleskin_block = event_metadata["saved_moleskin"]
-        elif action_id not in [
-            actions.BACKBLAST_FILL_SELECT,
-            actions.MSG_EVENT_BACKBLAST_BUTTON,
-            actions.PREBLAST_FILL_BACKBLAST_BUTTON,
-        ]:
-            moleskin_block = safe_get(body, "message", "blocks", 1)
-            moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
-        else:
-            if already_posted:
-                print("Event already has backblast, loading existing rich block")
-                print(event_record.backblast_rich)
+
+        if already_posted or event_record.backblast_rich or event_record.backblast:
+            if event_record.backblast_rich and len(event_record.backblast_rich) > 0:
                 moleskin_block = [block for block in event_record.backblast_rich if block["type"] == "rich_text"][0]
-            else:
-                moleskin_block = None
+            elif event_record.backblast:
+                # extract the moleskin portion of the backblast and put it in a rich text block
+                # capture everything after the COUNT: # line as the moleskin
+                moleskin_text = (
+                    event_record.backblast.split("COUNT:")[1].split("\n", 1)[1].strip()
+                    if "COUNT:" in event_record.backblast and "\n" in event_record.backblast.split("COUNT:")[1]
+                    else ""
+                )
+                moleskin_block = {
+                    "type": "rich_text",
+                    "elements": [
+                        {
+                            "type": "rich_text_section",
+                            "elements": [
+                                {
+                                    "type": "text",
+                                    "text": moleskin_text,
+                                }
+                            ],
+                        }
+                    ],
+                }
+        else:
+            moleskin_block = None
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
@@ -505,8 +516,6 @@ def build_backblast_form(
         backblast_metadata["message_ts"] = safe_get(body, "container", "message_ts")
         backblast_metadata["files"] = safe_get(backblast_metadata, actions.BACKBLAST_FILE) or []
         backblast_metadata["file_ids"] = safe_get(backblast_metadata, "file_ids") or []
-        # Hide send options when editing - will send/update on submission
-        backblast_form.delete_block(actions.BACKBLAST_SEND_OPTIONS)
     else:
         callback_id = actions.BACKBLAST_CALLBACK_ID
 
