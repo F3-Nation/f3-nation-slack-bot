@@ -357,6 +357,7 @@ def build_backblast_form(
 
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     attendance_non_slack_users = []
+    is_paxminer_backblast = False
     if event_instance_id:
         event_record: EventInstance = DbManager.get(
             EventInstance, event_instance_id, joinedloads=[EventInstance.org, EventInstance.event_types]
@@ -388,23 +389,35 @@ def build_backblast_form(
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-        if safe_get(event_metadata, "saved_moleskin"):
-            # Load moleskin from meta for "Save and send later" backblasts
-            moleskin_block = event_metadata["saved_moleskin"]
-        elif action_id not in [
-            actions.BACKBLAST_FILL_SELECT,
-            actions.MSG_EVENT_BACKBLAST_BUTTON,
-            actions.PREBLAST_FILL_BACKBLAST_BUTTON,
-        ]:
-            moleskin_block = safe_get(body, "message", "blocks", 1)
-            moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
-        else:
-            if already_posted:
-                print("Event already has backblast, loading existing rich block")
-                print(event_record.backblast_rich)
+
+        if already_posted or event_record.backblast_rich or event_record.backblast:
+            if event_record.backblast_rich and len(event_record.backblast_rich) > 0:
                 moleskin_block = [block for block in event_record.backblast_rich if block["type"] == "rich_text"][0]
-            else:
-                moleskin_block = None
+            elif event_record.backblast:
+                # this will happen when trying to edit a backblast from the old paxminer system
+                is_paxminer_backblast = True
+                moleskin_block = {
+                    "type": "rich_text",
+                    "elements": [
+                        {
+                            "type": "rich_text_section",
+                            "elements": [
+                                {
+                                    "type": "text",
+                                    "text": event_record.backblast,
+                                }
+                            ],
+                        }
+                    ],
+                }
+                # find moleskin block number and add hint to edit form about legacy backblast
+                for i, block in enumerate(backblast_form.blocks):
+                    if block.action == actions.BACKBLAST_MOLESKIN:
+                        backblast_form.blocks[
+                            i
+                        ].hint = ":warning: This backblast was created in paxminer. If resaving, we recommend deleting the header lines so they are not duplicated."  # noqa: E501
+        else:
+            moleskin_block = None
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
@@ -470,7 +483,7 @@ def build_backblast_form(
         [r.name for r in org_event_types.event_types], [str(r.id) for r in org_event_types.event_types]
     )
 
-    if current_date_cst() < (safe_get(event_record, "start_date") or current_date_cst()):
+    if (current_date_cst() < (safe_get(event_record, "start_date") or current_date_cst())) or is_paxminer_backblast:
         initial_backblast_data[actions.BACKBLAST_SEND_OPTIONS] = "Save and send later"
 
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
@@ -505,8 +518,6 @@ def build_backblast_form(
         backblast_metadata["message_ts"] = safe_get(body, "container", "message_ts")
         backblast_metadata["files"] = safe_get(backblast_metadata, actions.BACKBLAST_FILE) or []
         backblast_metadata["file_ids"] = safe_get(backblast_metadata, "file_ids") or []
-        # Hide send options when editing - will send/update on submission
-        backblast_form.delete_block(actions.BACKBLAST_SEND_OPTIONS)
     else:
         callback_id = actions.BACKBLAST_CALLBACK_ID
 
@@ -780,8 +791,6 @@ FNGs: {fngs_formatted}
 COUNT: {count}
 {moleskin_text_w_names}
 """
-        # Store moleskin in meta so it can be loaded when user comes back to edit
-        custom_fields["saved_moleskin"] = moleskin
         db_fields = {
             EventInstance.start_date: the_date,
             EventInstance.org_id: event_org.id,
@@ -937,12 +946,6 @@ COUNT: {count}
         for user, attendance_type in zip(db_users, attendance_types, strict=False)
     ]
     DbManager.create_records(attendance_records)
-
-    # builders.update_submit_modal(
-    #     client=client,
-    #     logger=logger,
-    #     text="Your backblast has been saved and posted successfully!",
-    # )
 
 
 def handle_backblast_edit_button(
