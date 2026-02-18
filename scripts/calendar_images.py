@@ -488,13 +488,13 @@ def create_special_events_blocks(slack_settings_dict: dict) -> blocks.Block:
                 EventInstance.org.has(Org.parent_id == slack_settings_dict.get("org_id")),
             ),
             EventInstance.start_date >= current_date_cst(),
-            EventInstance.start_date
-            <= current_date_cst() + timedelta(days=slack_settings_dict.get("special_events_post_days") or 60),
             EventInstance.is_active,
             EventInstance.highlight,
         ],
         joinedloads=[EventInstance.org],
     )
+    # limit to 10 upcoming events
+    special_events = special_events[:10]
     if len(special_events) > 0:
         # order by date and time
         special_events.sort(key=lambda x: (x.start_date, x.start_time))
