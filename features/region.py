@@ -23,6 +23,7 @@ def build_region_form(
 ):
     form = copy.deepcopy(REGION_FORM)
     org_record: Org = DbManager.get(Org, region_record.org_id)
+    org_meta = org_record.meta if org_record else {}
 
     if not org_record:
         connect.build_connect_options_form(body, client, logger, context)
@@ -33,11 +34,17 @@ def build_region_form(
         print("Admin user ids:", admin_user_ids)
         print("Admin users:", admin_users)
 
+        if safe_get(org_meta, actions.REGION_DEFAULT_PV_FILTERS):
+            full_pv_filter_url = f"https://pax-vault.f3nation.com/stats/region/{org_record.id}?{org_meta[actions.REGION_DEFAULT_PV_FILTERS]}"
+        else:
+            full_pv_filter_url = f"https://pax-vault.f3nation.com/stats/region/{org_record.id}"
+
         form.set_initial_values(
             {
                 actions.REGION_NAME: org_record.name,
                 actions.REGION_DESCRIPTION: org_record.description,
                 actions.REGION_LOGO: org_record.logo_url,
+                actions.REGION_DEFAULT_PV_FILTERS: full_pv_filter_url,
                 actions.REGION_WEBSITE: org_record.website,
                 actions.REGION_EMAIL: org_record.email,
                 actions.REGION_TWITTER: org_record.twitter,
@@ -85,6 +92,14 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     ):
         website = None
 
+    default_pv_filters = safe_get(form_data, actions.REGION_DEFAULT_PV_FILTERS)
+    if default_pv_filters and not re.match(
+        r"https?://pax-vault\.f3nation\.com/stats/region/\d+\?.+", default_pv_filters
+    ):
+        default_pv_filters = None
+    else:
+        default_pv_filters = default_pv_filters.split("?")[1] if default_pv_filters else None
+
     fields = {
         Org.name: safe_get(form_data, actions.REGION_NAME),
         Org.description: safe_get(form_data, actions.REGION_DESCRIPTION),
@@ -96,6 +111,11 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     }
     if logo_url:
         fields[Org.logo_url] = logo_url
+    if default_pv_filters:
+        org_record = DbManager.get(Org, region_record.org_id)
+        org_meta = org_record.meta if org_record else {}
+        org_meta[actions.REGION_DEFAULT_PV_FILTERS] = default_pv_filters
+        fields[Org.meta] = org_meta
 
     DbManager.update_record(Org, region_record.org_id, fields)
 
@@ -161,6 +181,13 @@ REGION_FORM = orm.BlockView(
             element=orm.MultiUsersSelectElement(placeholder="Select the Region admins"),
             hint="These users will have admin permissions for the Region (modify schedules, backblasts, etc.)",
             optional=False,
+        ),
+        orm.InputBlock(
+            label="Default PAX Vault Filters",
+            action=actions.REGION_DEFAULT_PV_FILTERS,
+            element=orm.PlainTextInputElement(),
+            hint="Apply the filters you want defaulted in PV, then paste the URL here",
+            optional=True,
         ),
         orm.InputBlock(
             label="Region Website",
