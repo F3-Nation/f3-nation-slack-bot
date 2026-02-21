@@ -666,6 +666,7 @@ SERIES_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_SERIES_AO,
             element=orm.StaticSelectElement(placeholder="Select an AO"),
             dispatch_action=True,
+            optional=False,
         ),
         orm.InputBlock(
             label="Default Location",
