@@ -137,14 +137,21 @@ def send_automated_preblasts(force: bool = False):
 
         automated_option = safe_get(preblast.slack_settings.__dict__, "automated_preblast_option") or "disable"
         automated_hour = safe_get(preblast.slack_settings.__dict__, "automated_preblast_hour_cst")
+        scheduled_hour = safe_get(preblast.slack_settings.__dict__, "scheduled_preblast_hour_cst") or automated_hour
 
         # Skip if feature is disabled
         if automated_option == "disable":
             continue
 
         # If an hour is configured, require match to current hour
-        if automated_hour is not None and automated_hour != current_time.hour and not force:
-            continue
+        if preblast.event.preblast:
+            # If the preblast text is already set, the Q already scheduled it
+            if scheduled_hour is not None and scheduled_hour != current_time.hour and not force:
+                continue
+        else:
+            # If not, then use the automated preblast hour
+            if automated_hour is not None and automated_hour != current_time.hour and not force:
+                continue
 
         # Respect option semantics around Q assignment
         if automated_option == "q_only" and not preblast.q_name:

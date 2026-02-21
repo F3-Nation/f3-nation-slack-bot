@@ -474,7 +474,14 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             action=actions.CONFIG_AUTOMATED_PREBLAST_TIME,
             optional=True,
             element=orm.TimepickerElement(),
-            hint="Automated preblasts will be sent this time the day before if one has not been posted by the Q already.",  # noqa
+            hint="Automated preblasts will be sent this time the day before if one has not been set by the Q.",  # noqa
+        ),
+        orm.InputBlock(
+            label="Scheduled Preblast Time (CST)",
+            action=actions.CONFIG_SCHEDULED_PREBLAST_TIME,
+            optional=True,
+            element=orm.TimepickerElement(),
+            hint="Scheduled preblasts will be sent this time the day before when Q has set a preblast for 'send a day before'.",  # noqa
         ),
         orm.InputBlock(
             label="Backblast Reminder Count",

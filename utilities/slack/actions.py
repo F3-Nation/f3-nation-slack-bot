@@ -88,6 +88,7 @@ BACKBLAST_OPTIONS = "backblast_options"
 BACKBLAST_SEND_OPTIONS = "backblast_send_options"
 SECRET_MENU_SEND_AUTO_PREBLASTS = "secret-menu-send-auto-preblasts"
 SECRET_MENU_REFRESH_CACHE = "secret-menu-refresh-cache"
+CONFIG_SCHEDULED_PREBLAST_TIME = "scheduled_preblast_time"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"
