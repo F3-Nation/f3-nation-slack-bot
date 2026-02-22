@@ -224,6 +224,10 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.CONFIG_USER_SETTINGS,
                 ),
                 orm.ButtonElement(
+                    label=":hospital: Emergency Info Access",
+                    action=actions.CONFIG_EMERGENCY_INFO,
+                ),
+                orm.ButtonElement(
                     label=":grey_question: Help Menu",
                     action=actions.CONFIG_HELP_MENU,
                 ),
@@ -740,6 +744,10 @@ CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":bust_in_silhouette: User Settings",
                     action=actions.CONFIG_USER_SETTINGS,
+                ),
+                orm.ButtonElement(
+                    label=":hospital: Emergency Info Access",
+                    action=actions.CONFIG_EMERGENCY_INFO,
                 ),
                 orm.ButtonElement(
                     label=":grey_question: Help Menu",

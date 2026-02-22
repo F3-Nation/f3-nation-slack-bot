@@ -137,8 +137,8 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
                 context=context,
                 region_record=region_record,
             )
-            if resp and request_type == "block_suggestion":
-                ack(options=resp)
+            if request_type == "block_suggestion":
+                ack(options=resp if resp is not None else [])
             # elif request_type == "view_submission":
             #     update_submit_modal(
             #         client=client, logger=logger, text="Your data was saved successfully!"

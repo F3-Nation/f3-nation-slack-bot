@@ -6,6 +6,7 @@ from features import (
     connect,
     custom_fields,
     db_admin,
+    emergency,
     help,
     paxminer_mapping,
     positions,
@@ -193,6 +194,9 @@ ACTION_MAPPER = {
     actions.EVENT_PREBLAST_NOQ_SELECT: (event_preblast.handle_event_preblast_select, False),
     actions.SECRET_MENU_SEND_AUTO_PREBLASTS: (db_admin.handle_auto_preblast_send, False),
     actions.SECRET_MENU_REFRESH_CACHE: (db_admin.handle_refresh_cache, False),
+    actions.CONFIG_EMERGENCY_INFO: (emergency.build_emergency_search_form, True),
+    actions.EMERGENCY_LOCAL_USER_SELECT: (emergency.handle_local_user_select, False),
+    actions.EMERGENCY_DR_USER_SELECT: (emergency.handle_dr_user_select, False),
 }
 
 ACTION_PREFIXES = [
@@ -226,6 +230,7 @@ OPTIONS_MAPPER = {
     user.USER_FORM_HOME_REGION: (options.handle_request, False),
     paxminer_mapping.PAXMINER_REGION: (options.handle_request, False),
     connect.SELECT_REGION: (options.handle_request, False),
+    actions.EMERGENCY_DR_USER_SELECT: (options.handle_request, False),
 }
 
 SHORTCUT_MAPPER = {
