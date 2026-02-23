@@ -1,7 +1,56 @@
+import logging
+import os
 import smtplib
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, List
+
+logger = logging.getLogger(__name__)
+
+
+def send_via_sendgrid(
+    to_email: str,
+    subject: str,
+    html_content: str,
+    from_email: str = "noreply@f3nation.com",
+) -> bool:
+    """Send an email using SendGrid API.
+
+    Args:
+        to_email: Recipient email address
+        subject: Email subject line
+        html_content: HTML body content
+        from_email: Sender email address (default: noreply@f3nation.com)
+
+    Returns:
+        True if email was sent successfully, False otherwise
+    """
+    api_key = os.getenv("SENDGRID_API_KEY")
+    if not api_key:
+        logger.warning("SENDGRID_API_KEY not configured, skipping email send")
+        return False
+
+    if not to_email:
+        logger.warning("No recipient email provided, skipping email send")
+        return False
+
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+
+        message = Mail(
+            from_email=from_email,
+            to_emails=to_email,
+            subject=subject,
+            html_content=html_content,
+        )
+        sg = SendGridAPIClient(api_key)
+        response = sg.send(message)
+        logger.info(f"SendGrid email sent to {to_email}, status: {response.status_code}")
+        return response.status_code in (200, 201, 202)
+    except Exception as e:
+        logger.error(f"Failed to send email via SendGrid: {e}")
+        return False
 
 
 def send(

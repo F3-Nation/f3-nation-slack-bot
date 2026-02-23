@@ -53,6 +53,7 @@ pillow-heif = "^0.15.0"
 pymysql = "^1.1.1"
 watchfiles = "^1.1.1"
 python-dotenv = "^1.2.1"
+sendgrid = "^6.11.0"
 
 [tool.poetry.group.dev.dependencies]
 sqlalchemy-schemadisplay = "^2.0"
