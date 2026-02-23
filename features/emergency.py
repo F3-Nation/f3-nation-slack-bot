@@ -6,6 +6,7 @@ from f3_data_models.models import Org, SlackUser, User
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 
+from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import get_user, safe_get
 from utilities.sendmail import send_via_sendgrid
@@ -118,6 +119,8 @@ def _show_emergency_info_modal(
     region_record: SlackSettings,
     logger: Logger,
 ):
+    update_view_id = add_loading_form(body, client, new_or_add="add")
+
     """Display the emergency information for a user."""
     # Send notification to the user whose info was accessed
     accessing_user = get_user(safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger)
@@ -180,8 +183,8 @@ def _show_emergency_info_modal(
         ).as_form_field()
     )
 
-    client.views_push(
-        trigger_id=safe_get(body, "trigger_id"),
+    client.views_update(
+        view_id=update_view_id,
         view={
             "type": "modal",
             "callback_id": EMERGENCY_INFO_CALLBACK_ID,
