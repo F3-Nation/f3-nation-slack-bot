@@ -178,7 +178,7 @@ def _show_emergency_info_modal(
     blocks.append(
         ContextBlock(
             element=ContextElement(
-                initial_value=":warning: The user has been notified that their emergency information was accessed."
+                initial_value=":warning: The user has been emailed to let them know that their emergency information was accessed."  # noqa: E501
             )
         ).as_form_field()
     )
@@ -256,7 +256,7 @@ EMERGENCY_SEARCH_FORM = BlockView(
         HeaderBlock(label="Search for Emergency Info"),
         ContextBlock(
             element=ContextElement(
-                initial_value=":warning: *Important:* The user will be notified that their emergency "
+                initial_value=":warning: *Important:* The user will be emailed to let them know that their emergency "
                 "information was accessed. Only use this feature in genuine emergency situations."
             )
         ),
