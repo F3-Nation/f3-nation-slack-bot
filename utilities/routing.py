@@ -223,6 +223,7 @@ VIEW_CLOSED_MAPPER = {
 EVENT_MAPPER = {
     "team_join": (welcome.handle_team_join, False),
     "app_mention": (help.handle_app_mention, False),
+    "user_change": (welcome.handle_user_change, False),
 }
 
 OPTIONS_MAPPER = {

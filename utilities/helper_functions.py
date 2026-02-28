@@ -294,6 +294,10 @@ def create_user(slack_user_info: dict, home_region_id: int | None = None) -> Sla
                 home_region_id=home_region_id,
             )
         )
+    elif not user_record.home_region_id and home_region_id:
+        # Set home region on first workspace join if not already established
+        DbManager.update_record(User, user_record.id, {User.home_region_id: home_region_id})
+        user_record.home_region_id = home_region_id
 
     slack_user_record = safe_get(
         DbManager.find_records(SlackUser, filters=[SlackUser.slack_id == slack_user_info.get("id")]), 0
