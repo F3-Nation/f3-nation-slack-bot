@@ -2,15 +2,18 @@ import copy
 import random
 from logging import Logger
 
-from f3_data_models.models import SlackSpace
+from f3_data_models.models import SlackSpace, SlackUser, User
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    SLACK_USERS,
+    create_user,
     safe_get,
     update_local_region_records,
+    update_local_slack_users,
 )
 from utilities.slack import actions, forms
 
@@ -84,10 +87,55 @@ def handle_welcome_message_config_post(
     update_local_region_records()
 
 
+def handle_user_change(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+    slack_user_info = safe_get(body, "event", "user") or {}
+    slack_id = slack_user_info.get("id")
+    new_display_name = safe_get(slack_user_info, "profile", "display_name") or safe_get(
+        slack_user_info, "profile", "real_name"
+    )
+
+    if not slack_id or not new_display_name:
+        return
+
+    slack_user: SlackUser | None = safe_get(SLACK_USERS, slack_id)
+    if not slack_user:
+        slack_user = safe_get(DbManager.find_records(SlackUser, filters=[SlackUser.slack_id == slack_id]), 0)
+        if not slack_user:
+            return
+
+    if slack_user.user_name == new_display_name:
+        return
+
+    old_display_name = slack_user.user_name
+
+    DbManager.update_record(SlackUser, slack_user.id, {SlackUser.user_name: new_display_name})
+    slack_user.user_name = new_display_name
+    update_local_slack_users(slack_user)
+
+    # Only sync f3_name if:
+    # 1. It hasn't been manually customized (still matches the old Slack display name)
+    # 2. The change came from the user's home region workspace
+    if slack_user.user_id:
+        user: User | None = DbManager.get(User, slack_user.user_id)
+        if (
+            user
+            and user.f3_name == old_display_name
+            and region_record.org_id
+            and user.home_region_id == region_record.org_id
+        ):
+            DbManager.update_record(User, slack_user.user_id, {User.f3_name: new_display_name})
+
+
 def handle_team_join(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     welcome_channel = region_record.welcome_channel
     workspace_name = region_record.workspace_name
-    user_id = safe_get(body, "event", "user", "id")
+    slack_user_info = safe_get(body, "event", "user") or {}
+    user_id = slack_user_info.get("id")
+
+    try:
+        create_user(slack_user_info, region_record.org_id)
+    except Exception:
+        pass
 
     if region_record.welcome_dm_enable:
         client.chat_postMessage(channel=user_id, blocks=[region_record.welcome_dm_template], text="Welcome!")

@@ -147,7 +147,8 @@
             "request_url": "https://HOST-PLACEHOLDER/slack/events",
             "bot_events": [
                 "app_mention",
-                "team_join"
+                "team_join",
+                "user_change"
             ]
         },
         "interactivity": {
