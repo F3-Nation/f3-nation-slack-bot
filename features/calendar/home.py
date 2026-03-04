@@ -31,7 +31,7 @@ from utilities import constants
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, get_aoq_users, home_schedule_query
-from utilities.helper_functions import current_date_cst, get_user, safe_convert, safe_get
+from utilities.helper_functions import _parse_view_private_metadata, current_date_cst, get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
 
@@ -674,11 +674,19 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
             body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
         )
     elif action == "Close Event":
-        DbManager.update_record(
-            EventInstance, event_instance_id, fields={EventInstance.series_exception: Series_Exception.closed}
+        form = copy.deepcopy(event_instance.EVENT_CLOSE_FORM)
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            callback_id=actions.EVENT_CLOSE_HOME_CALLBACK_ID,
+            title_text="Close Event",
+            submit_button_text="Close Event",
+            parent_metadata={"event_instance_id": event_instance_id},
+            new_or_add="add",
+            close_button_text="Cancel",
         )
-        update_post = True
-        build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+        update_post = False
+        # build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
     elif action == "Reopen Event":
         DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.series_exception: None})
         update_post = True
@@ -723,3 +731,24 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
 
     elif action == "edit":
         pass
+
+
+def handle_event_instance_close(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    metadata = _parse_view_private_metadata(body)
+    event_instance_id = safe_get(metadata, "event_instance_id")
+    close_reason = event_instance.EVENT_CLOSE_FORM.get_selected_values(body).get(event_instance.EVENT_CLOSE_REASON)
+    event_instance_meta = safe_get(DbManager.get(EventInstance, event_instance_id), "meta") or {}
+    event_instance_meta["series_exception_reason"] = close_reason
+    prior_view_id = safe_get(body, "view", "previous_view_id")
+
+    DbManager.update_record(
+        EventInstance,
+        event_instance_id,
+        fields={
+            EventInstance.series_exception: Series_Exception.closed,
+            EventInstance.meta: event_instance_meta,
+        },
+    )
+    build_home_form(body, client, logger, context, region_record, update_view_id=prior_view_id)

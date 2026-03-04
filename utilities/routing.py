@@ -86,6 +86,7 @@ VIEW_MAPPER = {
     actions.DB_ADMIN_LONG_RUN_CALLBACK_ID: (db_admin.handle_long_run_task, False),
     paxminer_mapping.PAXMINER_MAPPING_ID: (paxminer_mapping.handle_paxminer_mapping_post, False),
     event_instance.EVENT_CLOSE_CALLBACK_ID: (event_instance.handle_event_instance_close, False),
+    actions.EVENT_CLOSE_HOME_CALLBACK_ID: (home.handle_event_instance_close, False),
 }
 
 ACTION_MAPPER = {

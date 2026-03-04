@@ -492,6 +492,7 @@ def handle_event_instance_edit_delete(
             title_text="Close Event",
             submit_button_text="Close Event",
             parent_metadata={"event_instance_id": event_instance_id},
+            close_button_text="Cancel",
         )
     elif action == "Reopen":
         DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.series_exception: None})
