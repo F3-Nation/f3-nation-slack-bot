@@ -498,6 +498,7 @@ def update_events(
         ],
         fields={
             EventInstance.series_id: series.id,
+            EventInstance.name: series.name,
             # When a series is moved to a different AO, existing event instances must get the new org_id.
             # Otherwise they stay under the old AO (e.g. Q lineups, calendar show them in the wrong place).
             EventInstance.org_id: series.org_id,
