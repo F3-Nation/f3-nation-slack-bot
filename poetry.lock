@@ -1082,14 +1082,14 @@ tests = ["asttokens (>=2.1.0)", "coverage", "coverage-enable-subprocess", "ipyth
 
 [[package]]
 name = "f3-data-models"
-version = "1.0.6"
+version = "1.0.7"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 groups = ["main"]
 files = [
-    {file = "f3_data_models-1.0.6-py3-none-any.whl", hash = "sha256:04e4fec1547d0d664dc6a811d48836717a75ab81d6787303f84558612273c035"},
-    {file = "f3_data_models-1.0.6.tar.gz", hash = "sha256:0683f0b677a1437db69892150d321480486796c8f31e2314e0ec2576303d6d5d"},
+    {file = "f3_data_models-1.0.7-py3-none-any.whl", hash = "sha256:e9f680e2dd5fb9d26f0baba860643f519e4826b980ce6ce45f33a4635eec6795"},
+    {file = "f3_data_models-1.0.7.tar.gz", hash = "sha256:44b5ac83795441e5955f33aec0703817621f77858afd0074581abe7c49e0d0c4"},
 ]
 
 [package.dependencies]
@@ -5416,4 +5416,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "2941079e0f444f59a5d5418e4cf9be316edc677fb604211e0375b68242d95896"
+content-hash = "f1cc3a10acae37fbff1f5207b4ebafa37a898a920512e2968a9de4095d7566ba"
