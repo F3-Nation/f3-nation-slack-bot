@@ -2,7 +2,7 @@ import copy
 import random
 from logging import Logger
 
-from f3_data_models.models import SlackSpace
+from f3_data_models.models import Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
@@ -92,7 +92,12 @@ def handle_team_join(body: dict, client: WebClient, logger: Logger, context: dic
     if region_record.welcome_dm_enable:
         client.chat_postMessage(channel=user_id, blocks=[region_record.welcome_dm_template], text="Welcome!")
     if region_record.welcome_channel_enable:
+        if region_record.org_id:
+            org_record = DbManager.get(Org, region_record.org_id)
+            org_name = org_record.name if org_record else workspace_name
+        else:
+            org_name = workspace_name
         client.chat_postMessage(
             channel=welcome_channel,
-            text=random.choice(constants.WELCOME_MESSAGE_TEMPLATES).format(user=f"<@{user_id}>", region=workspace_name),
+            text=random.choice(constants.WELCOME_MESSAGE_TEMPLATES).format(user=f"<@{user_id}>", region=org_name),
         )

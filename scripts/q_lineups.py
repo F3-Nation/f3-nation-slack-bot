@@ -137,8 +137,10 @@ def send_lineups(force: bool = False):
 
 def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
     org_events.sort(
-        key=lambda x: x.event.start_date
-        + timedelta(hours=safe_convert(x.event.start_time[:2] if x.event.start_time else "0", int))
+        key=lambda x: (
+            x.event.start_date
+            + timedelta(hours=safe_convert(x.event.start_time[:2] if x.event.start_time else "0", int))
+        )
     )
     blocks: List[BaseBlock] = []
 
@@ -228,26 +230,36 @@ def send_q_lineup_message(
             channel_id = slack_settings.send_q_lineups_channel
         else:
             channel_id = None
-        if channel_id:
-            if update_channel_id and update_ts:
-                # Update the existing message
-                slack_client.chat_update(
-                    channel=channel_id,
-                    ts=update_ts,
-                    text="Q Lineup",
-                    blocks=blocks,
-                    metadata=metadata,
-                )
-            else:
-                resp = slack_client.chat_postMessage(
-                    channel=channel_id,
-                    text="Q Lineup",
-                    blocks=blocks,
-                    metadata=metadata,
-                )
-                org.meta = org.meta or {}
-                org.meta["q_lineup_ts"] = resp["ts"]
-                DbManager.update_record(Org, org.id, {Org.meta: org.meta})
+        for attempt in range(2):
+            try:
+                if channel_id:
+                    if update_channel_id and update_ts:
+                        # Update the existing message
+                        slack_client.chat_update(
+                            channel=channel_id,
+                            ts=update_ts,
+                            text="Q Lineup",
+                            blocks=blocks,
+                            metadata=metadata,
+                        )
+                    else:
+                        resp = slack_client.chat_postMessage(
+                            channel=channel_id,
+                            text="Q Lineup",
+                            blocks=blocks,
+                            metadata=metadata,
+                        )
+                        org.meta = org.meta or {}
+                        org.meta["q_lineup_ts"] = resp["ts"]
+                        DbManager.update_record(Org, org.id, {Org.meta: org.meta})
+                break  # successfully sent, break out of retry loop
+            except Exception as e:
+                if channel_id and attempt == 0:
+                    print(f"Error sending message to channel {channel_id}, trying to join channel and resend: {e}")
+                    slack_client.conversations_join(channel=channel_id)
+                else:
+                    print(f"Error sending Q lineup message for org {org.name} ({org.id}): {e}")
+                    break  # ran out of tries, break out of retry loop
 
 
 def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):

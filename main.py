@@ -52,8 +52,7 @@ setup_debugger()
 load_dotenv()
 
 process_before_response = os.environ.get("PROCESS_BEFORE_RESPONSE", "false").lower() == "true"
-
-logging_level = logging.INFO
+logging_level = logging.DEBUG if os.environ.get("LOG_LEVEL", "INFO").upper() == "DEBUG" else logging.INFO
 if LOCAL_DEVELOPMENT:
     logger = logging.getLogger()
     logger.setLevel(logging_level)
