@@ -379,20 +379,10 @@ def handle_event_preblast_edit(
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
 
-    if (
+    preblast_send = (
         form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
         or (safe_get(metadata, "preblast_ts") or "None") != "None"
-    ):
-        preblast_send = True
-        # forms.SUBMIT_FORM.update_modal(
-        #     client=client,
-        #     view_id=safe_get(body, "view", "id"),
-        #     callback_id="submit_form_waiting",
-        #     title_text="Submitting Preblast",
-        #     submit_button_text="None",
-        # )
-    else:
-        preblast_send = False
+    )
 
     update_fields = {
         EventInstance.name: form_data[actions.EVENT_PREBLAST_TITLE],
@@ -406,6 +396,13 @@ def handle_event_preblast_edit(
         ),
         EventInstance.start_time: safe_get(form_data, actions.EVENT_PREBLAST_START_TIME).replace(":", ""),
     }
+    if form_data[actions.EVENT_PREBLAST_IMAGE]:
+        event_instance_record: EventInstance = DbManager.get(EventInstance, event_instance_id)
+        event_instance_meta = event_instance_record.meta or {}
+        file_id = safe_get(form_data[actions.EVENT_PREBLAST_IMAGE], 0, "id")
+        event_instance_meta["preblast_image_slack_file_id"] = file_id
+        update_fields[EventInstance.meta] = event_instance_meta
+
     DbManager.update_record(EventInstance, event_instance_id, update_fields)
     DbManager.delete_records(
         cls=EventTag_x_EventInstance,
@@ -503,6 +500,14 @@ def send_preblast(
             elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
         ),
     ]
+    if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
+        blocks.insert(
+            -1,
+            orm.ImageBlock(
+                slack_file_id=safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"),
+                alt_text="Preblast Image",
+            ),
+        )
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
         "event_instance_id": event_instance_id,
@@ -944,6 +949,17 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             action=actions.EVENT_PREBLAST_MOLESKINE_EDIT,
             element=orm.RichTextInputElement(placeholder="Give us an event preview!"),
             optional=False,
+        ),
+        orm.InputBlock(
+            label="Preblast Image",
+            action=actions.EVENT_PREBLAST_IMAGE,
+            element=orm.FileInputElement(
+                placeholder="Upload an image to be included in the preblast",
+                filetypes=["jpg", "jpeg", "png", "gif"],
+                max_files=1,
+            ),
+            optional=True,
+            hint="Missing images from iOS? HEICs are a pain, write Tim Cook and tell him to stop using proprietary formats that break everything",  # noqa
         ),
         orm.InputBlock(
             label="When to send preblast?",

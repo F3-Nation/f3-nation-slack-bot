@@ -801,6 +801,15 @@ def upload_files_to_storage(
     return file_list, file_send_list, file_ids, low_res_file_list
 
 
+def highest_resolution_thumb(file: Dict[str, Any]) -> str:
+    thumb_sizes = [64, 80, 160, 360, 480, 720, 800, 960, 1024]
+    available_thumbs = [size for size in thumb_sizes if f"thumb_{size}" in file]
+    if not available_thumbs:
+        return None
+    thumb_size = max(available_thumbs)
+    return file[f"thumb_{thumb_size}"]
+
+
 def upload_files_to_s3(
     files: List[Dict[str, str]], user_id: str, client: WebClient, logger: Logger
 ) -> Tuple[List[str], List[Dict[str, Any]], List[str]]:
