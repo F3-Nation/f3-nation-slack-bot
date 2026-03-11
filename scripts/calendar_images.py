@@ -22,6 +22,7 @@ from f3_data_models.models import (
     Org,
     Org_Type,
     Org_x_SlackSpace,
+    Series_Exception,
     SlackSpace,
     User,
 )
@@ -255,7 +256,7 @@ def generate_calendar_images(force: bool = False):
                             )
 
                             # Override label for closed events
-                            df.loc[df["series_exception"] == "closed", "label"] = "CLOSED"
+                            df.loc[df["series_exception"] == Series_Exception.closed, "label"] = "CLOSED"
 
                             df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
                             df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
@@ -263,7 +264,7 @@ def generate_calendar_images(force: bool = False):
                             )
                             df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
                             df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
-
+                            df.to_csv(f"debug_{region_name}_{week}.csv", index=False)
                             # Combine cells for days / AOs with more than one event
                             df.sort_values(["ao_name", "event_date", "event_time"], ignore_index=True, inplace=True)
                             prior_date = ""
