@@ -129,6 +129,7 @@ def generate_calendar_images(force: bool = False):
                 EventInstance.start_time,
                 EventInstance.updated.label("event_updated"),
                 EventInstance.pax_count,
+                EventInstance.series_exception,
                 EventTag.name.label("event_tag"),
                 EventTag.color.label("event_tag_color"),
                 EventType.name.label("event_type"),
@@ -194,6 +195,7 @@ def generate_calendar_images(force: bool = False):
                     # if "Open" in color_dict:
                     #     color_dict["OPEN!"] = color_dict.pop("Open")
                     color_dict["OPEN!"] = "Green"
+                    color_dict["CLOSED"] = "Closed"  # Dark gray for closed events
                     calendar_updated = False
 
                     for week in ["current", "next"]:
@@ -251,6 +253,10 @@ def generate_calendar_images(force: bool = False):
                                 + "\nPAX: "
                                 + df["pax_count"].astype(str).str.replace(".0", "")
                             )
+
+                            # Override label for closed events
+                            df.loc[df["series_exception"] == "closed", "label"] = "CLOSED"
+
                             df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
                             df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
                                 df["ao_name"] + "\n" + df["ao_description"]

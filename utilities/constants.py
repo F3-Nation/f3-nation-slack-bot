@@ -177,6 +177,7 @@ GCP_IMAGE_URL = "https://storage.googleapis.com/{bucket}/{image_name}"
 # Define colors for event tags
 # first is background color, second is text color
 EVENT_TAG_COLORS = {
+    "Closed": ("#404040", "#888888"),  # Dark gray with muted text for closed events
     "Red": ("#FF0000", "#FFFFFF"),
     "Orange": ("#FFA500", "#FFFFFF"),
     "Yellow": ("#FFFF00", "#000000"),

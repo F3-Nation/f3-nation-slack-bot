@@ -14,6 +14,7 @@ from f3_data_models.models import (
     EventType,
     Org,
     Org_Type,
+    Series_Exception,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
@@ -30,7 +31,7 @@ from utilities import constants
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, get_aoq_users, home_schedule_query
-from utilities.helper_functions import get_user, safe_convert, safe_get
+from utilities.helper_functions import _parse_view_private_metadata, current_date_cst, get_user, safe_convert, safe_get
 from utilities.slack import actions, orm
 
 
@@ -241,39 +242,49 @@ def build_home_form(
     block_count = 1
     for event in events:
         option_names: List[str] = []
-        if block_count > 90:
-            break
-        if not user_is_admin:
-            if event.user_q:
-                option_names.append("Edit Preblast")
-            else:
-                option_names.append("View Preblast")
         if event.event.start_date != active_date:
             active_date = event.event.start_date
             blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
             block_count += 1
-        if event.series and event.series.name and event.org.name not in event.series.name:
-            label = f"{event.series.name} @ {event.org.name} @ {event.event.start_time}"
+        if event.event.series_exception == Series_Exception.closed:
+            label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} - CLOSED :no_entry:"
+            if user_is_admin:
+                option_names.append("Reopen Event")
+            else:
+                option_names.append("Event Closed")
         else:
-            label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
-        if event.planned_qs:
-            label += f" / Q: {event.planned_qs}"
-        else:
-            label += " / Q: Open!"
-            option_names.append("Take Q")
-        if event.user_q:
-            label += " :muscle:"
-        if event.user_attending:
-            label += " :white_check_mark:"
-            option_names.append("Un-HC")
-        else:
-            option_names.append("HC")
-        if event.event.preblast_rich:
-            label += " :pencil:"
-        if user_is_admin:
-            option_names.append("Assign Q")
-            option_names.append("Edit Preblast")
-            option_names.append("Edit Backblast")
+            if block_count > 90:
+                break
+            if not user_is_admin:
+                if event.user_q:
+                    option_names.append("Edit Preblast")
+                else:
+                    option_names.append("View Preblast")
+            if event.series and event.series.name and event.org.name not in event.series.name:
+                label = f"{event.series.name} @ {event.org.name} @ {event.event.start_time}"
+            else:
+                label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
+            if event.planned_qs:
+                label += f" / Q: {event.planned_qs}"
+            else:
+                label += " / Q: Open!"
+                option_names.append("Take Q")
+            if event.user_q:
+                label += " :muscle:"
+            if event.user_attending:
+                label += " :white_check_mark:"
+                option_names.append("Un-HC")
+            else:
+                option_names.append("HC")
+            if event.event.preblast_rich:
+                label += " :pencil:"
+            if user_is_admin:
+                option_names.append("Assign Q")
+                option_names.append("Close Event")
+                if event.event.start_date > current_date_cst():
+                    option_names.append("Edit Preblast")
+                else:
+                    option_names.append("Edit Backblast")
         blocks.append(
             orm.SectionBlock(
                 label=label,
@@ -662,6 +673,24 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         build_assign_q_form(
             body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
         )
+    elif action == "Close Event":
+        form = copy.deepcopy(event_instance.EVENT_CLOSE_FORM)
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            callback_id=actions.EVENT_CLOSE_HOME_CALLBACK_ID,
+            title_text="Close Event",
+            submit_button_text="Close Event",
+            parent_metadata={"event_instance_id": event_instance_id},
+            new_or_add="add",
+            close_button_text="Cancel",
+        )
+        update_post = False
+        # build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+    elif action == "Reopen Event":
+        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.series_exception: None})
+        update_post = True
+        build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
     if update_post:
         preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
@@ -702,3 +731,24 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
 
     elif action == "edit":
         pass
+
+
+def handle_event_instance_close(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    metadata = _parse_view_private_metadata(body)
+    event_instance_id = safe_get(metadata, "event_instance_id")
+    close_reason = event_instance.EVENT_CLOSE_FORM.get_selected_values(body).get(event_instance.EVENT_CLOSE_REASON)
+    event_instance_meta = safe_get(DbManager.get(EventInstance, event_instance_id), "meta") or {}
+    event_instance_meta["series_exception_reason"] = close_reason
+    prior_view_id = safe_get(body, "view", "previous_view_id")
+
+    DbManager.update_record(
+        EventInstance,
+        event_instance_id,
+        fields={
+            EventInstance.series_exception: Series_Exception.closed,
+            EventInstance.meta: event_instance_meta,
+        },
+    )
+    build_home_form(body, client, logger, context, region_record, update_view_id=prior_view_id)

@@ -93,6 +93,7 @@ REGION_DEFAULT_PV_FILTERS = "region_default_pv_filters"
 CONFIG_EMERGENCY_INFO = "config_emergency_info"
 EMERGENCY_LOCAL_USER_SELECT = "emergency_local_user_select"
 EMERGENCY_DR_USER_SELECT = "emergency_dr_user_select"
+EVENT_CLOSE_HOME_CALLBACK_ID = "event-close-home-id"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"

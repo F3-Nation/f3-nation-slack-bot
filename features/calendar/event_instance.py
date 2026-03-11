@@ -13,6 +13,7 @@ from f3_data_models.models import (
     Location,
     Org,
     Org_Type,
+    Series_Exception,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
@@ -55,6 +56,8 @@ CALENDAR_MANAGE_EVENT_INSTANCE = "calendar_manage_event_instance"
 EDIT_DELETE_EVENT_INSTANCE_CALLBACK_ID = "edit_delete_event_instance_callback_id"
 CALENDAR_MANAGE_EVENT_INSTANCE_AO = "calendar_manage_event_instance_ao"
 CALENDAR_MANAGE_EVENT_INSTANCE_DATE = "calendar_manage_event_instance_date"
+EVENT_CLOSE_REASON = "event_close_reason"
+EVENT_CLOSE_CALLBACK_ID = "event_close_callback_id"
 
 
 META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
@@ -362,8 +365,8 @@ def build_event_instance_list_form(
     update_view_id=None,
     loading_form: bool = False,
 ):
-    title_text = "Delete or Edit an Event"
-    confirm_text = "Are you sure you want to edit / delete this event? This cannot be undone."
+    title_text = "Edit/Close/Delete Event"
+    confirm_text = "Are you sure you want to edit / close / delete this event?"
 
     if loading_form:
         update_view_id = add_loading_form(body, client, new_or_add="add")
@@ -419,14 +422,23 @@ def build_event_instance_list_form(
 
     for s in records:
         label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]
+        if s.series_exception == Series_Exception.closed:
+            label += " [CLOSED]"
+            placeholder = "Reopen, Edit, or Delete"
+            options = ["Reopen", "Edit", "Delete"]
+            confirm_text = "Are you sure you want to reopen / edit / delete this event?"
+        else:
+            placeholder = "Edit, Close, or Delete"
+            options = ["Edit", "Close", "Delete"]
+            confirm_text = "Are you sure you want to edit / close / delete this event?"
 
         form.blocks.append(
             orm.SectionBlock(
                 label=label,
                 action=f"{actions.EVENT_INSTANCE_EDIT_DELETE}_{s.id}",
                 element=orm.StaticSelectElement(
-                    placeholder="Edit or Delete",
-                    options=orm.as_selector_options(names=["Edit", "Delete"]),
+                    placeholder=placeholder,
+                    options=orm.as_selector_options(names=options),
                     confirm=orm.ConfirmObject(
                         title="Are you sure?",
                         text=confirm_text,
@@ -468,12 +480,65 @@ def handle_event_instance_edit_delete(
         build_event_instance_add_form(
             body, client, logger, context, region_record, edit_event_instance=event_instance, loading_form=True
         )  # noqa
+    elif action == "Close":
+        # DbManager.update_record(
+        #     EventInstance, event_instance_id, fields={EventInstance.series_exception: Series_Exception.closed}
+        # )
+        form = copy.deepcopy(EVENT_CLOSE_FORM)
+        form.update_modal(
+            client=client,
+            view_id=safe_get(body, "view", "id"),
+            callback_id=EVENT_CLOSE_CALLBACK_ID,
+            title_text="Close Event",
+            submit_button_text="Close Event",
+            parent_metadata={"event_instance_id": event_instance_id},
+            close_button_text="Cancel",
+        )
+    elif action == "Reopen":
+        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.series_exception: None})
+        build_event_instance_list_form(
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
+        )
     elif action == "Delete":
-        DbManager.update_record(EventInstance, event_instance_id, fields={"is_active": False})
+        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.is_active: False})
         build_event_instance_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
 
+
+def handle_event_instance_close(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    metadata = _parse_view_private_metadata(body)
+    event_instance_id = safe_get(metadata, "event_instance_id")
+    close_reason = EVENT_CLOSE_FORM.get_selected_values(body).get(EVENT_CLOSE_REASON)
+    event_instance_meta = safe_get(DbManager.get(EventInstance, event_instance_id), "meta") or {}
+    event_instance_meta["series_exception_reason"] = close_reason
+
+    DbManager.update_record(
+        EventInstance,
+        event_instance_id,
+        fields={
+            EventInstance.series_exception: Series_Exception.closed,
+            EventInstance.meta: event_instance_meta,
+        },
+    )
+    build_event_instance_list_form(
+        body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
+    )
+
+
+EVENT_CLOSE_FORM = orm.BlockView(
+    blocks=[
+        orm.InputBlock(
+            label="Reason for Closing",
+            action=EVENT_CLOSE_REASON,
+            element=orm.PlainTextInputElement(placeholder="Enter the reason for closing this event"),
+            optional=True,
+            hint="This will be shown to map users.",
+        )
+    ]
+)
 
 INSTANCE_FORM = orm.BlockView(
     blocks=[
