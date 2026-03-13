@@ -763,7 +763,9 @@ def upload_files_to_storage(
                 with open(file_path_low_res, "wb") as f:
                     f.write(r_low_res.content)
 
-                low_res_file_list.append(f"https://storage.googleapis.com/{bucket_name}/{file_name_low_res}")
+                low_res_file_list.append(
+                    f"https://storage.googleapis.com/{constants.FILE_BUCKET_PREFIX}/{bucket_name}/{file_name_low_res}"
+                )
 
             change_to_png = enforce_png and file["filetype"] != "png"
             if enforce_square or max_height or change_to_png:
@@ -802,7 +804,9 @@ def upload_files_to_storage(
 
                 # TODO: if LOCAL_DEVELOPMENT, upload to google storage
 
-            file_list.append(f"https://storage.googleapis.com/{bucket_name}/{current_file_name}")
+            file_list.append(
+                f"https://storage.googleapis.com/{constants.FILE_BUCKET_PREFIX}/{bucket_name}/{current_file_name}"
+            )
             file_send_list.append(
                 {
                     "filepath": file_path,
