@@ -151,7 +151,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
             client=client,
             enforce_square=True,
             max_height=512,
-            bucket_name="ao-logos",
+            bucket_name="org-logos",
             file_name=str(orgId),
             enforce_png=True,
         )
