@@ -786,6 +786,14 @@ def handle_event_preblast_action(
                 *preblast_info.preblast_blocks,
                 orm.ActionsBlock(elements=get_preblast_action_buttons(has_q=True, event_instance_id=event_instance_id)),
             ]
+            if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
+                blocks.insert(
+                    -1,
+                    orm.ImageBlock(
+                        slack_file_id=safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"),
+                        alt_text="Preblast Image",
+                    ),
+                )
             blocks = [b.as_form_field() for b in blocks]
 
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
@@ -850,6 +858,14 @@ def handle_event_preblast_action(
             }
             button_blocks = get_preblast_action_buttons(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
             blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
+            if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
+                blocks.insert(
+                    -1,
+                    orm.ImageBlock(
+                        slack_file_id=safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"),
+                        alt_text="Preblast Image",
+                    ),
+                )
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
