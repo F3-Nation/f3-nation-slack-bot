@@ -710,6 +710,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     msg_block = slack_orm.SectionBlock(label=post_msg)
 
     backblast_data.pop(actions.BACKBLAST_MOLESKIN, None)
+    backblast_data.pop(actions.BACKBLAST_PAX, None)
     backblast_data[actions.BACKBLAST_FILE] = file_list
     backblast_data[actions.BACKBLAST_FILE + "_low_rez"] = low_rez_file_list
     backblast_data["file_ids"] = file_ids
