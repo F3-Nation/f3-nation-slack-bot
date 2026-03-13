@@ -523,9 +523,15 @@ def handle_event_instance_close(
             EventInstance.meta: event_instance_meta,
         },
     )
-    build_event_instance_list_form(
-        body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
-    )
+    # build_event_instance_list_form(
+    #     body,
+    #     client,
+    #     logger,
+    #     context,
+    #     region_record,
+    #     update_view_id=safe_get(body, "view", "previous_view_id"),
+    #     loading_form=True,
+    # )
 
 
 EVENT_CLOSE_FORM = orm.BlockView(
