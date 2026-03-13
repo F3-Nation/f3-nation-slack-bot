@@ -17,6 +17,7 @@ from f3_data_models.models import (
     EventType_x_EventInstance,
     Org,
     Org_x_SlackSpace,
+    Series_Exception,
     SlackSpace,
     SlackUser,
     User,
@@ -155,6 +156,10 @@ def send_automated_preblasts(force: bool = False):
 
         # Respect option semantics around Q assignment
         if automated_option == "q_only" and not preblast.q_name:
+            continue
+
+        # Do not send for closed events
+        if preblast.event.series_exception == Series_Exception.closed:
             continue
 
         try:
