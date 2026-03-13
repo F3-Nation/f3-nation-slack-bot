@@ -594,7 +594,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
             files=files,
             logger=logger,
             client=client,
-            bucket_name="event-instances",
+            bucket_name="event_instance_images",
             file_name=str(event_instance_id) if event_instance_id else None,
         )
     elif safe_get(metadata, actions.BACKBLAST_FILE, 0):
