@@ -274,24 +274,24 @@ def backblast_middleware(
                 ),
                 slack_orm.DividerBlock(),
             ]
-            blocks += [
-                slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
-                slack_orm.ActionsBlock(
-                    elements=[
-                        slack_orm.ButtonElement(
-                            label="New Unscheduled Event",
-                            action=actions.BACKBLAST_NEW_BLANK_BUTTON,
-                            confirm=slack_orm.ConfirmObject(
-                                title="Are you sure?",
-                                text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
-                                confirm="Yes, I'm sure",
-                                deny="Whups, never mind",
-                                style="danger",
-                            ),
+        blocks += [
+            slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="New Unscheduled Event",
+                        action=actions.BACKBLAST_NEW_BLANK_BUTTON,
+                        confirm=slack_orm.ConfirmObject(
+                            title="Are you sure?",
+                            text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                            confirm="Yes, I'm sure",
+                            deny="Whups, never mind",
+                            style="danger",
                         ),
-                    ]
-                ),
-            ]
+                    ),
+                ]
+            ),
+        ]
         form = slack_orm.BlockView(blocks=blocks)
         form.update_modal(
             client=client,
