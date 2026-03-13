@@ -76,7 +76,14 @@ def handle_region_edit(body: dict, client: WebClient, logger: Logger, context: d
     file = safe_get(form_data, actions.REGION_LOGO, 0)
     if file:
         file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
-            files=[file], logger=logger, client=client, enforce_square=True, max_height=512
+            files=[file],
+            logger=logger,
+            client=client,
+            enforce_square=True,
+            max_height=512,
+            bucket_name="org-logos",
+            file_name=str(region_record.org_id),
+            enforce_png=True,
         )
         logo_url = file_list[0]
     else:

@@ -392,7 +392,9 @@ def build_backblast_form(
 
         if already_posted or event_record.backblast_rich or event_record.backblast:
             if event_record.backblast_rich and len(event_record.backblast_rich) > 0:
-                moleskin_block = [block for block in event_record.backblast_rich if block["type"] == "rich_text"][0]
+                moleskin_block = [
+                    block for block in event_record.backblast_rich if safe_get(block, "type") == "rich_text"
+                ][0]
             elif event_record.backblast:
                 # this will happen when trying to edit a backblast from the old paxminer system
                 is_paxminer_backblast = True
@@ -589,7 +591,11 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     if files:
         file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
-            files=files, logger=logger, client=client
+            files=files,
+            logger=logger,
+            client=client,
+            bucket_name="event-instances",
+            file_name=str(event_instance_id) if event_instance_id else None,
         )
     elif safe_get(metadata, actions.BACKBLAST_FILE, 0):
         file_list = safe_get(metadata, actions.BACKBLAST_FILE)

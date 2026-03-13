@@ -118,22 +118,6 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
     region_org_id = region_record.org_id
     metatdata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
 
-    file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
-    if file:
-        file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
-            files=[file], logger=logger, client=client, enforce_square=True, max_height=512
-        )
-        logo_url = safe_get(file_list, 0)
-        # try:
-        #     r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
-        #     r.raise_for_status()
-        #     logo = r.content
-        # except Exception as exc:
-        #     logger.error(f"Error downloading file: {exc}")
-        #     logo = None
-    else:
-        logo_url = None
-
     slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
     ao: Org = Org(
         parent_id=region_org_id,
@@ -143,14 +127,14 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
         meta={"slack_channel_id": slack_id},
         default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
-        logo_url=logo_url,
+        # logo_url=logo_url,
     )
 
     if safe_get(metatdata, "ao_id"):
         update_dict = ao.__dict__
         update_dict.pop("_sa_instance_state")
-        if not logo_url:
-            update_dict.pop("logo_url", None)
+        # if not logo_url:
+        #     update_dict.pop("logo_url", None)
         DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
         action = "map.updated"
         orgId = metatdata["ao_id"]
@@ -158,6 +142,22 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         ao: Org = DbManager.create_record(ao)
         action = "map.created"
         orgId = ao.id
+
+    file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
+    if file:
+        file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
+            files=[file],
+            logger=logger,
+            client=client,
+            enforce_square=True,
+            max_height=512,
+            bucket_name="ao-logos",
+            file_name=str(orgId),
+            enforce_png=True,
+        )
+        logo_url = safe_get(file_list, 0)
+        DbManager.update_record(Org, orgId, fields={"logo_url": logo_url})
+
     trigger_map_revalidation(action=action, map_update_data=MapUpdateData(orgId=orgId))
 
 
