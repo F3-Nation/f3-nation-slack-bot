@@ -290,6 +290,10 @@ def handle_event_instance_add(
         or region_record.org_id
     )
     event_tag_id = safe_convert(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_TAG, 0), int)
+    if not event_tag_id and metadata.get("event_instance_id"):
+        DbManager.delete_records(
+            EventTag_x_EventInstance, [EventTag_x_EventInstance.event_instance_id == metadata.get("event_instance_id")]
+        )  # noqa
 
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_NAME):
         event_instance_name = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_NAME)
