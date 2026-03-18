@@ -87,23 +87,6 @@ def build_home_form(
     print(f"AO and Event Type time: {split_time - start_time}")
     start_time = time.time()
 
-    # if LOCAL_DEVELOPMENT:
-    #     this_week_url = S3_IMAGE_URL.format(
-    #         image_name=region_record.calendar_image_current or "default.png",
-    #     )
-    #     next_week_url = S3_IMAGE_URL.format(
-    #         image_name=region_record.calendar_image_next or "default.png",
-    #     )
-    # else:
-    #     this_week_url = GCP_IMAGE_URL.format(
-    #         bucket="f3nation-calendar-images",
-    #         image_name=region_record.calendar_image_current or "default.png",
-    #     )
-    #     next_week_url = GCP_IMAGE_URL.format(
-    #         bucket="f3nation-calendar-images",
-    #         image_name=region_record.calendar_image_next or "default.png",
-    #     )
-
     blocks = [
         orm.ActionsBlock(
             elements=[
@@ -157,40 +140,7 @@ def build_home_form(
             ),
             dispatch_action=True,
         ),
-        # orm.ActionsBlock(
-        #     elements=[
-        #         orm.StaticSelectElement(  # TODO: make these multi-selects?
-        #             placeholder="Filter AOs",
-        #             action=actions.CALENDAR_HOME_AO_FILTER,
-        #             options=orm.as_selector_options(
-        #                 names=[ao.name for ao in ao_records],
-        #                 values=[str(ao.id) for ao in ao_records],
-        #             ),
-        #         ),
-        #         orm.StaticSelectElement(  # TODO: make these multi-selects?
-        #             placeholder="Filter Event Types",
-        #             action=actions.CALENDAR_HOME_EVENT_TYPE_FILTER,
-        #             options=orm.as_selector_options(
-        #                 names=[event_type.name for event_type in event_type_records],
-        #                 values=[str(event_type.id) for event_type in event_type_records],
-        #             ),
-        #         ),
-        #         orm.DatepickerElement(
-        #             action=actions.CALENDAR_HOME_DATE_FILTER,
-        #             placeholder="Start Search Date",
-        #         ),
-        #         orm.CheckboxInputElement(
-        #             action=actions.CALENDAR_HOME_Q_FILTER,
-        #             options=orm.as_selector_options(names=["Show only open Q slots"], values=["yes"]),
-        #         ),
-        #     ],
-        # ),
     ]
-
-    # if region_record.calendar_image_current:
-    #     blocks.insert(0, orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url))
-    # if region_record.calendar_image_next:
-    #     blocks.insert(1, orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url))
 
     if safe_get(body, "view"):
         existing_filter_data = orm.BlockView(blocks=blocks).get_selected_values(body)
@@ -260,7 +210,9 @@ def build_home_form(
                     option_names.append("Edit Preblast")
                 else:
                     option_names.append("View Preblast")
-            if event.series and event.series.name and event.org.name not in event.series.name:
+            if event.event.highlight:
+                label = f":star: *{event.event.name}* @ {event.org.name} @ {event.event.start_time}"
+            elif event.series and event.series.name and event.org.name not in event.series.name:
                 label = f"{event.series.name} @ {event.org.name} @ {event.event.start_time}"
             else:
                 label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa

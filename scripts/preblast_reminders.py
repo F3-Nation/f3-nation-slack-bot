@@ -17,6 +17,7 @@ from f3_data_models.models import (
     EventType_x_EventInstance,
     Org,
     Org_x_SlackSpace,
+    Series_Exception,
     SlackSpace,
     SlackUser,
     User,
@@ -140,6 +141,7 @@ def send_preblast_reminders(force: bool = False):
                     EventInstance.preblast_rich.is_(None), EventInstance.preblast_rich.cast(String) == "null"
                 ),  # not already set
                 EventInstance.is_active,  # not canceled
+                EventInstance.series_exception != Series_Exception.closed,  # not closed
             ]
         )
         preblast_list.items = [item for item in preblast_list.items if item.q_name is not None]
