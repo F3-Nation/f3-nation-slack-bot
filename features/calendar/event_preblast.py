@@ -497,7 +497,7 @@ def send_preblast(
     blocks = [
         *preblast_info.preblast_blocks,
         orm.ActionsBlock(
-            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
+            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id, false)
         ),
     ]
     if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
@@ -688,15 +688,13 @@ def build_preblast_info(
             location += f" - {name}"
 
     event_details = f"*Preblast: {event_record.name}*"
-    event_details += f"\n*Date:* {event_record.start_date.strftime('%A, %B %d')}"
-    event_details += f"\n*Time:* {event_record.start_time}"
+    event_details += f"\n*When:* {event_record.start_date.strftime('%A, %B %d')} @ {event_record.start_time}"
     event_details += f"\n*Where:* {location}"
     event_details += f"\n*Event Type:* {' / '.join([t.name for t in event_record.event_types])}"
     if event_record.event_tags:
         event_details += f"\n*Event Tag:* {', '.join([tag.name for tag in event_record.event_tags])}"
     event_details += f"\n*Q:* {q_list}"
-    event_details += f"\n*HC Count:* {hc_count}"
-    event_details += f"\n*HCs:* {hc_list}"
+    event_details += f"\n*HCs ({hc_count}):* {hc_list}"
 
     preblast_blocks = [
         orm.SectionBlock(label=event_details),
