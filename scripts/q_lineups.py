@@ -9,7 +9,14 @@ from datetime import date, datetime, timedelta
 from typing import Dict, List
 
 import pytz
-from f3_data_models.models import Attendance, Attendance_x_AttendanceType, EventInstance, Org, SlackSpace
+from f3_data_models.models import (
+    Attendance,
+    Attendance_x_AttendanceType,
+    EventInstance,
+    Org,
+    Series_Exception,
+    SlackSpace,
+)
 from f3_data_models.utils import DbManager
 from slack_sdk import WebClient
 from slack_sdk.models.metadata import Metadata
@@ -145,6 +152,9 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
     blocks: List[BaseBlock] = []
 
     for event in org_events:
+        if event.event.series_exception == Series_Exception.closed:
+            label = f"*{event.event.start_date.strftime('%A, %m/%d')}*\n{event.event_type.name} {event.event.start_time}\n*CLOSED.*"  # noqa
+            accessory = None
         if event.q_name:
             q_label = f"@{event.q_name}"  # f"<@{event.slack_user_id}>" if event.slack_user_id else
             label = f"*{event.event.start_date.strftime('%A, %m/%d')}*\n{event.event_type.name} {event.event.start_time}\n{q_label}"  # noqa
