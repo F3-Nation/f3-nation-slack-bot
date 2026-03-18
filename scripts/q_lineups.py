@@ -354,11 +354,10 @@ def handle_lineup_signup(body: dict, client: WebClient, logger: Logger, context:
         )
         blocks = [
             SectionBlock(label="*Here are your Q lineups for the week*\n\n").as_form_field(),
-            DividerBlock().as_form_field(),
         ]
         for org in {e.org for e in org_info.items}:
-            blocks.append(SectionBlock(label=f"*{org.name}:*").as_form_field())
             blocks.append(DividerBlock().as_form_field())
+            blocks.append(SectionBlock(label=f"*{org.name}:*").as_form_field())
             events = [e for e in org_info.items if e.org.id == org.id]
             blocks.extend(build_lineup_blocks(events, org))
         send_q_lineup_message(
