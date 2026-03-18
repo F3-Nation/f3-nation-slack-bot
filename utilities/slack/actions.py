@@ -95,6 +95,8 @@ EMERGENCY_LOCAL_USER_SELECT = "emergency_local_user_select"
 EMERGENCY_DR_USER_SELECT = "emergency_dr_user_select"
 EVENT_CLOSE_HOME_CALLBACK_ID = "event-close-home-id"
 EVENT_PREBLAST_IMAGE = "event_preblast_image"
+CALENDAR_ADD_EVENT_TYPE_PREBLAST = "calendar-add-event-type-preblast"
+CALENDAR_ADD_EVENT_TYPE_BACKBLAST = "calendar-add-event-type-backblast"
 
 CONFIG_EMAIL_ENABLE = "email_enable"
 CONFIG_EMAIL_SHOW_OPTION = "email_show"

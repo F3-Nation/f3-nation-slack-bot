@@ -3,7 +3,7 @@ import json
 from logging import Logger
 from typing import List
 
-from f3_data_models.models import Event_Category, EventType
+from f3_data_models.models import Event_Category, EventType, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
@@ -62,6 +62,12 @@ def build_event_type_form(
                 actions.CALENDAR_ADD_EVENT_TYPE_NEW: edit_event_type.name,
                 actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY: edit_event_type.event_category.name,
                 actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM: edit_event_type.acronym,
+                actions.CALENDAR_ADD_EVENT_TYPE_PREBLAST: safe_get(
+                    region_record.event_type_preblast_templates, edit_event_type.id
+                ),
+                actions.CALENDAR_ADD_EVENT_TYPE_BACKBLAST: safe_get(
+                    region_record.event_type_backblast_templates, edit_event_type.id
+                ),
             }
         )
         form.blocks.pop(0)
@@ -101,6 +107,8 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     event_category = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_CATEGORY)
     event_type_acronym = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
+    event_type_preblast = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_PREBLAST)
+    event_type_backblast = form_data.get(actions.CALENDAR_ADD_EVENT_TYPE_BACKBLAST)
 
     if safe_get(metadata, "edit_event_type_id"):
         event_type_id = safe_get(metadata, "edit_event_type_id")
@@ -115,6 +123,18 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
                 EventType.specific_org_id: region_record.org_id,
             },
         )
+
+        # update templates if they were edited
+        if event_type_preblast or event_type_backblast:
+            region_record.event_type_preblast_templates = region_record.event_type_preblast_templates or {}
+            region_record.event_type_preblast_templates[event_type.id] = event_type_preblast
+            region_record.event_type_backblast_templates = region_record.event_type_backblast_templates or {}
+            region_record.event_type_backblast_templates[event_type.id] = event_type_backblast
+            DbManager.update_records(
+                cls=SlackSpace,
+                filters=[SlackSpace.team_id == region_record.team_id],
+                fields={SlackSpace.settings: region_record.__dict__},
+            )
 
     elif event_type_name and event_category:
         event_type: EventType = DbManager.create_record(
@@ -131,15 +151,15 @@ def build_event_type_list_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     event_types_all: List[EventType] = DbManager.find_records(EventType, [EventType.is_active])
-    event_types_org = [type.id for type in event_types_all if type.specific_org_id == region_record.org_id]
-    event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
+    # event_types_org = [type.id for type in event_types_all if type.specific_org_id == region_record.org_id]
+    # event_types_in_org = [event_type for event_type in event_types_all if event_type.id in event_types_org]
 
     blocks = [
         orm.ContextBlock(
             element=orm.ContextElement(initial_value="Only region-specific event types can be edited or deleted."),
         )
     ]
-    for s in event_types_in_org:
+    for s in event_types_all:
         blocks.append(
             orm.SectionBlock(
                 label=s.name,
@@ -220,6 +240,18 @@ EVENT_TYPE_FORM = orm.BlockView(
             action=actions.CALENDAR_ADD_EVENT_TYPE_ACRONYM,
             optional=True,
             hint="This is used for the calendar view to save on space. Defaults to first two letters of event type name. Make sure it's unique!",  # noqa
+        ),
+        orm.InputBlock(
+            label="Preblast template for this event type",
+            element=orm.RichTextInputElement(),
+            action=actions.CALENDAR_ADD_EVENT_TYPE_PREBLAST,
+            optional=True,
+        ),
+        orm.InputBlock(
+            label="Backblast template for this event type",
+            element=orm.RichTextInputElement(),
+            action=actions.CALENDAR_ADD_EVENT_TYPE_BACKBLAST,
+            optional=True,
         ),
         orm.SectionBlock(
             label="Event types in use:\n\n",

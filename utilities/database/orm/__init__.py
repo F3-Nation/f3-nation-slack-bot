@@ -67,3 +67,5 @@ class SlackSettings:
     automated_preblast_option: Optional[str] = None
     automated_preblast_hour_cst: Optional[int] = None
     scheduled_preblast_hour_cst: Optional[int] = None
+    event_type_backblast_templates: Optional[dict[int, Any]] = None
+    event_type_preblast_templates: Optional[dict[int, Any]] = None
