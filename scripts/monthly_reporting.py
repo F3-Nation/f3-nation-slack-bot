@@ -134,7 +134,7 @@ def run_reporting_single_org(body: dict, client: WebClient, logger: any, context
 
 def cycle_all_orgs(run_org_id: int = None):
     current_time = datetime.now(pytz.timezone("US/Central"))
-    if run_org_id or (current_time.day == 5 and current_time.hour == 15):
+    if run_org_id or (current_time.day == 2 and current_time.hour == 20):
         records = DbManager.find_join_records3(Org_x_SlackSpace, Org, SlackSpace, filters=[Org.is_active])
         region_orgs: List[Org] = [r[1] for r in records]
         slack_spaces: List[SlackSpace] = [r[2] for r in records]
@@ -529,16 +529,41 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
 
     now = datetime.now()
     current_year = now.year
-    prior_year = now.year - 1
+    current_month = now.month
 
-    # Month labels Jan..Dec
-    month_labels = [calendar.month_name[m] for m in range(1, 13)]
+    # Build rolling 12-month window ending with the prior month
+    # E.g., if current is March 2026, we show Apr 2025 -> Mar 2026 (but Mar 2026 data may be incomplete)
+    # So we end with the prior month: Mar 2025 -> Feb 2026
+    rolling_months = []  # List of (year, month) tuples
+    for i in range(12, 0, -1):  # 12 months back to prior month
+        m = current_month - i
+        y = current_year
+        while m <= 0:
+            m += 12
+            y -= 1
+        rolling_months.append((y, m))
 
-    def aggregate_year(target_year: int):
+    # Month labels for the x-axis (abbreviated month names)
+    month_labels = [calendar.month_abbr[m] for _, m in rolling_months]
+
+    # Determine date range for title (e.g., "Mar 2025 - Feb 2026")
+    first_month_year, first_month = rolling_months[0]
+    last_month_year, last_month = rolling_months[-1]
+    first_abbr = calendar.month_abbr[first_month]
+    last_abbr = calendar.month_abbr[last_month]
+    current_range = f"{first_abbr} {first_month_year} - {last_abbr} {last_month_year}"
+    prior_range = f"{first_abbr} {first_month_year - 1} - {last_abbr} {last_month_year - 1}"
+
+    def aggregate_rolling(year_offset: int):
+        """Aggregate data for rolling 12 months with given year offset.
+        year_offset=0 means current rolling period
+        year_offset=-1 means prior year (same months, one year earlier)
+        """
         posts: List[int | None] = []
         uniques: List[int | None] = []
         fngs: List[int | None] = []
-        for m in range(1, 13):
+        for y, m in rolling_months:
+            target_year = y + year_offset
             month_event = next(
                 (event for event in records if event.month.year == target_year and event.month.month == m), None
             )
@@ -552,8 +577,8 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
                 fngs.append(None)
         return posts, uniques, fngs
 
-    posts_current, uniques_current, fngs_current = aggregate_year(current_year)
-    posts_prior, uniques_prior, fngs_prior = aggregate_year(prior_year)
+    posts_current, uniques_current, fngs_current = aggregate_rolling(0)
+    posts_prior, uniques_prior, fngs_prior = aggregate_rolling(-1)
 
     # Colors per metric; prior year uses same color with transparency and dashed style
     COLOR_POSTS = "#39FF14"  # neon green
@@ -565,7 +590,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.plot(
         month_labels,
         posts_prior,
-        label=f"{prior_year}",
+        label=prior_range,
         color=COLOR_POSTS,
         alpha=0.25,
         marker="o",
@@ -574,7 +599,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.plot(
         month_labels,
         posts_current,
-        label=f"{current_year}",
+        label=current_range,
         color=COLOR_POSTS,
         alpha=0.95,
         marker="o",
@@ -590,7 +615,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.plot(
         month_labels,
         uniques_prior,
-        label=f"{prior_year}",
+        label=prior_range,
         color=COLOR_UNIQUES,
         alpha=0.25,
         marker="o",
@@ -599,7 +624,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.plot(
         month_labels,
         uniques_current,
-        label=f"{current_year}",
+        label=current_range,
         color=COLOR_UNIQUES,
         alpha=0.95,
         marker="o",
@@ -615,7 +640,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.plot(
         month_labels,
         fngs_current,
-        label=f"{current_year}",
+        label=current_range,
         color=COLOR_FNGS,
         alpha=0.95,
         marker="o",
@@ -623,7 +648,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.plot(
         month_labels,
         fngs_prior,
-        label=f"{prior_year}",
+        label=prior_range,
         color=COLOR_FNGS,
         alpha=0.25,
         marker="o",
@@ -636,7 +661,7 @@ def create_org_monthly_summary(records: List[OrgMonthlySummary]) -> str:
     ax.legend(loc="upper left")
     mplcyberpunk.add_glow_effects(ax=ax, gradient_fill=False)
 
-    fig.suptitle(f"Monthly Attendance — {prior_year} vs {current_year}", fontsize=16)
+    fig.suptitle("Monthly Attendance — Rolling 12 Months", fontsize=16)
     # axs[-1].set_xlabel("Month", fontsize=14)
     plt.setp(axs[-1].get_xticklabels(), rotation=45)
     plt.tight_layout(rect=[0, 0, 1, 0.97])
@@ -650,7 +675,8 @@ def pull_org_summary_data() -> Dict[int, List[OrgMonthlySummary]]:
     session = get_session()
 
     # Define reusable date range and month expression
-    start_date = datetime(datetime.now().year - 1, 1, 1)
+    # Pull 2 years of data to support rolling 12-month view with prior year comparison
+    start_date = datetime(datetime.now().year - 2, 1, 1)
     end_date = datetime(datetime.now().year, datetime.now().month, 1)
     month_expr = func.date_trunc("month", EventInstanceExpanded.start_date)
 
@@ -767,4 +793,4 @@ def run_monthly_summaries(run_org_id: int = None):
 
 if __name__ == "__main__":
     # run_monthly_summaries(run_org_id=38451)
-    cycle_all_orgs(run_org_id=49680)
+    cycle_all_orgs(run_org_id=29307)

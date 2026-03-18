@@ -13,14 +13,18 @@ from utilities.slack.orm import (
     ActionsBlock,
     BlockView,
     ButtonElement,
+    CheckboxInputElement,
     ContextBlock,
     ContextElement,
+    DatepickerElement,
     DividerBlock,
     ExternalSelectElement,
     FileInputElement,
+    HeaderBlock,
     ImageBlock,
     InputBlock,
     PlainTextInputElement,
+    as_selector_options,
 )
 
 USER_FORM_USERNAME = "user_name"
@@ -32,6 +36,9 @@ USER_FORM_EMERGENCY_CONTACT = "user_emergency_contact"
 USER_FORM_EMERGENCY_CONTACT_PHONE = "user_emergency_contact_phone"
 USER_FORM_EMERGENCY_CONTACT_NOTES = "user_emergency_contact_notes"
 IGNORE_EVENT = "user_ignore_event"
+USER_FORM_START_DATE = "user_start_date"
+USER_META_START_DATE = "start_date_override"
+USER_EMERGENCY_INFO_SHARING = "user_emergency_info_dr_sharing"
 
 
 def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -47,6 +54,8 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
         USER_FORM_EMERGENCY_CONTACT: user.emergency_contact,
         USER_FORM_EMERGENCY_CONTACT_PHONE: user.emergency_phone,
         USER_FORM_EMERGENCY_CONTACT_NOTES: user.emergency_notes,
+        USER_FORM_START_DATE: user.meta.get(USER_META_START_DATE) if user.meta else None,
+        USER_EMERGENCY_INFO_SHARING: "enabled" if safe_get(user.meta, USER_EMERGENCY_INFO_SHARING) else None,
     }
     if user.home_region_id:
         initial_values[USER_FORM_HOME_REGION] = {
@@ -60,10 +69,10 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
     form.set_initial_values(initial_values)
 
     if os.getenv("STATS_URL") is None:
-        form.blocks.pop(2)
+        form.blocks.pop(3)
     else:
         stats_url = f"{os.getenv('STATS_URL')}/stats/pax/{user.id}"
-        form.blocks[2].elements[0].url = stats_url
+        form.blocks[3].elements[0].url = stats_url
 
     if safe_get(body, actions.LOADING_ID):
         form.update_modal(
@@ -87,23 +96,34 @@ def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dic
     slack_user: SlackUser = get_user(
         safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
     )
+    if slack_user.user_id:
+        user = DbManager.get(User, slack_user.user_id)
+        if user:
+            metadata = user.meta or {}
+            metadata[USER_EMERGENCY_INFO_SHARING] = "enabled" in form_data.get(USER_EMERGENCY_INFO_SHARING, [])
+            metadata[USER_META_START_DATE] = safe_get(form_data, USER_FORM_START_DATE)
+            update_fields = {
+                User.f3_name: safe_get(form_data, USER_FORM_USERNAME),
+                User.home_region_id: safe_get(form_data, USER_FORM_HOME_REGION),
+                User.emergency_contact: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT),
+                User.emergency_phone: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT_PHONE),
+                User.emergency_notes: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT_NOTES),
+                User.meta: metadata,
+            }
 
-    update_fields = {
-        User.f3_name: safe_get(form_data, USER_FORM_USERNAME),
-        User.home_region_id: safe_get(form_data, USER_FORM_HOME_REGION),
-        User.emergency_contact: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT),
-        User.emergency_phone: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT_PHONE),
-        User.emergency_notes: safe_get(form_data, USER_FORM_EMERGENCY_CONTACT_NOTES),
-    }
+            file = safe_get(form_data, USER_FORM_IMAGE_UPLOAD, 0)
+            if file:
+                file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
+                    [file],
+                    client=client,
+                    logger=logger,
+                    bucket_name="user-avatars",
+                    file_name=str(slack_user.user_id),
+                    enforce_png=True,
+                )
+                update_fields[User.avatar_url] = file_list[0]
 
-    file = safe_get(form_data, USER_FORM_IMAGE_UPLOAD, 0)
-    if file:
-        file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
-            [file], client=client, logger=logger
-        )
-        update_fields[User.avatar_url] = file_list[0]
-
-    DbManager.update_record(User, slack_user.user_id, update_fields)
+            DbManager.update_record(User, slack_user.user_id, update_fields)
 
 
 FORM = BlockView(
@@ -121,6 +141,13 @@ FORM = BlockView(
             element=ExternalSelectElement(placeholder="Select a new home region"),
             optional=False,
             hint="This is the region you will be associated with. You can change this at any time.",
+        ),
+        InputBlock(
+            label="Start Date Override",
+            action=USER_FORM_START_DATE,
+            element=DatepickerElement(placeholder="Select your start date"),
+            optional=True,
+            hint="This only needs to be filled if you need to override your official start date for any reason.",
         ),
         ActionsBlock(
             elements=[
@@ -152,6 +179,19 @@ FORM = BlockView(
             optional=True,
         ),
         DividerBlock(),
+        HeaderBlock(label="Emergency Contact Information"),
+        InputBlock(
+            label="Enable Downrange Access?",
+            action=USER_EMERGENCY_INFO_SHARING,
+            element=CheckboxInputElement(
+                options=as_selector_options(
+                    names=["Enable"],
+                    values=["enabled"],
+                )
+            ),
+            optional=True,
+            hint="If enabled, users can search for your info from other Slack workspaces.",
+        ),
         InputBlock(
             label="Emergency Contact",
             action=USER_FORM_EMERGENCY_CONTACT,

@@ -274,24 +274,24 @@ def backblast_middleware(
                 ),
                 slack_orm.DividerBlock(),
             ]
-            blocks += [
-                slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
-                slack_orm.ActionsBlock(
-                    elements=[
-                        slack_orm.ButtonElement(
-                            label="New Unscheduled Event",
-                            action=actions.BACKBLAST_NEW_BLANK_BUTTON,
-                            confirm=slack_orm.ConfirmObject(
-                                title="Are you sure?",
-                                text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
-                                confirm="Yes, I'm sure",
-                                deny="Whups, never mind",
-                                style="danger",
-                            ),
+        blocks += [
+            slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="New Unscheduled Event",
+                        action=actions.BACKBLAST_NEW_BLANK_BUTTON,
+                        confirm=slack_orm.ConfirmObject(
+                            title="Are you sure?",
+                            text="This option should ONLY BE USED FOR UNSCHEDULED EVENTS that are not listed on the calendar. If this is for a normal, scheduled event, please select it from the lists above.",  # noqa
+                            confirm="Yes, I'm sure",
+                            deny="Whups, never mind",
+                            style="danger",
                         ),
-                    ]
-                ),
-            ]
+                    ),
+                ]
+            ),
+        ]
         form = slack_orm.BlockView(blocks=blocks)
         form.update_modal(
             client=client,
@@ -357,15 +357,17 @@ def build_backblast_form(
 
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     attendance_non_slack_users = []
+    is_paxminer_backblast = False
     if event_instance_id:
         event_record: EventInstance = DbManager.get(
             EventInstance, event_instance_id, joinedloads=[EventInstance.org, EventInstance.event_types]
         )
         event_metadata = event_record.meta or {}
         already_posted = event_record.backblast_ts is not None
+        already_saved = event_record.pax_count is not None
         attendance_records: List[Attendance] = DbManager.find_records(
             Attendance,
-            [Attendance.event_instance_id == event_instance_id, Attendance.is_planned != already_posted],
+            [Attendance.event_instance_id == event_instance_id, Attendance.is_planned != already_saved],
             joinedloads="all",
         )
         attendance_slack_dict = {
@@ -387,20 +389,37 @@ def build_backblast_form(
             if bool({t.id for t in r.attendance_types}.intersection([3])) and attendance_slack_dict[r]
         ]
         slack_pax_list = [attendance_slack_dict[r] for r in attendance_records if attendance_slack_dict[r]]
-        if action_id not in [
-            actions.BACKBLAST_FILL_SELECT,
-            actions.MSG_EVENT_BACKBLAST_BUTTON,
-            actions.PREBLAST_FILL_BACKBLAST_BUTTON,
-        ]:
-            moleskin_block = safe_get(body, "message", "blocks", 1)
-            moleskin_block = remove_keys_from_dict(moleskin_block, ["display_team_id", "display_url"])
+
+        if already_posted or event_record.backblast_rich or event_record.backblast:
+            if event_record.backblast_rich and len(event_record.backblast_rich) > 0:
+                moleskin_block = [
+                    block for block in event_record.backblast_rich if safe_get(block, "type") == "rich_text"
+                ][0]
+            elif event_record.backblast:
+                # this will happen when trying to edit a backblast from the old paxminer system
+                is_paxminer_backblast = True
+                moleskin_block = {
+                    "type": "rich_text",
+                    "elements": [
+                        {
+                            "type": "rich_text_section",
+                            "elements": [
+                                {
+                                    "type": "text",
+                                    "text": event_record.backblast,
+                                }
+                            ],
+                        }
+                    ],
+                }
+                # find moleskin block number and add hint to edit form about legacy backblast
+                for i, block in enumerate(backblast_form.blocks):
+                    if block.action == actions.BACKBLAST_MOLESKIN:
+                        backblast_form.blocks[
+                            i
+                        ].hint = ":warning: This backblast was created in paxminer. If resaving, we recommend deleting the header lines so they are not duplicated."  # noqa: E501
         else:
-            if already_posted:
-                print("Event already has backblast, loading existing rich block")
-                print(event_record.backblast_rich)
-                moleskin_block = [block for block in event_record.backblast_rich if block["type"] == "rich_text"][0]
-            else:
-                moleskin_block = None
+            moleskin_block = None
         initial_backblast_data = {
             actions.BACKBLAST_TITLE: event_record.name,
             actions.BACKBLAST_INFO: f"""
@@ -465,6 +484,9 @@ def build_backblast_form(
     event_type_options = slack_orm.as_selector_options(
         [r.name for r in org_event_types.event_types], [str(r.id) for r in org_event_types.event_types]
     )
+
+    if (current_date_cst() < (safe_get(event_record, "start_date") or current_date_cst())) or is_paxminer_backblast:
+        initial_backblast_data[actions.BACKBLAST_SEND_OPTIONS] = "Save and send later"
 
     backblast_form.set_options({actions.BACKBLAST_EVENT_TYPE: event_type_options})
     backblast_form.set_initial_values(initial_backblast_data)
@@ -559,6 +581,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     count = safe_get(backblast_data, actions.BACKBLAST_COUNT)
     moleskin = safe_get(backblast_data, actions.BACKBLAST_MOLESKIN)
     email_send = safe_get(backblast_data, actions.BACKBLAST_EMAIL_SEND)
+    send_options = safe_get(backblast_data, actions.BACKBLAST_SEND_OPTIONS)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
     event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event_type
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
@@ -568,7 +591,11 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     user_id = safe_get(body, "user_id") or safe_get(body, "user", "id")
     if files:
         file_list, file_send_list, file_ids, low_rez_file_list = upload_files_to_storage(
-            files=files, logger=logger, client=client
+            files=files,
+            logger=logger,
+            client=client,
+            bucket_name="event_instance_images",
+            file_name=str(event_instance_id) if event_instance_id else None,
         )
     elif safe_get(metadata, actions.BACKBLAST_FILE, 0):
         file_list = safe_get(metadata, actions.BACKBLAST_FILE)
@@ -600,6 +627,13 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
 
     all_pax = list(set([the_q] + (the_coq or []) + pax))
     db_users: List[SlackUser] = [get_user(p, region_record, client, logger) for p in all_pax]
+    db_ids = []
+    db_users_deduped = []
+    for u in db_users:
+        if u.user_id not in db_ids:
+            db_users_deduped.append(u)
+            db_ids.append(u.user_id)
+    db_users = db_users_deduped
     auto_count = len(all_pax)
     pax_names_list = [user.user_name for user in db_users]
 
@@ -615,7 +649,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         )
         dr_pax_names = []
         for u in dr_pax_users:
-            db_users.append(SlackUser(user_id=u.id, slack_id=u.id, user_name=u.f3_name))
+            if u.id not in db_ids:
+                db_users.append(SlackUser(user_id=u.id, slack_id=u.id, user_name=u.f3_name))
+                db_ids.append(u.id)
             if u.home_region_org:
                 dr_pax_names.append(f"{u.f3_name} ({u.home_region_org.name})")
             else:
@@ -680,6 +716,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     msg_block = slack_orm.SectionBlock(label=post_msg)
 
     backblast_data.pop(actions.BACKBLAST_MOLESKIN, None)
+    backblast_data.pop(actions.BACKBLAST_PAX, None)
     backblast_data[actions.BACKBLAST_FILE] = file_list
     backblast_data[actions.BACKBLAST_FILE + "_low_rez"] = low_rez_file_list
     backblast_data["file_ids"] = file_ids
@@ -750,6 +787,56 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
         moleskin_text, region_record, client, logger
     )  # check this for efficiency
 
+    # Handle "Save and send later" option - save to DB but don't post to Slack
+    if create_or_edit == "create" and send_options == "Save and send later":
+        backblast_parsed = f"""Backblast! {title}
+Date: {the_date}
+AO: {event_org.name}
+Q: {q_name} {the_coqs_names}
+PAX: {pax_names}
+FNGs: {fngs_formatted}
+COUNT: {count}
+{moleskin_text_w_names}
+"""
+        db_fields = {
+            EventInstance.start_date: the_date,
+            EventInstance.org_id: event_org.id,
+            EventInstance.backblast_ts: None,  # Not posted yet
+            EventInstance.backblast: backblast_parsed,
+            EventInstance.backblast_rich: [msg_block.as_form_field(), moleskin],
+            EventInstance.name: title,
+            EventInstance.pax_count: count,
+            EventInstance.fng_count: fng_count,
+            EventInstance.meta: custom_fields,
+            EventInstance.is_active: True,
+        }
+        DbManager.update_record(EventInstance, event_instance_id, fields=db_fields)
+        DbManager.update_records(
+            EventType_x_EventInstance,
+            [EventType_x_EventInstance.event_instance_id == event_instance_id],
+            fields={EventType_x_EventInstance.event_type_id: event_type},
+        )
+
+        attendance_types = [2 if u.slack_id == the_q else 3 if u.slack_id in (the_coq or []) else 1 for u in db_users]
+        attendance_records = [
+            Attendance(
+                event_instance_id=event_instance_id,
+                user_id=user.user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=attendance_type)],
+                is_planned=False,
+            )
+            for user, attendance_type in zip(db_users, attendance_types, strict=False)
+        ]
+        DbManager.create_records(attendance_records)
+
+        # Notify user that backblast was saved but not posted
+        client.chat_postMessage(
+            channel=user_id,
+            text=f"Your backblast for *{title}* has been saved but not posted yet. "
+            f"To post it later, use the /backblast command and select the event from your recent Qs.",
+        )
+        return
+
     if create_or_edit == "create":
         text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]
         res = client.chat_postMessage(
@@ -799,16 +886,27 @@ COUNT: {count}
 
     elif create_or_edit == "edit":
         text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]
-        res = client.chat_update(
-            channel=message_channel,
-            ts=message_ts,
-            text=text,
-            username=f"{q_name} (via F3 Nation)",
-            icon_url=q_url,
-            blocks=blocks,
-            metadata={"event_type": "backblast", "event_payload": backblast_data},
-        )
-        logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
+        try:
+            res = client.chat_update(
+                channel=message_channel,
+                ts=message_ts,
+                text=text,
+                username=f"{q_name} (via F3 Nation)",
+                icon_url=q_url,
+                blocks=blocks,
+                metadata={"event_type": "backblast", "event_payload": backblast_data},
+            )
+            logger.debug("\nBackblast updated in Slack! \n{}".format(post_msg))
+        except Exception as e:
+            logger.warning(f"Error updating backblast message in Slack, posting a new one: {e}")
+            res = client.chat_postMessage(
+                channel=destination_channel,
+                text=text,
+                username=f"{q_name} (via F3 Nation)",
+                icon_url=q_url,
+                blocks=blocks,
+                metadata={"event_type": "backblast", "event_payload": backblast_data},
+            )
 
     # res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 
@@ -855,12 +953,6 @@ COUNT: {count}
         for user, attendance_type in zip(db_users, attendance_types, strict=False)
     ]
     DbManager.create_records(attendance_records)
-
-    # builders.update_submit_modal(
-    #     client=client,
-    #     logger=logger,
-    #     text="Your backblast has been saved and posted successfully!",
-    # )
 
 
 def handle_backblast_edit_button(

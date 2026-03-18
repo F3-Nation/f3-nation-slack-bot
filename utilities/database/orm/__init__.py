@@ -66,3 +66,4 @@ class SlackSettings:
     reporting_ao_monthly_summary_enabled: Optional[bool] = None
     automated_preblast_option: Optional[str] = None
     automated_preblast_hour_cst: Optional[int] = None
+    scheduled_preblast_hour_cst: Optional[int] = None

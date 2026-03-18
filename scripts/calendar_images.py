@@ -5,6 +5,7 @@ from typing import List
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import random
+import shutil
 from datetime import datetime, timedelta
 
 import boto3
@@ -21,6 +22,7 @@ from f3_data_models.models import (
     Org,
     Org_Type,
     Org_x_SlackSpace,
+    Series_Exception,
     SlackSpace,
     User,
 )
@@ -35,6 +37,8 @@ from sqlalchemy.orm import aliased, joinedload
 from utilities.constants import EVENT_TAG_COLORS, GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.helper_functions import current_date_cst, safe_get, update_local_region_records
 from utilities.slack import actions
+
+DB_SCHEMA = os.getenv("DATABASE_SCHEMA", "f3_staging")
 
 
 def time_int_to_str(time: int) -> str:
@@ -126,6 +130,7 @@ def generate_calendar_images(force: bool = False):
                 EventInstance.start_time,
                 EventInstance.updated.label("event_updated"),
                 EventInstance.pax_count,
+                EventInstance.series_exception,
                 EventTag.name.label("event_tag"),
                 EventTag.color.label("event_tag_color"),
                 EventType.name.label("event_type"),
@@ -191,6 +196,7 @@ def generate_calendar_images(force: bool = False):
                     # if "Open" in color_dict:
                     #     color_dict["OPEN!"] = color_dict.pop("Open")
                     color_dict["OPEN!"] = "Green"
+                    color_dict["CLOSED"] = "Closed"  # Dark gray for closed events
                     calendar_updated = False
 
                     for week in ["current", "next"]:
@@ -248,13 +254,17 @@ def generate_calendar_images(force: bool = False):
                                 + "\nPAX: "
                                 + df["pax_count"].astype(str).str.replace(".0", "")
                             )
+
+                            # Override label for closed events
+                            df.loc[df["series_exception"] == Series_Exception.closed, "label"] = "CLOSED"
+
                             df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
                             df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
                                 df["ao_name"] + "\n" + df["ao_description"]
                             )
                             df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
                             df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
-
+                            df.to_csv(f"debug_{region_name}_{week}.csv", index=False)
                             # Combine cells for days / AOs with more than one event
                             df.sort_values(["ao_name", "event_date", "event_time"], ignore_index=True, inplace=True)
                             prior_date = ""
@@ -297,6 +307,13 @@ def generate_calendar_images(force: bool = False):
                             df2.drop(["AO\nLocation2"], axis=1, inplace=True)
                             df2.reset_index(inplace=True, drop=True)
 
+                            # Add timestamp footer row
+                            now_cst = datetime.now(pytz.timezone("US/Central"))
+                            timestamp_str = f"Last updated at {now_cst.strftime('%m/%d %I:%M %p')} CST"
+                            footer_row = dict.fromkeys(df2.columns, "")
+                            footer_row["AO\nLocation"] = timestamp_str
+                            df2 = pd.concat([df2, pd.DataFrame([footer_row])], ignore_index=True)
+
                             # Set CSS properties for th elements in dataframe
                             th_props = [
                                 ("font-size", "15px"),
@@ -337,10 +354,15 @@ def generate_calendar_images(force: bool = False):
                             # create calendar image
                             random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
                             filename = f"{region_id}-{week}-{random_chars}.png"
+                            filename_static = f"{region_id}-{week}.png"
                             if LOCAL_DEVELOPMENT:
                                 dfi.export(df_styled, filename, table_conversion="playwright")
                             else:
                                 dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
+                                if DB_SCHEMA == "f3_prod":
+                                    shutil.copyfile(
+                                        f"/mnt/calendar-images/{filename}", f"/mnt/calendar-images/{filename_static}"
+                                    )
 
                             # upload to s3 and remove local file
                             slack_app_settings = region_org_record[2].settings
@@ -481,16 +503,14 @@ def create_special_events_blocks(slack_settings_dict: dict) -> blocks.Block:
                 EventInstance.org.has(Org.parent_id == slack_settings_dict.get("org_id")),
             ),
             EventInstance.start_date >= current_date_cst(),
-            EventInstance.start_date
-            <= current_date_cst() + timedelta(days=slack_settings_dict.get("special_events_post_days") or 60),
             EventInstance.is_active,
             EventInstance.highlight,
         ],
         joinedloads=[EventInstance.org],
     )
+    # limit to 10 upcoming events
+    special_events = sorted(special_events, key=lambda x: (x.start_date, x.start_time))[:10]
     if len(special_events) > 0:
-        # order by date and time
-        special_events.sort(key=lambda x: (x.start_date, x.start_time))
         blocks_list.append(blocks.HeaderBlock(text=":tada: Special Events:"))
         msg = create_special_events_text(special_events, slack_settings_dict)
         blocks_list.append(blocks.SectionBlock(text=blocks.MarkdownTextObject(text=msg)))

@@ -611,14 +611,14 @@ colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
 name = "cloud-sql-python-connector"
-version = "1.15.0"
-description = "The Cloud SQL Python Connector is a library that can be used alongside a database driver to allow users with sufficient permissions to connect to a Cloud SQL database without having to manually allowlist IPs or manage SSL certificates."
+version = "1.20.0"
+description = "Google Cloud SQL Python Connector library"
 optional = false
 python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "cloud_sql_python_connector-1.15.0-py2.py3-none-any.whl", hash = "sha256:909184ae83cd927b968778392d8948bb8981f9521ce61ddd6505b93f9efd77e8"},
-    {file = "cloud_sql_python_connector-1.15.0.tar.gz", hash = "sha256:e8f4a44d1d66c186997b445a8beeef6c20143950d4a6743e8a535afca19df64a"},
+    {file = "cloud_sql_python_connector-1.20.0-py3-none-any.whl", hash = "sha256:aa7c30631c5f455d14d561d7b0b414a97652a1b582a301f5570ba2cea2aa9105"},
+    {file = "cloud_sql_python_connector-1.20.0.tar.gz", hash = "sha256:fdd96153b950040b0252453115604c142922b72cf3636146165a648ac5f6fc30"},
 ]
 
 [package.dependencies]
@@ -1047,6 +1047,25 @@ trio = ["trio (>=0.23)"]
 wmi = ["wmi (>=1.5.1)"]
 
 [[package]]
+name = "ecdsa"
+version = "0.19.1"
+description = "ECDSA cryptographic signature library (pure python)"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,!=3.5.*,>=2.6"
+groups = ["main"]
+files = [
+    {file = "ecdsa-0.19.1-py2.py3-none-any.whl", hash = "sha256:30638e27cf77b7e15c4c4cc1973720149e1033827cfd00661ca5c8cc0cdb24c3"},
+    {file = "ecdsa-0.19.1.tar.gz", hash = "sha256:478cba7b62555866fcb3bb3fe985e06decbdb68ef55713c4e5ab98c57d508e61"},
+]
+
+[package.dependencies]
+six = ">=1.9.0"
+
+[package.extras]
+gmpy = ["gmpy"]
+gmpy2 = ["gmpy2"]
+
+[[package]]
 name = "executing"
 version = "2.2.1"
 description = "Get the currently executing AST node of a frame, and other information"
@@ -1063,18 +1082,20 @@ tests = ["asttokens (>=2.1.0)", "coverage", "coverage-enable-subprocess", "ipyth
 
 [[package]]
 name = "f3-data-models"
-version = "0.9.0"
+version = "1.0.8"
 description = "The data schema and models for F3 Nation applications."
 optional = false
 python-versions = "<4.0,>=3.12"
 groups = ["main"]
 files = [
-    {file = "f3_data_models-0.9.0-py3-none-any.whl", hash = "sha256:14f3949ac7c797ab893a010068edd440a5cc40dadbf475140a0bbbf1eab5b689"},
-    {file = "f3_data_models-0.9.0.tar.gz", hash = "sha256:a9d5bede8a1be4506fbb497b3cd06b1e887d8594aa48e4252cd91fc2708d7d34"},
+    {file = "f3_data_models-1.0.8-py3-none-any.whl", hash = "sha256:905207866eba839b80fbaeb636fd925fde40d2a8a32c000cff8bb53700c1b092"},
+    {file = "f3_data_models-1.0.8.tar.gz", hash = "sha256:ac9bce595bfe44164f7548a8df6f83924da8efe5b124c757b6660dab3dc4eaea"},
 ]
 
 [package.dependencies]
 alembic-postgresql-enum = ">=1.6.1,<2.0.0"
+cloud-sql-python-connector = ">=1.20.0,<2.0.0"
+pg8000 = ">=1.31.5,<2.0.0"
 psycopg2-binary = ">=2.9.10,<3.0.0"
 sqlalchemy = ">=2.0.36,<3.0.0"
 sqlalchemy-citext = ">=1.8.0,<2.0.0"
@@ -3086,14 +3107,14 @@ ptyprocess = ">=0.5"
 
 [[package]]
 name = "pg8000"
-version = "1.31.2"
+version = "1.31.5"
 description = "PostgreSQL interface library"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pg8000-1.31.2-py3-none-any.whl", hash = "sha256:436c771ede71af4d4c22ba867a30add0bc5c942d7ab27fadbb6934a487ecc8f6"},
-    {file = "pg8000-1.31.2.tar.gz", hash = "sha256:1ea46cf09d8eca07fe7eaadefd7951e37bee7fabe675df164f1a572ffb300876"},
+    {file = "pg8000-1.31.5-py3-none-any.whl", hash = "sha256:0af2c1926b153307639868d2ee5cef6cd3a7d07448e12736989b10e1d491e201"},
+    {file = "pg8000-1.31.5.tar.gz", hash = "sha256:46ebb03be52b7a77c03c725c79da2ca281d6e8f59577ca66b17c9009618cae78"},
 ]
 
 [package.dependencies]
@@ -3942,6 +3963,18 @@ files = [
 cli = ["click (>=5.0)"]
 
 [[package]]
+name = "python-http-client"
+version = "3.3.7"
+description = "HTTP REST client, simplified for Python"
+optional = false
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+groups = ["main"]
+files = [
+    {file = "python_http_client-3.3.7-py3-none-any.whl", hash = "sha256:ad371d2bbedc6ea15c26179c6222a78bc9308d272435ddf1d5c84f068f249a36"},
+    {file = "python_http_client-3.3.7.tar.gz", hash = "sha256:bf841ee45262747e00dec7ee9971dfb8c7d83083f5713596488d67739170cea0"},
+]
+
+[[package]]
 name = "pytz"
 version = "2024.2"
 description = "World timezone definitions, modern and historical"
@@ -4384,6 +4417,23 @@ files = [
 
 [package.dependencies]
 asn1crypto = ">=1.5.1"
+
+[[package]]
+name = "sendgrid"
+version = "6.12.4"
+description = "Twilio SendGrid library for Python"
+optional = false
+python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
+groups = ["main"]
+files = [
+    {file = "sendgrid-6.12.4-py3-none-any.whl", hash = "sha256:9a211b96241e63bd5b9ed9afcc8608f4bcac426e4a319b3920ab877c8426e92c"},
+    {file = "sendgrid-6.12.4.tar.gz", hash = "sha256:9e88b849daf0fa4bdf256c3b5da9f5a3272402c0c2fd6b1928c9de440db0a03d"},
+]
+
+[package.dependencies]
+ecdsa = ">=0.19.1,<1"
+python-http-client = ">=3.2.1"
+werkzeug = {version = ">=2.3.5", markers = "python_version >= \"3.12\""}
 
 [[package]]
 name = "setuptools"
@@ -5366,4 +5416,4 @@ testing = ["coverage[toml]", "zope.event", "zope.testing"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "1c36a662609492a06076ae35c90665889a9092529ad3828f7e14630f0ca66927"
+content-hash = "22a57ee4b70abf7f36c7f09ca3da3815104a3694cdec13dfcb93e05b2255b958"

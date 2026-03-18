@@ -67,7 +67,7 @@ BACKBLAST_FORM = orm.BlockView(
             element=orm.MultiUsersSelectElement(placeholder="Select the PAX..."),
         ),
         orm.InputBlock(
-            label="Downrange PAX",
+            label="PAX not in this Slack space",
             action=actions.USER_OPTION_LOAD,
             optional=True,
             element=orm.MultiExternalSelectElement(placeholder="Type to search..."),
@@ -133,6 +133,17 @@ BACKBLAST_FORM = orm.BlockView(
             element=orm.RadioButtonsElement(
                 options=orm.as_selector_options(names=["Send Email", "Don't Send Email"], values=["yes", "no"]),
                 initial_value="yes",
+            ),
+        ),
+        orm.InputBlock(
+            label="When to post backblast?",
+            action=actions.BACKBLAST_SEND_OPTIONS,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["Send now", "Save and send later"],
+                ),
+                initial_value="Send now",
             ),
         ),
     ]
@@ -211,6 +222,10 @@ CONFIG_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":bust_in_silhouette: User Settings",
                     action=actions.CONFIG_USER_SETTINGS,
+                ),
+                orm.ButtonElement(
+                    label=":hospital: Emergency Info Access",
+                    action=actions.CONFIG_EMERGENCY_INFO,
                 ),
                 orm.ButtonElement(
                     label=":grey_question: Help Menu",
@@ -463,7 +478,14 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             action=actions.CONFIG_AUTOMATED_PREBLAST_TIME,
             optional=True,
             element=orm.TimepickerElement(),
-            hint="Automated preblasts will be sent this time the day before if one has not been posted by the Q already.",  # noqa
+            hint="Automated preblasts will be sent this time the day before if one has not been set by the Q.",  # noqa
+        ),
+        orm.InputBlock(
+            label="Scheduled Preblast Time (CST)",
+            action=actions.CONFIG_SCHEDULED_PREBLAST_TIME,
+            optional=True,
+            element=orm.TimepickerElement(),
+            hint="Scheduled preblasts will be sent this time the day before when Q has set a preblast for 'send a day before'.",  # noqa
         ),
         orm.InputBlock(
             label="Backblast Reminder Count",
@@ -722,6 +744,10 @@ CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":bust_in_silhouette: User Settings",
                     action=actions.CONFIG_USER_SETTINGS,
+                ),
+                orm.ButtonElement(
+                    label=":hospital: Emergency Info Access",
+                    action=actions.CONFIG_EMERGENCY_INFO,
                 ),
                 orm.ButtonElement(
                     label=":grey_question: Help Menu",

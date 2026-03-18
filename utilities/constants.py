@@ -29,6 +29,7 @@ LOCAL_DEVELOPMENT = os.environ.get("LOCAL_DEVELOPMENT", "").lower() in ("1", "tr
 SOCKET_MODE = os.environ.get("SOCKET_MODE", "").lower() in ("1", "true", "yes")
 ENABLE_DEBUGGING = os.environ.get("ENABLE_DEBUGGING", "false").lower() == "true"
 ALL_USERS_ARE_ADMINS = os.environ.get("ALL_USERS_ARE_ADMINS", "false").lower() == "true"
+FILE_BUCKET_PREFIX = os.environ.get("FILE_BUCKET_PREFIX", "f3nation")
 
 SLACK_STATE_S3_BUCKET_NAME = "ENV_SLACK_STATE_S3_BUCKET_NAME"
 SLACK_INSTALLATION_S3_BUCKET_NAME = "ENV_SLACK_INSTALLATION_S3_BUCKET_NAME"
@@ -159,6 +160,10 @@ INTERVAL_OPTIONS = {
     "names": ["Every", "Every Other", "Every Third", "Every Fourth", "Every Fifth"],
     "values": ["1", "2", "3", "4", "5"],
 }
+WEEK_INDEX_OPTIONS = {
+    "names": ["1st", "2nd", "3rd", "4th", "5th", "Last"],
+    "values": ["1", "2", "3", "4", "5", "0"],
+}
 
 ORG_TYPES = {
     "AO": 1,
@@ -173,6 +178,7 @@ GCP_IMAGE_URL = "https://storage.googleapis.com/{bucket}/{image_name}"
 # Define colors for event tags
 # first is background color, second is text color
 EVENT_TAG_COLORS = {
+    "Closed": ("#404040", "#888888"),  # Dark gray with muted text for closed events
     "Red": ("#FF0000", "#FFFFFF"),
     "Orange": ("#FFA500", "#FFFFFF"),
     "Yellow": ("#FFFF00", "#000000"),
