@@ -161,7 +161,7 @@ def build_lineup_blocks(org_events: List[PreblastItem], org: Org) -> List[dict]:
             label = f"*{event.event.start_date.strftime('%A, %m/%d')}*\n{event.event_type.name} {event.event.start_time}\n*OPEN!*"  # noqa
             # image_url = "https://www.publicdomainpictures.net/pictures/40000/t2/question-mark.jpg"
             accessory = ButtonElement(
-                label=":calendar: Sign Me Up!",
+                label=":calendar: Sign Up to Lead!",
                 action=f"{actions.LINEUP_SIGNUP_BUTTON}_{event.event.id}",
                 value=str(event.event.id),
                 style="primary",
