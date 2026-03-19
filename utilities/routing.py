@@ -194,6 +194,7 @@ ACTION_MAPPER = {
     actions.BACKBLAST_FILL_BUTTON: (backblast.build_backblast_form, True),
     actions.EVENT_PREBLAST_FILL_BUTTON: (event_preblast.handle_event_preblast_select, False),
     actions.EVENT_PREBLAST_NOQ_SELECT: (event_preblast.handle_event_preblast_select, False),
+    actions.PREBLAST_OVERFLOW_ACTION: (event_preblast.route_preblast_overflow_action, False),
     actions.SECRET_MENU_SEND_AUTO_PREBLASTS: (db_admin.handle_auto_preblast_send, False),
     actions.SECRET_MENU_REFRESH_CACHE: (db_admin.handle_refresh_cache, False),
     actions.CONFIG_EMERGENCY_INFO: (emergency.build_emergency_search_form, True),

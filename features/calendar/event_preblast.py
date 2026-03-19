@@ -19,8 +19,8 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
-from features import preblast_legacy
-from features.calendar import get_preblast_action_buttons
+from features import backblast, preblast_legacy
+from features.calendar import get_preblast_action_blocks
 from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
@@ -184,13 +184,22 @@ def build_event_preblast_select_form(
 
     form = orm.BlockView(blocks=blocks)
     update_view_id = safe_get(body, "view", "id") or safe_get(body, actions.LOADING_ID)
-    form.update_modal(
-        client=client,
-        view_id=update_view_id,
-        callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
-        title_text="Select Preblast",
-        submit_button_text="None",
-    )
+    if update_view_id:
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
+            title_text="Select Preblast",
+            submit_button_text="None",
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
+            title_text="Select Preblast",
+            submit_button_text="None",
+        )
 
 
 def handle_event_preblast_select(
@@ -496,9 +505,7 @@ def send_preblast(
     ]
     blocks = [
         *preblast_info.preblast_blocks,
-        orm.ActionsBlock(
-            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
-        ),
+        *get_preblast_action_blocks(has_q=len(q_list) > 0, event_instance_id=event_instance_id),
     ]
     if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
         blocks.insert(
@@ -714,6 +721,29 @@ def build_preblast_info(
     )
 
 
+def route_preblast_overflow_action(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    action_value: str = body["actions"][0]["selected_option"]["value"]
+    metadata = safe_get(body, "message", "metadata", "event_payload")
+    if action_value.startswith(actions.EVENT_PREBLAST_EDIT):
+        print("edit preblast action detected, routing to edit handler")
+        body["actions"][0]["action_id"] = action_value.split("_")[0]
+        metadata["event_instance_id"] = int(action_value.split("_")[-1])
+        body["message"]["metadata"] = {"event_payload": metadata}
+        handle_event_preblast_action(body, client, logger, context, region_record)
+    elif action_value.startswith(actions.PREBLAST_FILL_BACKBLAST_BUTTON):
+        print("fill preblast/backblast action detected, routing to edit handler")
+        body["actions"][0]["action_id"] = action_value.split("_")[0]
+        backblast.build_backblast_form(
+            body, client, logger, context, region_record, event_instance_id=int(action_value.split("_")[-1])
+        )
+    elif action_value == actions.NEW_PREBLAST_BUTTON:
+        print("new preblast action detected, routing to select form")
+        body["actions"][0]["action_id"] = action_value
+        preblast_middleware(body, client, logger, context, region_record)
+
+
 def handle_event_preblast_action(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
@@ -784,7 +814,9 @@ def handle_event_preblast_action(
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=get_preblast_action_buttons(has_q=True, event_instance_id=event_instance_id)),
+                *get_preblast_action_blocks(
+                    has_q=len(preblast_info.action_blocks) > 0, event_instance_id=event_instance_id
+                ),
             ]
             if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
                 blocks.insert(
@@ -856,8 +888,8 @@ def handle_event_preblast_action(
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": q_id_list,
             }
-            button_blocks = get_preblast_action_buttons(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
-            blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
+            button_blocks = get_preblast_action_blocks(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
+            blocks = [*preblast_info.preblast_blocks, *button_blocks]
             if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
                 blocks.insert(
                     -1,
