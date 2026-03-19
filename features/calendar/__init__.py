@@ -50,15 +50,10 @@ def get_preblast_action_blocks(has_q: bool = True, event_instance_id: int = None
             action="hc-un-hc-actions",
             elements=[
                 orm.ButtonElement(label=":hc: HC/Un-HC", action=actions.EVENT_PREBLAST_HC_UN_HC),
-            ],
-        ),
-        orm.ActionsBlock(
-            action="preblast-overflow-actions",
-            elements=[
                 orm.OverflowElement(
                     action=actions.PREBLAST_OVERFLOW_ACTION,
                     options=orm.as_selector_options(names=overflow_labels, values=overflow_values),
-                )
+                ),
             ],
         ),
         # orm.ButtonElement(label=":pencil: Edit Preblast", action=actions.EVENT_PREBLAST_EDIT, value="Edit Preblast"),
