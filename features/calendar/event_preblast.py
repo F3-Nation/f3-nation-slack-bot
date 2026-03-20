@@ -27,6 +27,7 @@ from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
     event_attendance_query,
     get_admin_users,
+    get_aoq_users,
 )
 from utilities.helper_functions import (
     current_date_cst,
@@ -726,20 +727,27 @@ def route_preblast_overflow_action(
 ):
     action_value: str = body["actions"][0]["selected_option"]["value"]
     metadata = safe_get(body, "message", "metadata", "event_payload")
+    event_instance_id = int(action_value.split("_")[-1])
+
     if action_value.startswith(actions.EVENT_PREBLAST_EDIT):
-        print("edit preblast action detected, routing to edit handler")
-        body["actions"][0]["action_id"] = action_value.split("_")[0]
-        metadata["event_instance_id"] = int(action_value.split("_")[-1])
-        body["message"]["metadata"] = {"event_payload": metadata}
-        handle_event_preblast_action(body, client, logger, context, region_record)
+        user_id = get_user(
+            safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
+        ).user_id
+        if constants.ALL_USERS_ARE_ADMINS or (user_id in (safe_get(metadata, "qs") or [])):
+            user_can_edit = True
+        else:
+            admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+            aoq_users = get_aoq_users(region_record.org_id)
+            user_can_edit = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
+        if user_can_edit:
+            body["actions"][0]["action_id"] = "Edit Preblast"
+            build_event_preblast_form(body, client, logger, context, region_record, event_instance_id)
     elif action_value.startswith(actions.PREBLAST_FILL_BACKBLAST_BUTTON):
-        print("fill preblast/backblast action detected, routing to edit handler")
         body["actions"][0]["action_id"] = action_value.split("_")[0]
         backblast.build_backblast_form(
             body, client, logger, context, region_record, event_instance_id=int(action_value.split("_")[-1])
         )
     elif action_value == actions.NEW_PREBLAST_BUTTON:
-        print("new preblast action detected, routing to select form")
         body["actions"][0]["action_id"] = action_value
         preblast_middleware(body, client, logger, context, region_record)
 
