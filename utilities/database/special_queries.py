@@ -22,7 +22,7 @@ from f3_data_models.models import (
     User,
 )
 from f3_data_models.utils import _joinedloads, get_session
-from sqlalchemy import and_, case, exists, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from utilities.constants import ALL_PERMISSIONS, PERMISSIONS
@@ -268,32 +268,34 @@ def event_instances_without_attendance_types(
     *,
     excluded_attendance_type_ids: list[int],
     event_filter: List[Any] = None,
+    limit: int = 20,
 ) -> List[EventInstance]:
     """
     Returns EventInstances where there are NO Attendance records with any of the given attendance type IDs.
     This includes events with zero Attendance rows.
     """
     with get_session() as session:
-        q_attendance_exists = (
-            select(1)
-            .select_from(Attendance)
+        # Subquery: find event_instance_ids that DO have the excluded attendance types
+        has_excluded_type = (
+            select(Attendance.event_instance_id.distinct().label("event_instance_id"))
             .join(
                 Attendance_x_AttendanceType,
                 Attendance_x_AttendanceType.attendance_id == Attendance.id,
             )
-            .where(
-                Attendance.event_instance_id == EventInstance.id,
-                Attendance_x_AttendanceType.attendance_type_id.in_(excluded_attendance_type_ids),
-            )
+            .where(Attendance_x_AttendanceType.attendance_type_id.in_(excluded_attendance_type_ids))
+            .alias("has_excluded_type")
         )
 
+        # Anti-join: keep only events NOT in that set
         query = (
             select(EventInstance)
+            .outerjoin(has_excluded_type, has_excluded_type.c.event_instance_id == EventInstance.id)
+            .filter(has_excluded_type.c.event_instance_id.is_(None))
             .filter(*(event_filter or []))
-            .filter(~exists(q_attendance_exists))
             .order_by(EventInstance.start_date, EventInstance.start_time)
+            .limit(limit)
+            .options(joinedload(EventInstance.org), joinedload(EventInstance.event_types))
         )
-        query = _joinedloads(EventInstance, query, "all")
         return session.scalars(query).unique().all()
 
 
