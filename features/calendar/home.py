@@ -194,8 +194,9 @@ def build_home_form(
         option_names: List[str] = []
         if event.event.start_date != active_date:
             active_date = event.event.start_date
-            blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
-            block_count += 1
+            blocks.append(orm.DividerBlock())
+            blocks.append(orm.HeaderBlock(label=f":calendar: {active_date.strftime('%A, %B %d')}"))
+            block_count += 2
         if event.event.series_exception == Series_Exception.closed:
             label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} - CLOSED :no_entry:"
             if user_is_admin:
