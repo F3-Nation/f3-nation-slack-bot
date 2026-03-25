@@ -727,7 +727,6 @@ def route_preblast_overflow_action(
 ):
     action_value: str = body["actions"][0]["selected_option"]["value"]
     metadata = safe_get(body, "message", "metadata", "event_payload")
-    event_instance_id = int(action_value.split("_")[-1])
 
     if action_value.startswith(actions.EVENT_PREBLAST_EDIT):
         user_id = get_user(
@@ -741,7 +740,9 @@ def route_preblast_overflow_action(
             user_can_edit = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
         if user_can_edit:
             body["actions"][0]["action_id"] = "Edit Preblast"
-            build_event_preblast_form(body, client, logger, context, region_record, event_instance_id)
+            build_event_preblast_form(
+                body, client, logger, context, region_record, event_instance_id=int(action_value.split("_")[-1])
+            )
     elif action_value.startswith(actions.PREBLAST_FILL_BACKBLAST_BUTTON):
         body["actions"][0]["action_id"] = action_value.split("_")[0]
         backblast.build_backblast_form(
