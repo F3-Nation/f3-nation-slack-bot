@@ -13,7 +13,6 @@ import pytz
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
-    AttendanceType,
     EventInstance,
     EventTag,
     EventTag_x_EventInstance,
@@ -31,8 +30,8 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager, get_session
 from slack_sdk import WebClient
 from slack_sdk.models import blocks
-from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import aliased
 
 from utilities.constants import EVENT_TAG_COLORS, GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.helper_functions import current_date_cst, safe_get, update_local_region_records
@@ -95,29 +94,35 @@ def generate_calendar_images(force: bool = False):
         firstq_subquery = (
             select(
                 Attendance.event_instance_id,
-                User.f3_name.label("q_name"),
+                Attendance.user_id,
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
             )
             .select_from(Attendance)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
-            .join(Attendance.user)
-            .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
+            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+            .filter(
+                Attendance_x_AttendanceType.attendance_type_id == 2,
+                EventInstance.start_date >= current_week_start,
+                EventInstance.start_date < next_week_end,
+            )
             .alias()
         )
 
         attendance_subquery = (
             select(
                 Attendance.event_instance_id,
-                func.max(
-                    case(
-                        (Attendance.attendance_types.any(AttendanceType.id == 2), Attendance.updated),
-                    )
-                ).label("q_last_updated"),
+                func.max(Attendance.updated).label("q_last_updated"),
             )
             .select_from(Attendance)
-            .options(joinedload(Attendance.attendance_types))
+            .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+            .filter(
+                Attendance_x_AttendanceType.attendance_type_id == 2,
+                EventInstance.start_date >= current_week_start,
+                EventInstance.start_date < next_week_end,
+            )
             .group_by(Attendance.event_instance_id)
             .alias()
         )
@@ -138,7 +143,7 @@ def generate_calendar_images(force: bool = False):
                 Org.name.label("ao_name"),
                 Org.description.label("ao_description"),
                 Org.parent_id.label("ao_parent_id"),
-                firstq_subquery.c.q_name,
+                User.f3_name.label("q_name"),
                 attendance_subquery.c.q_last_updated,
                 RegionOrg.name.label("region_name"),
                 RegionOrg.id.label("region_id"),
@@ -154,6 +159,7 @@ def generate_calendar_images(force: bool = False):
                 firstq_subquery,
                 and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
             )
+            .outerjoin(User, User.id == firstq_subquery.c.user_id)
             .outerjoin(attendance_subquery, EventInstance.id == attendance_subquery.c.event_instance_id)
             .filter(
                 (EventInstance.start_date >= current_week_start),
@@ -518,4 +524,4 @@ def create_special_events_blocks(slack_settings_dict: dict) -> blocks.Block:
 
 
 if __name__ == "__main__":
-    generate_calendar_images()
+    generate_calendar_images(force=True)

@@ -55,22 +55,13 @@ class PreblastList:
         firstq_subquery = (
             select(
                 Attendance.event_instance_id,
-                User.f3_name.label("q_name"),
-                SlackUser.slack_id,
-                User.avatar_url.label("q_avatar_url"),
+                Attendance.user_id,
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
             )
             .select_from(Attendance)
-            .join(User, Attendance.user_id == User.id)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
-            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
-            .join(Org, Org.id == EventInstance.org_id)
-            .join(ParentOrg, Org.parent_id == ParentOrg.id)
-            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
-            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
-            .join(SlackUser, and_(User.id == SlackUser.user_id, SlackUser.slack_team_id == SlackSpace.team_id))  # noqa
             .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
@@ -81,9 +72,9 @@ class PreblastList:
                 EventType,
                 Org,
                 ParentOrg,
-                firstq_subquery.c.q_name,
-                firstq_subquery.c.slack_id,
-                firstq_subquery.c.q_avatar_url,
+                User.f3_name.label("q_name"),
+                SlackUser.slack_id,
+                User.avatar_url.label("q_avatar_url"),
                 SlackSpace.settings,
             )
             .select_from(EventInstance)
@@ -91,13 +82,14 @@ class PreblastList:
             .join(EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id)
             .join(EventType, EventType.id == EventType_x_EventInstance.event_type_id)
             .join(ParentOrg, Org.parent_id == ParentOrg.id)
-            .join(
+            .outerjoin(
                 firstq_subquery,
                 and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
-                isouter=True,
             )
+            .outerjoin(User, User.id == firstq_subquery.c.user_id)
             .join(Org_x_SlackSpace, ParentOrg.id == Org_x_SlackSpace.org_id)
             .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
+            .outerjoin(SlackUser, and_(User.id == SlackUser.user_id, SlackUser.slack_team_id == SlackSpace.team_id))
             .filter(*filters)
             .order_by(ParentOrg.name, Org.name, EventInstance.start_time)
         )
