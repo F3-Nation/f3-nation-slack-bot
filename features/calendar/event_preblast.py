@@ -740,6 +740,7 @@ def route_preblast_overflow_action(
             user_can_edit = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
         if user_can_edit:
             body["actions"][0]["action_id"] = "Edit Preblast"
+            body["actions"][0]["value"] = "Edit Preblast"
             build_event_preblast_form(
                 body, client, logger, context, region_record, event_instance_id=int(action_value.split("_")[-1])
             )
