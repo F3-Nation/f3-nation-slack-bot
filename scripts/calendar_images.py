@@ -18,6 +18,7 @@ from f3_data_models.models import (
     EventTag_x_EventInstance,
     EventType,
     EventType_x_EventInstance,
+    Location,
     Org,
     Org_Type,
     Org_x_SlackSpace,
@@ -144,6 +145,9 @@ def generate_calendar_images(force: bool = False):
                 Org.description.label("ao_description"),
                 Org.parent_id.label("ao_parent_id"),
                 User.f3_name.label("q_name"),
+                Location.name.label("location_name"),
+                Location.description.label("location_description"),
+                Location.address_street.label("location_address_street"),
                 attendance_subquery.c.q_last_updated,
                 RegionOrg.name.label("region_name"),
                 RegionOrg.id.label("region_id"),
@@ -155,6 +159,7 @@ def generate_calendar_images(force: bool = False):
             .join(EventType, EventType_x_EventInstance.event_type_id == EventType.id)
             .join(Org, EventInstance.org_id == Org.id)
             .join(RegionOrg, RegionOrg.id == Org.parent_id)
+            .outerjoin(Location, EventInstance.location_id == Location.id)
             .outerjoin(
                 firstq_subquery,
                 and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
@@ -194,6 +199,7 @@ def generate_calendar_images(force: bool = False):
                     slack_app_settings: dict = region_org_record[2].settings
                     print(f"Running for {region_name}")
 
+                    group_by_ao = slack_app_settings.get("calendar_group_by_ao") is not False
                     color_dict = {
                         t.name: t.color
                         for t in event_tags
@@ -264,31 +270,54 @@ def generate_calendar_images(force: bool = False):
                             # Override label for closed events
                             df.loc[df["series_exception"] == Series_Exception.closed, "label"] = "CLOSED"
 
-                            df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
-                            df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
-                                df["ao_name"] + "\n" + df["ao_description"]
-                            )
-                            df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
+                            if group_by_ao:
+                                df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
+                                df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
+                                    df["ao_name"] + "\n" + df["ao_description"]
+                                )
+                                row_key_col = "AO\nLocation"
+                                value_col = "label"
+                                sort_key_col = "ao_name"
+                            else:
+                                # Create a readable location label similar to `get_location_display_name`.
+                                location_name = df["location_name"].fillna("")
+                                location_description = df["location_description"].fillna("")
+                                location_address_street = df["location_address_street"].fillna("")
+
+                                df.loc[:, "Location"] = location_name
+                                desc_mask = (df["Location"] == "") & (location_description != "")
+                                df.loc[desc_mask, "Location"] = location_description[desc_mask].str[:30]
+                                street_mask = (df["Location"] == "") & (location_address_street != "")
+                                df.loc[street_mask, "Location"] = location_address_street[street_mask].str[:30]
+                                df.loc[df["Location"] == "", "Location"] = "Unnamed Location"
+
+                                # Include AO name in the cell now that the row header is the location.
+                                df.loc[:, "cell_label"] = df["ao_name"] + "\n" + df["label"]
+                                row_key_col = "Location"
+                                value_col = "cell_label"
+                                sort_key_col = "Location"
+
                             df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
                             df.to_csv(f"debug_{region_name}_{week}.csv", index=False)
-                            # Combine cells for days / AOs with more than one event
-                            df.sort_values(["ao_name", "event_date", "event_time"], ignore_index=True, inplace=True)
+
+                            # Combine cells for days within the chosen grouping (AO vs location).
+                            df.sort_values([sort_key_col, "event_date", "event_time"], ignore_index=True, inplace=True)
                             prior_date = ""
                             prior_label = ""
-                            prior_ao = ""
+                            prior_group_key = ""
                             include_list = []
                             for i in range(len(df)):
                                 row2 = df.loc[i]
-                                if (row2["event_date_fmt"] == prior_date) & (row2["ao_name"] == prior_ao):
-                                    df.loc[i, "label"] = prior_label + "\n" + df.loc[i, "label"]
-                                    prior_label = df.loc[i, "label"]
+                                if (row2["event_date_fmt"] == prior_date) & (row2[sort_key_col] == prior_group_key):
+                                    df.loc[i, value_col] = prior_label + "\n" + df.loc[i, value_col]
+                                    prior_label = df.loc[i, value_col]
                                     include_list.append(False)
                                 else:
                                     if prior_label != "":
                                         include_list.append(True)
                                     prior_date = row2["event_date_fmt"]
-                                    prior_ao = row2["ao_name"]
-                                    prior_label = row2["label"]
+                                    prior_group_key = row2[sort_key_col]
+                                    prior_label = row2[value_col]
 
                             include_list.append(True)
 
@@ -297,9 +326,9 @@ def generate_calendar_images(force: bool = False):
 
                             # Reshape to wide format by date
                             df2 = df.pivot(
-                                index="AO\nLocation",
+                                index=row_key_col,
                                 columns=["event_day_of_week", "event_date_fmt"],
-                                values="label",
+                                values=value_col,
                             ).fillna("")
 
                             # Sort and enforce word wrap on labels
@@ -308,16 +337,17 @@ def generate_calendar_images(force: bool = False):
                             df2.reset_index(inplace=True)
 
                             # Take out "The " for sorting
-                            df2["AO\nLocation2"] = df2["AO\nLocation"].str.replace("The ", "")
-                            df2.sort_values(by=["AO\nLocation2"], axis=0, inplace=True)
-                            df2.drop(["AO\nLocation2"], axis=1, inplace=True)
+                            grouping_sort_col = f"{row_key_col}2"
+                            df2[grouping_sort_col] = df2[row_key_col].str.replace("The ", "")
+                            df2.sort_values(by=[grouping_sort_col], axis=0, inplace=True)
+                            df2.drop([grouping_sort_col], axis=1, inplace=True)
                             df2.reset_index(inplace=True, drop=True)
 
                             # Add timestamp footer row
                             now_cst = datetime.now(pytz.timezone("US/Central"))
                             timestamp_str = f"Last updated at {now_cst.strftime('%m/%d %I:%M %p')} CST"
                             footer_row = dict.fromkeys(df2.columns, "")
-                            footer_row["AO\nLocation"] = timestamp_str
+                            footer_row[row_key_col] = timestamp_str
                             df2 = pd.concat([df2, pd.DataFrame([footer_row])], ignore_index=True)
 
                             # Set CSS properties for th elements in dataframe
