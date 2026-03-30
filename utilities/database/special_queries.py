@@ -275,22 +275,25 @@ def event_instances_without_attendance_types(
     This includes events with zero Attendance rows.
     """
     with get_session() as session:
-        # Subquery: find event_instance_ids that DO have the excluded attendance types
+        # Correlated subquery: TRUE if the event has any of the excluded attendance types
         has_excluded_type = (
-            select(Attendance.event_instance_id.distinct().label("event_instance_id"))
+            select(Attendance.id)
             .join(
                 Attendance_x_AttendanceType,
                 Attendance_x_AttendanceType.attendance_id == Attendance.id,
             )
-            .where(Attendance_x_AttendanceType.attendance_type_id.in_(excluded_attendance_type_ids))
-            .alias("has_excluded_type")
+            .where(
+                Attendance_x_AttendanceType.attendance_type_id.in_(excluded_attendance_type_ids),
+                Attendance.event_instance_id == EventInstance.id,
+            )
+            .correlate(EventInstance)
+            .exists()
         )
 
-        # Anti-join: keep only events NOT in that set
+        # NOT EXISTS: keep only events without those attendance types
         query = (
             select(EventInstance)
-            .outerjoin(has_excluded_type, has_excluded_type.c.event_instance_id == EventInstance.id)
-            .filter(has_excluded_type.c.event_instance_id.is_(None))
+            .filter(~has_excluded_type)
             .filter(*(event_filter or []))
             .order_by(EventInstance.start_date, EventInstance.start_time)
             .limit(limit)
