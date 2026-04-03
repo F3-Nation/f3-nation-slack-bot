@@ -289,7 +289,8 @@ def generate_calendar_images(force: bool = False):
                                 df.loc[desc_mask, "Location"] = location_description[desc_mask].str[:30]
                                 street_mask = (df["Location"] == "") & (location_address_street != "")
                                 df.loc[street_mask, "Location"] = location_address_street[street_mask].str[:30]
-                                df.loc[df["Location"] == "", "Location"] = "Unnamed Location"
+                                # Fallback to ao name if no location info is available
+                                df.loc[df["Location"] == "", "Location"] = df["ao_name"]
 
                                 # Include AO name in the cell now that the row header is the location.
                                 df.loc[:, "cell_label"] = df["ao_name"] + "\n" + df["label"]
