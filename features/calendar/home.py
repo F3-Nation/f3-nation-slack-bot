@@ -85,7 +85,7 @@ def build_home_form(
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
-    group_by_ao = region_record.calendar_group_by_ao is not False
+    group_by_option = region_record.calendar_group_by_option or "ao"
     ao_records = DbManager.find_records(
         Org, filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)]
     )
@@ -116,16 +116,16 @@ def build_home_form(
         orm.DividerBlock(),
         orm.SectionBlock(label="*Upcoming Schedule*"),
         orm.InputBlock(
-            label="Filter AOs" if group_by_ao else "Filter Locations",
+            label="Filter AOs" if group_by_option == "ao" else "Filter Locations",
             action=actions.CALENDAR_HOME_AO_FILTER,
             element=orm.MultiStaticSelectElement(
-                placeholder="Filter AOs" if group_by_ao else "Filter Locations",
+                placeholder="Filter AOs" if group_by_option == "ao" else "Filter Locations",
                 options=orm.as_selector_options(
                     names=[ao.name for ao in ao_records]
-                    if group_by_ao
+                    if group_by_option == "ao"
                     else [get_location_display_name(location) for location in location_records],
                     values=[str(ao.id) for ao in ao_records]
-                    if group_by_ao
+                    if group_by_option == "ao"
                     else [str(location.id) for location in location_records],
                 ),
             ),
@@ -183,7 +183,7 @@ def build_home_form(
         filter_org_ids = [region_record.org_id]
 
     filter = [EventInstance.start_date >= start_date, EventInstance.is_active]
-    if group_by_ao:
+    if group_by_option == "ao":
         filter.append(or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)))
     elif safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER):
         filter.append(EventInstance.location_id.in_(filter_org_ids))

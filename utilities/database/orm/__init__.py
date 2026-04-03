@@ -50,7 +50,7 @@ class SlackSettings:
     special_events_post_days: Optional[int] = None
     canvas_channel: Optional[str] = None
     paxminer_schema: Optional[str] = None
-    calendar_group_by_ao: Optional[bool] = None
+    calendar_group_by_option: Optional[str] = None
     send_q_lineups: Optional[bool] = None
     send_q_lineups_method: Optional[str] = None
     send_q_lineups_channel: Optional[str] = None

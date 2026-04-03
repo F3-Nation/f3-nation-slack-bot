@@ -199,7 +199,7 @@ def generate_calendar_images(force: bool = False):
                     slack_app_settings: dict = region_org_record[2].settings
                     print(f"Running for {region_name}")
 
-                    group_by_ao = slack_app_settings.get("calendar_group_by_ao") is not False
+                    group_by_option = slack_app_settings.get("calendar_group_by_option") or "ao"
                     color_dict = {
                         t.name: t.color
                         for t in event_tags
@@ -270,7 +270,7 @@ def generate_calendar_images(force: bool = False):
                             # Override label for closed events
                             df.loc[df["series_exception"] == Series_Exception.closed, "label"] = "CLOSED"
 
-                            if group_by_ao:
+                            if group_by_option == "ao":
                                 df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
                                 df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
                                     df["ao_name"] + "\n" + df["ao_description"]
