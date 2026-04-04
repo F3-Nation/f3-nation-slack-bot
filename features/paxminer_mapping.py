@@ -46,6 +46,37 @@ def get_paxminer_mapping_text(channel_id: str) -> str:
     return output + "\n".join(mapping_lines)
 
 
+def get_unmapped_channels_section(region_org_id: int) -> SectionBlock:
+    session = get_session()
+    query = (
+        session.query(EventInstance.meta.op("->>")("og_channel"), func.count(EventInstance.id))
+        .filter(
+            EventInstance.meta.op("->>")("source") == "paxminer_import",
+            EventInstance.is_active.is_(True),
+            EventInstance.org_id == region_org_id,
+        )
+        .group_by(EventInstance.meta.op("->>")("og_channel"))
+        .order_by(func.count(EventInstance.id).desc())
+    )
+    results = query.all()
+    session.close()
+    if not results:
+        return SectionBlock(
+            block_id="paxminer-unmapped-channels",
+            text="No unmapped data found",  # noqa: E501
+        )
+    unmapped_channels = []
+    for channel_id, count in results:
+        if channel_id:
+            unmapped_channels.append(f"<#{channel_id}> -> {count} Events")
+        else:
+            unmapped_channels.append(f"Unknown Channel -> {count} Events")
+    return SectionBlock(
+        block_id="paxminer-unmapped-channels",
+        text="*Unmapped Channels:*\n" + "\n".join(unmapped_channels),
+    )
+
+
 def build_paxminer_mapping_form(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
@@ -96,6 +127,7 @@ def build_paxminer_mapping_form(
     else:
         form = copy.deepcopy(PAXMINER_MAPPING_FORM)
         form.blocks = form.blocks[:2]  # only keep the channel select block
+        form.blocks.append(get_unmapped_channels_section(region_record.org_id))
         initial_channel = None
         update_view_id = None
 
