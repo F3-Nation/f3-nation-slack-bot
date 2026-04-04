@@ -16,6 +16,7 @@ CALENDAR_CONFIG_Q_LINEUP_METHOD = "calendar_config_q_lineup_method"
 CALENDAR_CONFIG_Q_LINEUP_CHANNEL = "calendar_config_q_lineup_channel"
 CALENDAR_CONFIG_Q_LINEUP_DAY = "calendar_config_q_lineup_day"
 CALENDAR_CONFIG_Q_LINEUP_TIME = "calendar_config_q_lineup_time"
+CALENDAR_CONFIG_GROUP_BY_OPTION = "calendar_config_group_by_option"
 
 
 def build_calendar_config_form(
@@ -42,6 +43,7 @@ def build_calendar_general_config_form(
     )
     form.set_initial_values(
         {
+            CALENDAR_CONFIG_GROUP_BY_OPTION: region_record.calendar_group_by_option or "ao",
             actions.CALENDAR_CONFIG_Q_LINEUP: "yes" if region_record.send_q_lineups else "no",
             CALENDAR_CONFIG_Q_LINEUP_METHOD: region_record.send_q_lineups_method or "yes_per_ao",
             CALENDAR_CONFIG_Q_LINEUP_CHANNEL: region_record.send_q_lineups_channel,
@@ -65,6 +67,7 @@ def handle_calendar_config_general(
 ):
     form = copy.deepcopy(CALENDAR_CONFIG_GENERAL_FORM)
     values = form.get_selected_values(body)
+    region_record.calendar_group_by_option = safe_get(values, CALENDAR_CONFIG_GROUP_BY_OPTION)
     region_record.send_q_lineups = safe_get(values, actions.CALENDAR_CONFIG_Q_LINEUP) == "yes"
     region_record.send_q_lineups_method = safe_get(values, CALENDAR_CONFIG_Q_LINEUP_METHOD)
     region_record.send_q_lineups_channel = safe_get(values, CALENDAR_CONFIG_Q_LINEUP_CHANNEL)
@@ -153,6 +156,19 @@ CALENDAR_CONFIG_GENERAL_FORM = orm.BlockView(
             action=CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL,
             element=orm.ChannelsSelectElement(placeholder="Select a channel"),
             optional=True,
+        ),
+        orm.InputBlock(
+            label="Group Calendar By Option",
+            action=CALENDAR_CONFIG_GROUP_BY_OPTION,
+            element=orm.RadioButtonsElement(
+                options=orm.as_selector_options(
+                    names=["AO", "Location"],
+                    values=["ao", "location"],
+                ),
+                initial_value="ao",
+            ),
+            optional=False,
+            hint="This setting controls how rows are grouped on calendar images.",
         ),
     ]
 )

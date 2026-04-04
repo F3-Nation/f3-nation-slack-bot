@@ -12,6 +12,7 @@ from f3_data_models.models import (
     Attendance_x_AttendanceType,
     EventInstance,
     EventType,
+    Location,
     Org,
     Org_Type,
     Series_Exception,
@@ -31,7 +32,15 @@ from utilities import constants
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, get_aoq_users, home_schedule_query
-from utilities.helper_functions import _parse_view_private_metadata, current_date_cst, get_user, safe_convert, safe_get
+from utilities.helper_functions import (
+    _parse_view_private_metadata,
+    current_date_cst,
+    get_location_display_name,
+    get_user,
+    safe_convert,
+    safe_get,
+    sort_by_name,
+)
 from utilities.slack import actions, orm
 
 
@@ -76,9 +85,18 @@ def build_home_form(
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
+    group_by_option = region_record.calendar_group_by_option or "ao"
     ao_records = DbManager.find_records(
         Org, filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)]
     )
+    location_records = DbManager.find_records(Location, [Location.org_id == region_record.org_id, Location.is_active])
+    location_records2 = DbManager.find_join_records2(
+        Location,
+        Org,
+        [Location.org_id == Org.id, Org.parent_id == region_record.org_id, Location.is_active],
+    )
+    location_records.extend(record[0] for record in location_records2)
+    location_records.sort(key=sort_by_name(get_location_display_name))
     event_type_records: List[EventType] = DbManager.find_records(
         EventType,
         filters=[or_(EventType.specific_org_id == region_record.org_id, EventType.specific_org_id.is_(None))],
@@ -98,13 +116,17 @@ def build_home_form(
         orm.DividerBlock(),
         orm.SectionBlock(label="*Upcoming Schedule*"),
         orm.InputBlock(
-            label="Filter AOs",
+            label="Filter AOs" if group_by_option == "ao" else "Filter Locations",
             action=actions.CALENDAR_HOME_AO_FILTER,
             element=orm.MultiStaticSelectElement(
-                placeholder="Filter AOs",
+                placeholder="Filter AOs" if group_by_option == "ao" else "Filter Locations",
                 options=orm.as_selector_options(
-                    names=[ao.name for ao in ao_records],
-                    values=[str(ao.id) for ao in ao_records],
+                    names=[ao.name for ao in ao_records]
+                    if group_by_option == "ao"
+                    else [get_location_display_name(location) for location in location_records],
+                    values=[str(ao.id) for ao in ao_records]
+                    if group_by_option == "ao"
+                    else [str(location.id) for location in location_records],
                 ),
             ),
             dispatch_action=True,
@@ -160,11 +182,11 @@ def build_home_form(
     else:
         filter_org_ids = [region_record.org_id]
 
-    filter = [
-        or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)),
-        EventInstance.start_date >= start_date,
-        EventInstance.is_active,
-    ]
+    filter = [EventInstance.start_date >= start_date, EventInstance.is_active]
+    if group_by_option == "ao":
+        filter.append(or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)))
+    elif safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER):
+        filter.append(EventInstance.location_id.in_(filter_org_ids))
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER):
         event_type_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER)]
