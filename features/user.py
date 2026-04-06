@@ -74,21 +74,41 @@ def build_user_form(body: dict, client: WebClient, logger: Logger, context: dict
         stats_url = f"{os.getenv('STATS_URL')}/stats/pax/{user.id}"
         form.blocks[3].elements[0].url = stats_url
 
-    if safe_get(body, actions.LOADING_ID):
-        form.update_modal(
-            client=client,
-            view_id=safe_get(body, actions.LOADING_ID),
-            title_text="User Settings",
-            callback_id=USER_FORM_ID,
-        )
-    else:
-        form.post_modal(
-            client=client,
-            trigger_id=safe_get(body, "trigger_id"),
-            title_text="User Settings",
-            callback_id=USER_FORM_ID,
-            new_or_add="add",
-        )
+    try:
+        if safe_get(body, actions.LOADING_ID):
+            form.update_modal(
+                client=client,
+                view_id=safe_get(body, actions.LOADING_ID),
+                title_text="User Settings",
+                callback_id=USER_FORM_ID,
+            )
+        else:
+            form.post_modal(
+                client=client,
+                trigger_id=safe_get(body, "trigger_id"),
+                title_text="User Settings",
+                callback_id=USER_FORM_ID,
+                new_or_add="add",
+            )
+    except Exception as e:
+        # try loading again without the image block in case the issue is with loading the user's avatar
+        logger.error(f"Error posting user form: {e}, retrying without image block")
+        form.delete_block(USER_FORM_IMAGE)
+        if safe_get(body, actions.LOADING_ID):
+            form.update_modal(
+                client=client,
+                view_id=safe_get(body, actions.LOADING_ID),
+                title_text="User Settings",
+                callback_id=USER_FORM_ID,
+            )
+        else:
+            form.post_modal(
+                client=client,
+                trigger_id=safe_get(body, "trigger_id"),
+                title_text="User Settings",
+                callback_id=USER_FORM_ID,
+                new_or_add="add",
+            )
 
 
 def handle_user_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
