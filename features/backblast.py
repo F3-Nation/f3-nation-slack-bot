@@ -838,14 +838,20 @@ COUNT: {count}
 
     if create_or_edit == "create":
         text = (f"{moleskin_text_w_names}\n\nUse the 'New Backblast' button to create a new backblast")[:1500]
-        res = client.chat_postMessage(
-            channel=destination_channel,
-            text=text,
-            username=f"{q_name} (via F3 Nation)",
-            icon_url=q_url,
-            blocks=blocks,
-            metadata={"event_type": "backblast", "event_payload": backblast_data},
-        )
+        if destination_channel:
+            res = client.chat_postMessage(
+                channel=destination_channel,
+                text=text,
+                username=f"{q_name} (via F3 Nation)",
+                icon_url=q_url,
+                blocks=blocks,
+                metadata={"event_type": "backblast", "event_payload": backblast_data},
+            )
+        else:
+            res = client.chat_postMessage(
+                channel=user_id,
+                text="Your backblast has been saved to the database but a Slack channel has not been configured for your AO, so it cannot be posted to Slack. The Slack channel can be set by an admin in `/f3-nation-settings` -> Calendar Settings -> Manage AOs.",  # noqa: E501
+            )
         if (email_send and email_send == "yes") or (email_send is None and region_record.email_enabled == 1):
             moleskin_msg = moleskin_text_w_names
 
