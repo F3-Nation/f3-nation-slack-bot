@@ -722,16 +722,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     backblast_data[actions.BACKBLAST_OP] = user_id
     backblast_data["event_instance_id"] = event_instance_id
 
-    if event_instance_id:
-        DbManager.delete_records(
-            Attendance,
-            filters=[
-                Attendance.event_instance_id == event_instance_id,
-                not_(Attendance.is_planned),
-            ],
-        )
-        logger.debug("\nBackblast deleted from database! \n{}".format(post_msg))
-    else:
+    if not event_instance_id:
         event_instance = DbManager.create_record(EventInstance(start_date=the_date, org_id=event_org.id, name=title))
         event_instance_id = event_instance.id
         DbManager.create_record(
@@ -957,6 +948,11 @@ COUNT: {count}
         )
         for user, attendance_type in zip(db_users, attendance_types, strict=False)
     ]
+
+    DbManager.delete_records(
+        Attendance,
+        filters=[Attendance.event_instance_id == event_instance_id, not_(Attendance.is_planned)],
+    )
     DbManager.create_records(attendance_records)
 
 

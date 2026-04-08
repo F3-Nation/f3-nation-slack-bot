@@ -20,6 +20,7 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from features.backblast import build_backblast_form
 from features.calendar import event_instance, get_preblast_action_buttons
@@ -600,7 +601,11 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     elif action == "Take Q":
         attendance_record = DbManager.find_records(
             Attendance,
-            filters=[Attendance.event_instance_id == event_instance_id, Attendance.user_id == user_id],
+            filters=[
+                Attendance.event_instance_id == event_instance_id,
+                Attendance.user_id == user_id,
+                Attendance.is_planned,
+            ],
             joinedloads=[Attendance.attendance_x_attendance_types],
         )
         if attendance_record:
@@ -622,16 +627,22 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         update_post = True
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
     elif action == "HC":
-        DbManager.create_record(
-            Attendance(
-                event_instance_id=event_instance_id,
-                user_id=user_id,
-                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
-                is_planned=True,
+        try:
+            DbManager.create_record(
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=user_id,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
+                    is_planned=True,
+                )
             )
-        )
-        update_post = True
-        build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+            update_post = True
+            build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+        except IntegrityError as e:
+            logger.warning(
+                f"User {user_id} already has an attendance record for event instance {event_instance_id}, ignoring HC: {e}"  # noqa
+            )
+            update_post = False
     elif action == "Un-HC":
         DbManager.delete_records(
             cls=Attendance,
