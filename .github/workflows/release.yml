@@ -40,5 +40,5 @@ jobs:
           git config user.email "github-actions@github.com"
           git fetch origin main
           git checkout main
-          git merge prod --no-edit
+          git merge prod --no-edit -m "chore: sync prod to main [skip ci]"
           git push origin main
