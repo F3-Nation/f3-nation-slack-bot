@@ -178,16 +178,21 @@ def build_home_form(
         or datetime.datetime.now(tz=pytz.timezone("US/Central")).date()
     )
 
-    if safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or ["Default"] != ["Default"]:
-        filter_org_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER)]
-    else:
-        filter_org_ids = [region_record.org_id]
+    selected_group_filter_ids = [
+        v
+        for v in (safe_convert(x, int) for x in (safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or []))
+        if v is not None
+    ]
 
     filter = [EventInstance.start_date >= start_date, EventInstance.is_active]
     if group_by_option == "ao":
+        filter_org_ids = selected_group_filter_ids or [region_record.org_id]
         filter.append(or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)))
-    elif safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER):
-        filter.append(EventInstance.location_id.in_(filter_org_ids))
+    else:
+        # Keep location grouping constrained to this region and its child AOs.
+        filter.append(or_(EventInstance.org_id == region_record.org_id, Org.parent_id == region_record.org_id))
+        if selected_group_filter_ids:
+            filter.append(EventInstance.location_id.in_(selected_group_filter_ids))
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER):
         event_type_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER)]
