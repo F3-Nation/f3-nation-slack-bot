@@ -48,6 +48,7 @@ from sqlalchemy import or_
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
+    current_date_cst,
     get_user,
     safe_convert,
     safe_get,
@@ -219,6 +220,8 @@ class AchievementService:
         user_id: int,
         achievement_id: int,
         date_awarded: datetime,
+        award_year: Optional[int] = -1,
+        award_period: Optional[int] = -1,
     ) -> Achievement_x_User:
         """Tag a user with an achievement."""
         return DbManager.create_record(
@@ -226,6 +229,8 @@ class AchievementService:
                 user_id=user_id,
                 date_awarded=date_awarded,
                 achievement_id=achievement_id,
+                award_year=award_year,
+                award_period=award_period,
             )
         )
 
@@ -260,7 +265,8 @@ class AchievementViews:
             for a in achievements:
                 scope = "🌐 Global" if a.specific_org_id is None else "📍 Region"
                 mode = "Auto" if a.auto_award else "Manual"
-                achievement_lines.append(f"• {a.name} ({scope}, {mode})")
+                description = f": _{a.description}_" if a.description else ""
+                achievement_lines.append(f"• *{a.name}* ({scope}, {mode}){description}")
             achievement_list_text = "\n".join(achievement_lines)
         else:
             achievement_list_text = "_No achievements configured_"
@@ -963,29 +969,64 @@ def handle_tag_achievement(body: dict, client: WebClient, logger: Logger, contex
     achievement_info = service.get_achievement(achievement_id)
     achievement_name = achievement_info.name
 
-    # Get all achievements for the year
-    pax_awards = service.get_user_achievements_for_year(achievement_pax_list, achievement_date.year)
-
-    pax_awards_total = {}
-    pax_awards_this_achievement = {}
-    for pax in achievement_pax_list:
-        pax_awards_total[pax] = 0
-        pax_awards_this_achievement[pax] = 0
-    for award in pax_awards:
-        pax_awards_total[award.user_id] += 1
-        if award.achievement_id == achievement_id:
-            pax_awards_this_achievement[award.user_id] += 1
+    # Figure out which period this achievement falls into for the year (week, month, quarter, etc.) based on the achievement date # noqa
+    achievement_year = achievement_date.year
+    achievement_period = None
+    if achievement_info.auto_cadence == Achievement_Cadence.weekly:
+        achievement_period = achievement_date.isocalendar()[1]  # Week number
+    elif achievement_info.auto_cadence == Achievement_Cadence.monthly:
+        achievement_period = achievement_date.month
+    elif achievement_info.auto_cadence == Achievement_Cadence.quarterly:
+        achievement_period = (achievement_date.month - 1) // 3 + 1
+    elif achievement_info.auto_cadence == Achievement_Cadence.yearly:
+        achievement_period = 1  # All achievements in the same year fall into the same period
+    elif achievement_info.auto_cadence == Achievement_Cadence.lifetime:
+        achievement_period = 1  # Lifetime achievements don't have periods, but we can set it to 1 for consistency
 
     for pax in achievement_slack_user_list:
-        msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}*!"
-        msg += f" This is achievement #{pax_awards_total[pax.user_id] + 1} for him this year"
-        if pax_awards_this_achievement[pax.user_id] > 0:
-            msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} times this year for this achievement."
-        else:
-            msg += "."
-        client.chat_postMessage(channel=region_record.achievement_channel, text=msg)
         service.tag_achievement(
             user_id=pax.user_id,
             achievement_id=achievement_id,
-            date_awarded=achievement_date,
+            date_awarded=current_date_cst(),
+            award_year=achievement_year,
+            award_period=achievement_period,
         )
+
+    if region_record.send_achievements:
+        # Get all achievements for the year
+        pax_awards = service.get_user_achievements_for_year(achievement_pax_list, achievement_date.year)
+
+        pax_awards_total = {}
+        pax_awards_this_achievement = {}
+        for pax in achievement_pax_list:
+            pax_awards_total[pax] = 0
+            pax_awards_this_achievement[pax] = 0
+        for award in pax_awards:
+            pax_awards_total[award.user_id] += 1
+            if award.achievement_id == achievement_id:
+                pax_awards_this_achievement[award.user_id] += 1
+
+        if region_record.achievement_channel and region_record.achievement_send_option == "post_individually":
+            for pax in achievement_slack_user_list:
+                msg = f"Congrats to our man <@{pax.slack_id}>! He has achieved *{achievement_name}*!"
+                msg += f" This is achievement #{pax_awards_total[pax.user_id] + 1} for him this year"
+                if pax_awards_this_achievement[pax.user_id] > 0:
+                    msg += f" and #{pax_awards_this_achievement[pax.user_id] + 1} times this year for this achievement."
+                else:
+                    msg += "."
+                client.chat_postMessage(channel=region_record.achievement_channel, text=msg)
+        elif region_record.achievement_channel and region_record.achievement_send_option == "post_summary":
+            summary_lines = []
+            for pax in achievement_slack_user_list:
+                line = f"<@{pax.slack_id}> earned *{achievement_name}*"
+                line += f" (Achievement #{pax_awards_total[pax.user_id] + 1} this year"
+                if pax_awards_this_achievement[pax.user_id] > 0:
+                    line += f", #{pax_awards_this_achievement[pax.user_id] + 1} times for this achievement this year"
+                line += ")"
+                summary_lines.append(line)
+            summary_text = "Congrats to these HIMs " + ", ".join(summary_lines) + "!"
+            client.chat_postMessage(channel=region_record.achievement_channel, text=summary_text)
+        elif region_record.achievement_send_option == "send_in_dms_only":
+            for pax in achievement_slack_user_list:
+                msg = f"Congrats <@{pax.slack_id}>! You've earned the *{achievement_name}* achievement!"
+                client.chat_postMessage(channel=pax.slack_id, text=msg)
