@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.0.3 (2026-04-10)
+
+### Bug Fixes
+
+- Fixed calendar list showing all regions' locations when group by location used
+  ([#189](https://github.com/F3-Nation/f3-nation-slack-bot/pull/189),
+  [`f8b69dc`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/f8b69dcc26520e93f5c863a5fa11198640cf418a))
+
+
 ## v1.0.2 (2026-04-08)
 
 ### Bug Fixes
