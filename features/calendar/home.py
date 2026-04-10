@@ -179,7 +179,9 @@ def build_home_form(
     )
 
     selected_group_filter_ids = [
-        int(x) for x in (safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or [])
+        v
+        for v in (safe_convert(x, int) for x in (safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER) or []))
+        if v is not None
     ]
 
     filter = [EventInstance.start_date >= start_date, EventInstance.is_active]
