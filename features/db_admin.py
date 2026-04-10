@@ -19,6 +19,7 @@ from utilities.database.orm import SlackSettings
 from utilities.database.paxminer_migration import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import (
+    MapUpdateData,
     current_date_cst,
     get_region_record,
     get_user,
@@ -240,7 +241,24 @@ def handle_trigger_map_revalidation(
     context: dict,
     region_record: SlackSettings,
 ):
-    trigger_map_revalidation()
+    action = "map.updated"
+    update_data = MapUpdateData(
+        eventId=42,
+    )
+    success = trigger_map_revalidation(
+        action=action,
+        map_update_data=update_data,
+    )
+    msg = "Map revalidation triggered successfully." if success else "Failed to trigger map revalidation."
+    form = copy.deepcopy(DB_ADMIN_FORM)
+    form.blocks.append(orm.SectionBlock(label=msg))
+    form.update_modal(
+        client=client,
+        view_id=safe_get(body, "view", "id"),
+        callback_id=actions.DB_ADMIN_CALLBACK_ID,
+        title_text="DB Admin",
+        submit_button_text="Send Announcement",
+    )
 
 
 def handle_make_org(
@@ -444,10 +462,10 @@ DB_ADMIN_FORM = orm.BlockView(
                 #     label="Backblast Reminders",
                 #     action=actions.SECRET_MENU_BACKBLAST_REMINDERS,
                 # ),
-                # orm.ButtonElement(
-                #     label="Trigger Map Revalidation",
-                #     action=actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION,
-                # ),
+                orm.ButtonElement(
+                    label="Trigger Map Revalidation",
+                    action=actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION,
+                ),
                 # orm.ButtonElement(
                 #     label="Refresh Slack Users",
                 #     action=actions.SECRET_MENU_REFRESH_SLACK_USERS,

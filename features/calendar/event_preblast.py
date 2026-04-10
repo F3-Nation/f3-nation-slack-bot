@@ -19,14 +19,15 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
-from features import preblast_legacy
-from features.calendar import get_preblast_action_buttons
+from features import backblast, preblast_legacy
+from features.calendar import get_preblast_action_blocks
 from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
     event_attendance_query,
     get_admin_users,
+    get_aoq_users,
 )
 from utilities.helper_functions import (
     current_date_cst,
@@ -184,13 +185,22 @@ def build_event_preblast_select_form(
 
     form = orm.BlockView(blocks=blocks)
     update_view_id = safe_get(body, "view", "id") or safe_get(body, actions.LOADING_ID)
-    form.update_modal(
-        client=client,
-        view_id=update_view_id,
-        callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
-        title_text="Select Preblast",
-        submit_button_text="None",
-    )
+    if update_view_id:
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
+            title_text="Select Preblast",
+            submit_button_text="None",
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            callback_id=actions.EVENT_PREBLAST_SELECT_CALLBACK_ID,
+            title_text="Select Preblast",
+            submit_button_text="None",
+        )
 
 
 def handle_event_preblast_select(
@@ -273,9 +283,10 @@ def build_event_preblast_form(
             }
         )
         # if start_date is more than 24 hours away, default to sending 24 hours before
+        print(record.start_date, current_date_cst(), (record.start_date - current_date_cst()).days, record.preblast_ts)  # noqa
         if (
             record.start_date > current_date_cst()
-            and (record.start_date - current_date_cst()).days >= 1
+            and (record.start_date - current_date_cst()).days > 1
             and not record.preblast_ts
         ):
             schedule_default = "Send a day before the event"
@@ -379,20 +390,10 @@ def handle_event_preblast_edit(
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     event_instance_id = safe_get(metadata, "event_instance_id")
 
-    if (
+    preblast_send = (
         form_data[actions.EVENT_PREBLAST_SEND_OPTIONS] == "Send now"
         or (safe_get(metadata, "preblast_ts") or "None") != "None"
-    ):
-        preblast_send = True
-        # forms.SUBMIT_FORM.update_modal(
-        #     client=client,
-        #     view_id=safe_get(body, "view", "id"),
-        #     callback_id="submit_form_waiting",
-        #     title_text="Submitting Preblast",
-        #     submit_button_text="None",
-        # )
-    else:
-        preblast_send = False
+    )
 
     update_fields = {
         EventInstance.name: form_data[actions.EVENT_PREBLAST_TITLE],
@@ -406,6 +407,13 @@ def handle_event_preblast_edit(
         ),
         EventInstance.start_time: safe_get(form_data, actions.EVENT_PREBLAST_START_TIME).replace(":", ""),
     }
+    if form_data[actions.EVENT_PREBLAST_IMAGE]:
+        event_instance_record: EventInstance = DbManager.get(EventInstance, event_instance_id)
+        event_instance_meta = event_instance_record.meta or {}
+        file_id = safe_get(form_data[actions.EVENT_PREBLAST_IMAGE], 0, "id")
+        event_instance_meta["preblast_image_slack_file_id"] = file_id
+        update_fields[EventInstance.meta] = event_instance_meta
+
     DbManager.update_record(EventInstance, event_instance_id, update_fields)
     DbManager.delete_records(
         cls=EventTag_x_EventInstance,
@@ -499,10 +507,16 @@ def send_preblast(
     ]
     blocks = [
         *preblast_info.preblast_blocks,
-        orm.ActionsBlock(
-            elements=get_preblast_action_buttons(has_q=len(q_list) > 0, event_instance_id=event_instance_id)
-        ),
+        *get_preblast_action_blocks(has_q=len(q_list) > 0, event_instance_id=event_instance_id),
     ]
+    if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
+        blocks.insert(
+            -1,
+            orm.ImageBlock(
+                slack_file_id=safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"),
+                alt_text="Preblast Image",
+            ),
+        )
     blocks = [b.as_form_field() for b in blocks]
     metadata = {
         "event_instance_id": event_instance_id,
@@ -709,6 +723,38 @@ def build_preblast_info(
     )
 
 
+def route_preblast_overflow_action(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    action_value: str = body["actions"][0]["selected_option"]["value"]
+    metadata = safe_get(body, "message", "metadata", "event_payload")
+
+    if action_value.startswith(actions.EVENT_PREBLAST_EDIT):
+        user_id = get_user(
+            safe_get(body, "user", "id") or safe_get(body, "user_id"), region_record, client, logger
+        ).user_id
+        if constants.ALL_USERS_ARE_ADMINS or (user_id in (safe_get(metadata, "qs") or [])):
+            user_can_edit = True
+        else:
+            admin_users = get_admin_users(region_record.org_id, slack_team_id=region_record.team_id)
+            aoq_users = get_aoq_users(region_record.org_id)
+            user_can_edit = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
+        if user_can_edit:
+            body["actions"][0]["action_id"] = "Edit Preblast"
+            body["actions"][0]["value"] = "Edit Preblast"
+            build_event_preblast_form(
+                body, client, logger, context, region_record, event_instance_id=int(action_value.split("_")[-1])
+            )
+    elif action_value.startswith(actions.PREBLAST_FILL_BACKBLAST_BUTTON):
+        body["actions"][0]["action_id"] = action_value.split("_")[0]
+        backblast.build_backblast_form(
+            body, client, logger, context, region_record, event_instance_id=int(action_value.split("_")[-1])
+        )
+    elif action_value == actions.NEW_PREBLAST_BUTTON:
+        body["actions"][0]["action_id"] = action_value
+        preblast_middleware(body, client, logger, context, region_record)
+
+
 def handle_event_preblast_action(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
@@ -779,8 +825,18 @@ def handle_event_preblast_action(
             preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
             blocks = [
                 *preblast_info.preblast_blocks,
-                orm.ActionsBlock(elements=get_preblast_action_buttons(has_q=True, event_instance_id=event_instance_id)),
+                *get_preblast_action_blocks(
+                    has_q=len(preblast_info.action_blocks) > 0, event_instance_id=event_instance_id
+                ),
             ]
+            if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
+                blocks.insert(
+                    -1,
+                    orm.ImageBlock(
+                        slack_file_id=safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"),
+                        alt_text="Preblast Image",
+                    ),
+                )
             blocks = [b.as_form_field() for b in blocks]
 
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
@@ -843,8 +899,16 @@ def handle_event_preblast_action(
                 "attendees": [r.user.id for r in preblast_info.attendance_records],
                 "qs": q_id_list,
             }
-            button_blocks = get_preblast_action_buttons(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
-            blocks = [*preblast_info.preblast_blocks, orm.ActionsBlock(elements=button_blocks)]
+            button_blocks = get_preblast_action_blocks(has_q=len(q_id_list) > 0, event_instance_id=event_instance_id)
+            blocks = [*preblast_info.preblast_blocks, *button_blocks]
+            if safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"):
+                blocks.insert(
+                    -1,
+                    orm.ImageBlock(
+                        slack_file_id=safe_get(preblast_info.event_record.meta, "preblast_image_slack_file_id"),
+                        alt_text="Preblast Image",
+                    ),
+                )
             q_name, q_url = get_user_names([slack_user_id], logger, client, return_urls=True)
             q_name = (q_name or [""])[0]
             q_url = q_url[0]
@@ -944,6 +1008,17 @@ EVENT_PREBLAST_FORM = orm.BlockView(
             action=actions.EVENT_PREBLAST_MOLESKINE_EDIT,
             element=orm.RichTextInputElement(placeholder="Give us an event preview!"),
             optional=False,
+        ),
+        orm.InputBlock(
+            label="Preblast Image",
+            action=actions.EVENT_PREBLAST_IMAGE,
+            element=orm.FileInputElement(
+                placeholder="Upload an image to be included in the preblast",
+                filetypes=["jpg", "jpeg", "png", "gif"],
+                max_files=1,
+            ),
+            optional=True,
+            hint="Missing images from iOS? HEICs are a pain, write Tim Cook and tell him to stop using proprietary formats that break everything",  # noqa
         ),
         orm.InputBlock(
             label="When to send preblast?",

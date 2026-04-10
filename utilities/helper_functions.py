@@ -1,6 +1,8 @@
+import dataclasses
 import json
 import os
 import re
+from dataclasses import dataclass
 from datetime import date, datetime
 from logging import Logger
 from typing import Any, Dict, List, Tuple
@@ -46,7 +48,54 @@ def get_location_display_name(location: Location) -> str:
         return "Unnamed Location"
 
 
-def trigger_map_revalidation():
+@dataclass
+class MapUpdateData:
+    eventId: int | None = None
+    locationId: int | None = None
+    orgId: int | None = None
+
+
+@dataclass
+class MapUpdate:
+    """
+    Sample payload:
+    {
+        "version": "1.0",
+        "timestamp": "2025-05-07T19:45:12Z",
+        "action": "map.updated", // OR map.created / map.deleted
+        "data": {
+            "eventId":   1123,   // may be null / omitted
+            "locationId": 987,   // may be null / omitted
+            "orgId":     null.   // may be null / omitted
+        } // likely in the future I will send the actual data here too (like new address)
+    }
+    """
+
+    version: str
+    timestamp: str
+    action: str
+    source: str
+    data: MapUpdateData
+
+
+def trigger_map_revalidation(action: str = None, map_update_data: MapUpdateData = None) -> bool:
+    if action and map_update_data:
+        update_info = MapUpdate(
+            version="1.0",
+            timestamp=datetime.now(pytz.utc).isoformat(),
+            action=action,
+            source="slackbot",
+            data=map_update_data,
+        )
+    else:
+        update_info = None
+
+    if not os.environ.get("MAP_REVALIDATION_URL"):
+        print(
+            f"Map revalidation URL not set. Would have sent: {dataclasses.asdict(update_info) if update_info else 'No data'}"  # noqa
+        )
+        return True
+
     try:
         response = requests.post(
             url=os.environ.get("MAP_REVALIDATION_URL"),
@@ -54,6 +103,7 @@ def trigger_map_revalidation():
                 "Content-Type": "application/json",
                 "x-api-key": os.environ.get("MAP_REVALIDATION_KEY"),
             },
+            data=json.dumps(dataclasses.asdict(update_info)) if update_info else None,
         )
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
@@ -665,7 +715,14 @@ def current_date_cst() -> date:
 
 
 def upload_files_to_storage(
-    files: List[Dict[str, str]], client: WebClient, logger: Logger, enforce_square: bool = False, max_height: int = None
+    files: List[Dict[str, str]],
+    client: WebClient,
+    logger: Logger,
+    enforce_square: bool = False,
+    max_height: int = None,
+    bucket_name: str = None,
+    file_name: str = None,
+    enforce_png: bool = False,
 ) -> Tuple[List[str], List[Dict[str, Any]], List[str], List[str]]:
     file_list = []
     file_send_list = []
@@ -673,13 +730,16 @@ def upload_files_to_storage(
     low_res_file_list = []
     from PIL import Image
 
+    bucket_name = bucket_name or "backblast-images"
+
     for file in files or []:
         try:
             r_full = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
             r_full.raise_for_status()
 
-            file_name = f"{file['id']}.{file['filetype']}"
-            file_path = f"/mnt/backblast-images/{file_name}"
+            file_id = file_name or file["id"]
+            current_file_name = f"{file_id}.{file['filetype']}"
+            file_path = f"/mnt/{bucket_name}/{current_file_name}"
             file_mimetype = file["mimetype"]
 
             # Determine the highest thumbnail size possible
@@ -697,17 +757,18 @@ def upload_files_to_storage(
                     headers={"Authorization": f"Bearer {client.token}"},
                     params={"width": constants.LOW_REZ_IMAGE_SIZE, "height": constants.LOW_REZ_IMAGE_SIZE},
                 )
-                file_name_low_res = f"{file['id']}_low_res.png"
-                file_path_low_res = f"/mnt/backblast-images/{file_name_low_res}"
+                file_name_low_res = f"{file_id}_low_res.png"
+                file_path_low_res = f"/mnt/{bucket_name}/{file_name_low_res}"
 
                 with open(file_path_low_res, "wb") as f:
                     f.write(r_low_res.content)
 
-                low_res_file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name_low_res}")
-            else:
-                low_res_file_list = []
+                low_res_file_list.append(
+                    f"https://storage.googleapis.com/{constants.FILE_BUCKET_PREFIX}/{bucket_name}/{file_name_low_res}"
+                )
 
-            if enforce_square or max_height:
+            change_to_png = enforce_png and file["filetype"] != "png"
+            if enforce_square or max_height or change_to_png:
                 img = None
                 if file_mimetype.startswith("image/"):
                     try:
@@ -729,17 +790,28 @@ def upload_files_to_storage(
                     if max_height is not None and img.height > max_height:
                         img = img.resize((max_height, max_height), Image.LANCZOS)
                     # Save the possibly modified image
-                    img_format = "PNG" if file["filetype"] == "heic" else img.format
+                    img_format = "PNG" if file["filetype"] == "heic" or change_to_png else img.format
+                    if img_format == "PNG" and not current_file_name.endswith(".png"):
+                        old_path = file_path
+                        current_file_name = f"{file_id}.png"
+                        file_path = f"/mnt/{bucket_name}/{current_file_name}"
+                        file_mimetype = "image/png"
+                    else:
+                        old_path = None
                     img.save(file_path, format=img_format, quality=95, optimize=True)
+                    if old_path and old_path != file_path:
+                        os.remove(old_path)
 
                 # TODO: if LOCAL_DEVELOPMENT, upload to google storage
 
-            file_list.append(f"https://storage.googleapis.com/backblast-images/{file_name}")
+            file_list.append(
+                f"https://storage.googleapis.com/{constants.FILE_BUCKET_PREFIX}/{bucket_name}/{current_file_name}"
+            )
             file_send_list.append(
                 {
                     "filepath": file_path,
                     "meta": {
-                        "filename": file_name,
+                        "filename": current_file_name,
                         "maintype": file_mimetype.split("/")[0],
                         "subtype": file_mimetype.split("/")[1],
                     },
@@ -749,6 +821,15 @@ def upload_files_to_storage(
             logger.error(f"Error uploading file: {e}")
 
     return file_list, file_send_list, file_ids, low_res_file_list
+
+
+def highest_resolution_thumb(file: Dict[str, Any]) -> str:
+    thumb_sizes = [64, 80, 160, 360, 480, 720, 800, 960, 1024]
+    available_thumbs = [size for size in thumb_sizes if f"thumb_{size}" in file]
+    if not available_thumbs:
+        return None
+    thumb_size = max(available_thumbs)
+    return file[f"thumb_{thumb_size}"]
 
 
 def upload_files_to_s3(
@@ -866,6 +947,7 @@ def get_user_names_legacy(
     else:
         return names
 
+
 # Helper function to sort by name, ignoring any prefixes we might want to ignore
 # Example: The Name, should just be sorted as Name
 def sort_by_name(extractor):
@@ -878,10 +960,9 @@ def sort_by_name(extractor):
 
         for p in prefixes:
             if folded.startswith(p):
-                folded = folded[len(p):]
+                folded = folded[len(p) :]
                 break
 
         return folded
 
     return key
-

@@ -120,6 +120,9 @@ def build_config_general_form(
             actions.CONFIG_AUTOMATED_PREBLAST_TIME: f"{str(region_record.automated_preblast_hour_cst).zfill(2)}:00"
             if region_record.automated_preblast_hour_cst is not None
             else "12:00",
+            actions.CONFIG_SCHEDULED_PREBLAST_TIME: f"{str(region_record.scheduled_preblast_hour_cst).zfill(2)}:00"
+            if region_record.scheduled_preblast_hour_cst is not None
+            else "12:00",
         }
     )
 
@@ -189,6 +192,9 @@ def handle_config_general_post(
     region_record.automated_preblast_option = safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST) or "q_only"
     region_record.automated_preblast_hour_cst = safe_convert(
         (safe_get(config_data, actions.CONFIG_AUTOMATED_PREBLAST_TIME) or "12:00").split(":")[0], int
+    )
+    region_record.scheduled_preblast_hour_cst = safe_convert(
+        (safe_get(config_data, actions.CONFIG_SCHEDULED_PREBLAST_TIME) or "12:00").split(":")[0], int
     )
 
     DbManager.update_records(

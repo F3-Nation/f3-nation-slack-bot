@@ -12,12 +12,15 @@ from f3_data_models.models import (
     Attendance_x_AttendanceType,
     EventInstance,
     EventType,
+    Location,
     Org,
     Org_Type,
+    Series_Exception,
 )
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 
 from features.backblast import build_backblast_form
 from features.calendar import event_instance, get_preblast_action_buttons
@@ -30,7 +33,15 @@ from utilities import constants
 from utilities.constants import GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import CalendarHomeQuery, get_admin_users, get_aoq_users, home_schedule_query
-from utilities.helper_functions import get_user, safe_convert, safe_get
+from utilities.helper_functions import (
+    _parse_view_private_metadata,
+    current_date_cst,
+    get_location_display_name,
+    get_user,
+    safe_convert,
+    safe_get,
+    sort_by_name,
+)
 from utilities.slack import actions, orm
 
 
@@ -75,9 +86,18 @@ def build_home_form(
         metadata["user_is_admin"] = user_is_admin
 
     start_time = time.time()
+    group_by_option = region_record.calendar_group_by_option or "ao"
     ao_records = DbManager.find_records(
         Org, filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)]
     )
+    location_records = DbManager.find_records(Location, [Location.org_id == region_record.org_id, Location.is_active])
+    location_records2 = DbManager.find_join_records2(
+        Location,
+        Org,
+        [Location.org_id == Org.id, Org.parent_id == region_record.org_id, Location.is_active],
+    )
+    location_records.extend(record[0] for record in location_records2)
+    location_records.sort(key=sort_by_name(get_location_display_name))
     event_type_records: List[EventType] = DbManager.find_records(
         EventType,
         filters=[or_(EventType.specific_org_id == region_record.org_id, EventType.specific_org_id.is_(None))],
@@ -85,23 +105,6 @@ def build_home_form(
     split_time = time.time()
     print(f"AO and Event Type time: {split_time - start_time}")
     start_time = time.time()
-
-    # if LOCAL_DEVELOPMENT:
-    #     this_week_url = S3_IMAGE_URL.format(
-    #         image_name=region_record.calendar_image_current or "default.png",
-    #     )
-    #     next_week_url = S3_IMAGE_URL.format(
-    #         image_name=region_record.calendar_image_next or "default.png",
-    #     )
-    # else:
-    #     this_week_url = GCP_IMAGE_URL.format(
-    #         bucket="f3nation-calendar-images",
-    #         image_name=region_record.calendar_image_current or "default.png",
-    #     )
-    #     next_week_url = GCP_IMAGE_URL.format(
-    #         bucket="f3nation-calendar-images",
-    #         image_name=region_record.calendar_image_next or "default.png",
-    #     )
 
     blocks = [
         orm.ActionsBlock(
@@ -114,13 +117,17 @@ def build_home_form(
         orm.DividerBlock(),
         orm.SectionBlock(label="*Upcoming Schedule*"),
         orm.InputBlock(
-            label="Filter AOs",
+            label="Filter AOs" if group_by_option == "ao" else "Filter Locations",
             action=actions.CALENDAR_HOME_AO_FILTER,
             element=orm.MultiStaticSelectElement(
-                placeholder="Filter AOs",
+                placeholder="Filter AOs" if group_by_option == "ao" else "Filter Locations",
                 options=orm.as_selector_options(
-                    names=[ao.name for ao in ao_records],
-                    values=[str(ao.id) for ao in ao_records],
+                    names=[ao.name for ao in ao_records]
+                    if group_by_option == "ao"
+                    else [get_location_display_name(location) for location in location_records],
+                    values=[str(ao.id) for ao in ao_records]
+                    if group_by_option == "ao"
+                    else [str(location.id) for location in location_records],
                 ),
             ),
             dispatch_action=True,
@@ -156,40 +163,7 @@ def build_home_form(
             ),
             dispatch_action=True,
         ),
-        # orm.ActionsBlock(
-        #     elements=[
-        #         orm.StaticSelectElement(  # TODO: make these multi-selects?
-        #             placeholder="Filter AOs",
-        #             action=actions.CALENDAR_HOME_AO_FILTER,
-        #             options=orm.as_selector_options(
-        #                 names=[ao.name for ao in ao_records],
-        #                 values=[str(ao.id) for ao in ao_records],
-        #             ),
-        #         ),
-        #         orm.StaticSelectElement(  # TODO: make these multi-selects?
-        #             placeholder="Filter Event Types",
-        #             action=actions.CALENDAR_HOME_EVENT_TYPE_FILTER,
-        #             options=orm.as_selector_options(
-        #                 names=[event_type.name for event_type in event_type_records],
-        #                 values=[str(event_type.id) for event_type in event_type_records],
-        #             ),
-        #         ),
-        #         orm.DatepickerElement(
-        #             action=actions.CALENDAR_HOME_DATE_FILTER,
-        #             placeholder="Start Search Date",
-        #         ),
-        #         orm.CheckboxInputElement(
-        #             action=actions.CALENDAR_HOME_Q_FILTER,
-        #             options=orm.as_selector_options(names=["Show only open Q slots"], values=["yes"]),
-        #         ),
-        #     ],
-        # ),
     ]
-
-    # if region_record.calendar_image_current:
-    #     blocks.insert(0, orm.ImageBlock(label="This week's schedule", alt_text="Current", image_url=this_week_url))
-    # if region_record.calendar_image_next:
-    #     blocks.insert(1, orm.ImageBlock(label="Next week's schedule", alt_text="Next", image_url=next_week_url))
 
     if safe_get(body, "view"):
         existing_filter_data = orm.BlockView(blocks=blocks).get_selected_values(body)
@@ -209,11 +183,11 @@ def build_home_form(
     else:
         filter_org_ids = [region_record.org_id]
 
-    filter = [
-        or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)),
-        EventInstance.start_date >= start_date,
-        EventInstance.is_active,
-    ]
+    filter = [EventInstance.start_date >= start_date, EventInstance.is_active]
+    if group_by_option == "ao":
+        filter.append(or_(EventInstance.org_id.in_(filter_org_ids), Org.parent_id.in_(filter_org_ids)))
+    elif safe_get(existing_filter_data, actions.CALENDAR_HOME_AO_FILTER):
+        filter.append(EventInstance.location_id.in_(filter_org_ids))
 
     if safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER):
         event_type_ids = [int(x) for x in safe_get(existing_filter_data, actions.CALENDAR_HOME_EVENT_TYPE_FILTER)]
@@ -241,39 +215,52 @@ def build_home_form(
     block_count = 1
     for event in events:
         option_names: List[str] = []
-        if block_count > 90:
-            break
-        if not user_is_admin:
-            if event.user_q:
-                option_names.append("Edit Preblast")
-            else:
-                option_names.append("View Preblast")
         if event.event.start_date != active_date:
             active_date = event.event.start_date
-            blocks.append(orm.SectionBlock(label=f":calendar: *{active_date.strftime('%A, %B %d')}*"))
-            block_count += 1
-        if event.series and event.series.name and event.org.name not in event.series.name:
-            label = f"{event.series.name} @ {event.org.name} @ {event.event.start_time}"
+            blocks.append(orm.DividerBlock())
+            blocks.append(orm.HeaderBlock(label=f":calendar: {active_date.strftime('%A, %B %d')}"))
+            block_count += 2
+        if event.event.series_exception == Series_Exception.closed:
+            label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} - CLOSED :no_entry:"
+            if user_is_admin:
+                option_names.append("Reopen Event")
+            else:
+                option_names.append("Event Closed")
         else:
-            label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
-        if event.planned_qs:
-            label += f" / Q: {event.planned_qs}"
-        else:
-            label += " / Q: Open!"
-            option_names.append("Take Q")
-        if event.user_q:
-            label += " :muscle:"
-        if event.user_attending:
-            label += " :white_check_mark:"
-            option_names.append("Un-HC")
-        else:
-            option_names.append("HC")
-        if event.event.preblast_rich:
-            label += " :pencil:"
-        if user_is_admin:
-            option_names.append("Assign Q")
-            option_names.append("Edit Preblast")
-            option_names.append("Edit Backblast")
+            if block_count > 90:
+                break
+            if not user_is_admin:
+                if event.user_q:
+                    option_names.append("Edit Preblast")
+                else:
+                    option_names.append("View Preblast")
+            if event.event.highlight:
+                label = f":star: *{event.event.name}* @ {event.org.name} @ {event.event.start_time}"
+            elif event.series and event.series.name and event.org.name not in event.series.name:
+                label = f"{event.series.name} @ {event.org.name} @ {event.event.start_time}"
+            else:
+                label = f"{event.org.name} {' / '.join(t.name for t in event.event_types)} @ {event.event.start_time}"  # noqa
+            if event.planned_qs:
+                label += f" / Q: {event.planned_qs}"
+            else:
+                label += " / Q: Open!"
+                option_names.append("Take Q")
+            if event.user_q:
+                label += " :muscle:"
+            if event.user_attending:
+                label += " :white_check_mark:"
+                option_names.append("Un-HC")
+            else:
+                option_names.append("HC")
+            if event.event.preblast_rich:
+                label += " :pencil:"
+            if user_is_admin:
+                option_names.append("Assign Q")
+                option_names.append("Close Event")
+                if event.event.start_date > current_date_cst():
+                    option_names.append("Edit Preblast")
+                else:
+                    option_names.append("Edit Backblast")
         blocks.append(
             orm.SectionBlock(
                 label=label,
@@ -500,19 +487,18 @@ def handle_assign_q_form(
         joinedloads=[Attendance.slack_users, Attendance.attendance_types],
     )
 
-    # Assign existing Q / Co-Qs to "HC"
+    # Delete existing Q / Co-Q attendance records entirely
     q_changed = False
     for ea in existing_attendance_records:
         if any(at.type in ["Q", "Co-Q"] for at in ea.attendance_types):
             q_changed = True
-            if 1 not in [at.id for at in ea.attendance_types]:
-                DbManager.create_record(Attendance_x_AttendanceType(attendance_id=ea.id, attendance_type_id=1))
             DbManager.delete_records(
                 cls=Attendance_x_AttendanceType,
-                filters=[
-                    Attendance_x_AttendanceType.attendance_id == ea.id,
-                    Attendance_x_AttendanceType.attendance_type_id.in_([2, 3]),
-                ],
+                filters=[Attendance_x_AttendanceType.attendance_id == ea.id],
+            )
+            DbManager.delete_records(
+                cls=Attendance,
+                filters=[Attendance.id == ea.id],
             )
 
     # Touch EventInstance.updated so calendar images are regenerated when Q changes
@@ -615,7 +601,11 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
     elif action == "Take Q":
         attendance_record = DbManager.find_records(
             Attendance,
-            filters=[Attendance.event_instance_id == event_instance_id, Attendance.user_id == user_id],
+            filters=[
+                Attendance.event_instance_id == event_instance_id,
+                Attendance.user_id == user_id,
+                Attendance.is_planned,
+            ],
             joinedloads=[Attendance.attendance_x_attendance_types],
         )
         if attendance_record:
@@ -637,16 +627,22 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         update_post = True
         build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
     elif action == "HC":
-        DbManager.create_record(
-            Attendance(
-                event_instance_id=event_instance_id,
-                user_id=user_id,
-                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
-                is_planned=True,
+        try:
+            DbManager.create_record(
+                Attendance(
+                    event_instance_id=event_instance_id,
+                    user_id=user_id,
+                    attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=1)],
+                    is_planned=True,
+                )
             )
-        )
-        update_post = True
-        build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+            update_post = True
+            build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+        except IntegrityError as e:
+            logger.warning(
+                f"User {user_id} already has an attendance record for event instance {event_instance_id}, ignoring HC: {e}"  # noqa
+            )
+            update_post = False
     elif action == "Un-HC":
         DbManager.delete_records(
             cls=Attendance,
@@ -663,6 +659,24 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
         build_assign_q_form(
             body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
         )
+    elif action == "Close Event":
+        form = copy.deepcopy(event_instance.EVENT_CLOSE_FORM)
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            callback_id=actions.EVENT_CLOSE_HOME_CALLBACK_ID,
+            title_text="Close Event",
+            submit_button_text="Close Event",
+            parent_metadata={"event_instance_id": event_instance_id},
+            new_or_add="add",
+            close_button_text="Cancel",
+        )
+        update_post = False
+        # build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
+    elif action == "Reopen Event":
+        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.series_exception: None})
+        update_post = True
+        build_home_form(body, client, logger, context, region_record, update_view_id=view_id)
 
     if update_post:
         preblast_info = build_preblast_info(body, client, logger, context, region_record, event_instance_id)
@@ -703,3 +717,24 @@ def handle_home_event(body: dict, client: WebClient, logger: Logger, context: di
 
     elif action == "edit":
         pass
+
+
+def handle_event_instance_close(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    metadata = _parse_view_private_metadata(body)
+    event_instance_id = safe_get(metadata, "event_instance_id")
+    close_reason = event_instance.EVENT_CLOSE_FORM.get_selected_values(body).get(event_instance.EVENT_CLOSE_REASON)
+    event_instance_meta = safe_get(DbManager.get(EventInstance, event_instance_id), "meta") or {}
+    event_instance_meta["series_exception_reason"] = close_reason
+    prior_view_id = safe_get(body, "view", "previous_view_id")
+
+    DbManager.update_record(
+        EventInstance,
+        event_instance_id,
+        fields={
+            EventInstance.series_exception: Series_Exception.closed,
+            EventInstance.meta: event_instance_meta,
+        },
+    )
+    build_home_form(body, client, logger, context, region_record, update_view_id=prior_view_id)

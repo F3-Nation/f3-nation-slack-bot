@@ -35,12 +35,13 @@ def build_strava_form(body: dict, client: WebClient, logger: Logger, context: di
     elif "Announcements" in moleskine_text:
         moleskine_text = moleskine_text.split("Announcements")[0]
 
-    allow_strava: bool = (
-        (user_id == backblast_meta[actions.BACKBLAST_Q])
-        or (user_id in (backblast_meta[actions.BACKBLAST_COQ] or []))
-        or (user_id in (backblast_meta[actions.BACKBLAST_PAX] or []))
-        or (user_id in (backblast_meta[actions.BACKBLAST_OP] or []))
-    )
+    # allow_strava: bool = (
+    #     (user_id == backblast_meta[actions.BACKBLAST_Q])
+    #     or (user_id in (backblast_meta[actions.BACKBLAST_COQ] or []))
+    #     or (user_id in (backblast_meta[actions.BACKBLAST_PAX] or []))
+    #     or (user_id in (backblast_meta[actions.BACKBLAST_OP] or []))
+    # )
+    allow_strava = True
 
     APP_URL = os.environ.get("APP_URL", "")
     if os.environ.get(constants.STRAVA_CLIENT_ID) and os.environ.get(constants.STRAVA_CLIENT_SECRET):

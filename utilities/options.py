@@ -58,3 +58,28 @@ def handle_request(
                 }
             )
         return options
+    elif action_id == actions.EMERGENCY_DR_USER_SELECT:
+        # Handle downrange emergency user search
+        # Only return users who have opted into DR sharing
+        user_records = DbManager.find_records(
+            cls=User,
+            filters=[User.f3_name.ilike(f"%{value}%")],
+            joinedloads=[User.home_region_org],
+        )
+        options = []
+        for user in user_records:
+            # # Filter for users who have opted into DR sharing
+            # if not (user.meta and user.meta.get(emergency.USER_EMERGENCY_INFO_DR_SHARING)):
+            #     continue
+            display_name = user.f3_name or "Unknown"
+            if user.home_region_org:
+                display_name += f" ({user.home_region_org.name})"
+            options.append(
+                {
+                    "text": {"type": "plain_text", "text": display_name},
+                    "value": str(user.id),
+                }
+            )
+            if len(options) >= 30:
+                break
+        return options

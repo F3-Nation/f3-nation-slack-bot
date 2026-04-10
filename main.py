@@ -52,8 +52,7 @@ setup_debugger()
 load_dotenv()
 
 process_before_response = os.environ.get("PROCESS_BEFORE_RESPONSE", "false").lower() == "true"
-
-logging_level = logging.INFO
+logging_level = logging.DEBUG if os.environ.get("LOG_LEVEL", "INFO").upper() == "DEBUG" else logging.INFO
 if LOCAL_DEVELOPMENT:
     logger = logging.getLogger()
     logger.setLevel(logging_level)
@@ -137,8 +136,8 @@ def main_response(body: dict, logger: logging.Logger, client: WebClient, ack: Ac
                 context=context,
                 region_record=region_record,
             )
-            if resp and request_type == "block_suggestion":
-                ack(options=resp)
+            if request_type == "block_suggestion":
+                ack(options=resp if resp is not None else [])
             # elif request_type == "view_submission":
             #     update_submit_modal(
             #         client=client, logger=logger, text="Your data was saved successfully!"

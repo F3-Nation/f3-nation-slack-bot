@@ -20,6 +20,7 @@ from f3_data_models.models import (
     EventType_x_EventInstance,
     Org,
     Org_x_SlackSpace,
+    Series_Exception,
     SlackSpace,
     SlackUser,
     User,
@@ -58,21 +59,13 @@ class BackblastList:
         firstq_subquery = (
             select(
                 Attendance.event_instance_id,
-                User.f3_name.label("q_name"),
-                SlackUser.slack_id,
+                Attendance.user_id,
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
             )
             .select_from(Attendance)
-            .join(User, Attendance.user_id == User.id)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
-            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
-            .join(Org, Org.id == EventInstance.org_id)
-            .join(ParentOrg, Org.parent_id == ParentOrg.id)
-            .join(Org_x_SlackSpace, Org_x_SlackSpace.org_id == ParentOrg.id)
-            .join(SlackSpace, Org_x_SlackSpace.slack_space_id == SlackSpace.id)
-            .join(SlackUser, and_(User.id == SlackUser.user_id, SlackUser.slack_team_id == SlackSpace.team_id))  # noqa
             .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
             .alias()
         )
@@ -83,8 +76,8 @@ class BackblastList:
                 EventType,
                 Org,
                 ParentOrg,
-                firstq_subquery.c.q_name,
-                firstq_subquery.c.slack_id,
+                User.f3_name.label("q_name"),
+                SlackUser.slack_id,
                 SlackSpace.settings,
             )
             .select_from(EventInstance)
@@ -99,8 +92,10 @@ class BackblastList:
                 and_(
                     EventInstance.id == firstq_subquery.c.event_instance_id,
                     firstq_subquery.c.rn == 1,
-                ),  # noqa
+                ),
             )
+            .outerjoin(User, User.id == firstq_subquery.c.user_id)
+            .outerjoin(SlackUser, and_(User.id == SlackUser.user_id, SlackUser.slack_team_id == SlackSpace.team_id))
             .filter(
                 EventInstance.start_date < current_date_cst(),  # + timedelta(days=1),  # eventually configurable
                 EventInstance.start_date >= (current_date_cst() - timedelta(days=5)),  # eventually configurable
@@ -152,6 +147,7 @@ def send_backblast_reminders(force=False):
                 slack_bot_token
                 and backblast.slack_user_id
                 and not safe_get(backblast.event.meta, "backblast_reminder_dismissed")
+                and not backblast.event.series_exception != Series_Exception.closed
             ):
                 if (
                     backblast_reminder_days > 0
@@ -227,4 +223,4 @@ def handle_backblast_reminder_dismiss(
 
 
 if __name__ == "__main__":
-    send_backblast_reminders()
+    send_backblast_reminders(force=True)

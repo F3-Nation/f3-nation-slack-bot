@@ -5,6 +5,7 @@ from typing import List
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import random
+import shutil
 from datetime import datetime, timedelta
 
 import boto3
@@ -12,15 +13,16 @@ import pytz
 from f3_data_models.models import (
     Attendance,
     Attendance_x_AttendanceType,
-    AttendanceType,
     EventInstance,
     EventTag,
     EventTag_x_EventInstance,
     EventType,
     EventType_x_EventInstance,
+    Location,
     Org,
     Org_Type,
     Org_x_SlackSpace,
+    Series_Exception,
     SlackSpace,
     User,
 )
@@ -29,12 +31,14 @@ from f3_data_models.models import (
 from f3_data_models.utils import DbManager, get_session
 from slack_sdk import WebClient
 from slack_sdk.models import blocks
-from sqlalchemy import and_, case, func, or_, select
-from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import aliased
 
 from utilities.constants import EVENT_TAG_COLORS, GCP_IMAGE_URL, LOCAL_DEVELOPMENT, S3_IMAGE_URL
 from utilities.helper_functions import current_date_cst, safe_get, update_local_region_records
 from utilities.slack import actions
+
+DB_SCHEMA = os.getenv("DATABASE_SCHEMA", "f3_staging")
 
 
 def time_int_to_str(time: int) -> str:
@@ -91,29 +95,35 @@ def generate_calendar_images(force: bool = False):
         firstq_subquery = (
             select(
                 Attendance.event_instance_id,
-                User.f3_name.label("q_name"),
+                Attendance.user_id,
                 func.row_number()
                 .over(partition_by=Attendance.event_instance_id, order_by=Attendance.created)
                 .label("rn"),
             )
             .select_from(Attendance)
             .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
-            .join(Attendance.user)
-            .filter(Attendance_x_AttendanceType.attendance_type_id == 2)
+            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+            .filter(
+                Attendance_x_AttendanceType.attendance_type_id == 2,
+                EventInstance.start_date >= current_week_start,
+                EventInstance.start_date < next_week_end,
+            )
             .alias()
         )
 
         attendance_subquery = (
             select(
                 Attendance.event_instance_id,
-                func.max(
-                    case(
-                        (Attendance.attendance_types.any(AttendanceType.id == 2), Attendance.updated),
-                    )
-                ).label("q_last_updated"),
+                func.max(Attendance.updated).label("q_last_updated"),
             )
             .select_from(Attendance)
-            .options(joinedload(Attendance.attendance_types))
+            .join(Attendance_x_AttendanceType, Attendance.id == Attendance_x_AttendanceType.attendance_id)
+            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
+            .filter(
+                Attendance_x_AttendanceType.attendance_type_id == 2,
+                EventInstance.start_date >= current_week_start,
+                EventInstance.start_date < next_week_end,
+            )
             .group_by(Attendance.event_instance_id)
             .alias()
         )
@@ -126,6 +136,7 @@ def generate_calendar_images(force: bool = False):
                 EventInstance.start_time,
                 EventInstance.updated.label("event_updated"),
                 EventInstance.pax_count,
+                EventInstance.series_exception,
                 EventTag.name.label("event_tag"),
                 EventTag.color.label("event_tag_color"),
                 EventType.name.label("event_type"),
@@ -133,7 +144,10 @@ def generate_calendar_images(force: bool = False):
                 Org.name.label("ao_name"),
                 Org.description.label("ao_description"),
                 Org.parent_id.label("ao_parent_id"),
-                firstq_subquery.c.q_name,
+                User.f3_name.label("q_name"),
+                Location.name.label("location_name"),
+                Location.description.label("location_description"),
+                Location.address_street.label("location_address_street"),
                 attendance_subquery.c.q_last_updated,
                 RegionOrg.name.label("region_name"),
                 RegionOrg.id.label("region_id"),
@@ -145,10 +159,12 @@ def generate_calendar_images(force: bool = False):
             .join(EventType, EventType_x_EventInstance.event_type_id == EventType.id)
             .join(Org, EventInstance.org_id == Org.id)
             .join(RegionOrg, RegionOrg.id == Org.parent_id)
+            .outerjoin(Location, EventInstance.location_id == Location.id)
             .outerjoin(
                 firstq_subquery,
                 and_(EventInstance.id == firstq_subquery.c.event_instance_id, firstq_subquery.c.rn == 1),
             )
+            .outerjoin(User, User.id == firstq_subquery.c.user_id)
             .outerjoin(attendance_subquery, EventInstance.id == attendance_subquery.c.event_instance_id)
             .filter(
                 (EventInstance.start_date >= current_week_start),
@@ -183,6 +199,7 @@ def generate_calendar_images(force: bool = False):
                     slack_app_settings: dict = region_org_record[2].settings
                     print(f"Running for {region_name}")
 
+                    group_by_option = slack_app_settings.get("calendar_group_by_option") or "ao"
                     color_dict = {
                         t.name: t.color
                         for t in event_tags
@@ -191,6 +208,7 @@ def generate_calendar_images(force: bool = False):
                     # if "Open" in color_dict:
                     #     color_dict["OPEN!"] = color_dict.pop("Open")
                     color_dict["OPEN!"] = "Green"
+                    color_dict["CLOSED"] = "Closed"  # Dark gray for closed events
                     calendar_updated = False
 
                     for week in ["current", "next"]:
@@ -248,31 +266,59 @@ def generate_calendar_images(force: bool = False):
                                 + "\nPAX: "
                                 + df["pax_count"].astype(str).str.replace(".0", "")
                             )
-                            df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
-                            df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
-                                df["ao_name"] + "\n" + df["ao_description"]
-                            )
-                            df.loc[:, "AO\nLocation2"] = df["AO\nLocation"].str.replace("The ", "")
-                            df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
 
-                            # Combine cells for days / AOs with more than one event
-                            df.sort_values(["ao_name", "event_date", "event_time"], ignore_index=True, inplace=True)
+                            # Override label for closed events
+                            df.loc[df["series_exception"] == Series_Exception.closed, "label"] = "CLOSED"
+
+                            if group_by_option == "ao":
+                                df.loc[:, "AO\nLocation"] = df["ao_name"]  # + "\n" + df["ao_description"]
+                                df.loc[df["ao_description"].notnull(), "AO\nLocation"] = (
+                                    df["ao_name"] + "\n" + df["ao_description"]
+                                )
+                                row_key_col = "AO\nLocation"
+                                value_col = "label"
+                                sort_key_col = "ao_name"
+                            else:
+                                # Create a readable location label similar to `get_location_display_name`.
+                                location_name = df["location_name"].fillna("")
+                                location_description = df["location_description"].fillna("")
+                                location_address_street = df["location_address_street"].fillna("")
+
+                                df.loc[:, "Location"] = location_name
+                                desc_mask = (df["Location"] == "") & (location_description != "")
+                                df.loc[desc_mask, "Location"] = location_description[desc_mask].str[:30]
+                                street_mask = (df["Location"] == "") & (location_address_street != "")
+                                df.loc[street_mask, "Location"] = location_address_street[street_mask].str[:30]
+                                # Fallback to ao name if no location info is available
+                                df.loc[df["Location"] == "", "Location"] = df["ao_name"]
+
+                                # Include AO name in the cell now that the row header is the location.
+                                df.loc[:, "cell_label"] = df["ao_name"] + "\n" + df["label"]
+                                row_key_col = "Location"
+                                value_col = "cell_label"
+                                sort_key_col = "Location"
+
+                            df.loc[:, "event_day_of_week"] = df["event_date"].dt.day_name()
+                            df.to_csv(f"debug_{region_name}_{week}.csv", index=False)
+
+                            # Combine cells for days within the chosen grouping (AO vs location).
+                            df.sort_values([sort_key_col, "event_date", "event_time"], ignore_index=True, inplace=True)
                             prior_date = ""
                             prior_label = ""
-                            prior_ao = ""
+                            prior_group_key = ""
                             include_list = []
                             for i in range(len(df)):
                                 row2 = df.loc[i]
-                                if (row2["event_date_fmt"] == prior_date) & (row2["ao_name"] == prior_ao):
-                                    df.loc[i, "label"] = prior_label + "\n" + df.loc[i, "label"]
-                                    prior_label = df.loc[i, "label"]
+                                if (row2["event_date_fmt"] == prior_date) & (row2[sort_key_col] == prior_group_key):
+                                    df.loc[i, value_col] = prior_label + "\n" + df.loc[i, value_col]
+                                    prior_label = df.loc[i, value_col]
                                     include_list.append(False)
                                 else:
                                     if prior_label != "":
                                         include_list.append(True)
                                     prior_date = row2["event_date_fmt"]
-                                    prior_ao = row2["ao_name"]
-                                    prior_label = row2["label"]
+                                    prior_group_key = row2[sort_key_col]
+                                    prior_label = row2[value_col]
 
                             include_list.append(True)
 
@@ -281,9 +327,9 @@ def generate_calendar_images(force: bool = False):
 
                             # Reshape to wide format by date
                             df2 = df.pivot(
-                                index="AO\nLocation",
+                                index=row_key_col,
                                 columns=["event_day_of_week", "event_date_fmt"],
-                                values="label",
+                                values=value_col,
                             ).fillna("")
 
                             # Sort and enforce word wrap on labels
@@ -292,16 +338,17 @@ def generate_calendar_images(force: bool = False):
                             df2.reset_index(inplace=True)
 
                             # Take out "The " for sorting
-                            df2["AO\nLocation2"] = df2["AO\nLocation"].str.replace("The ", "")
-                            df2.sort_values(by=["AO\nLocation2"], axis=0, inplace=True)
-                            df2.drop(["AO\nLocation2"], axis=1, inplace=True)
+                            grouping_sort_col = f"{row_key_col}2"
+                            df2[grouping_sort_col] = df2[row_key_col].str.replace("The ", "")
+                            df2.sort_values(by=[grouping_sort_col], axis=0, inplace=True)
+                            df2.drop([grouping_sort_col], axis=1, inplace=True)
                             df2.reset_index(inplace=True, drop=True)
 
                             # Add timestamp footer row
                             now_cst = datetime.now(pytz.timezone("US/Central"))
                             timestamp_str = f"Last updated at {now_cst.strftime('%m/%d %I:%M %p')} CST"
                             footer_row = dict.fromkeys(df2.columns, "")
-                            footer_row["AO\nLocation"] = timestamp_str
+                            footer_row[row_key_col] = timestamp_str
                             df2 = pd.concat([df2, pd.DataFrame([footer_row])], ignore_index=True)
 
                             # Set CSS properties for th elements in dataframe
@@ -344,10 +391,15 @@ def generate_calendar_images(force: bool = False):
                             # create calendar image
                             random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
                             filename = f"{region_id}-{week}-{random_chars}.png"
+                            filename_static = f"{region_id}-{week}.png"
                             if LOCAL_DEVELOPMENT:
                                 dfi.export(df_styled, filename, table_conversion="playwright")
                             else:
                                 dfi.export(df_styled, f"/mnt/calendar-images/{filename}", table_conversion="playwright")
+                                if DB_SCHEMA == "f3_prod":
+                                    shutil.copyfile(
+                                        f"/mnt/calendar-images/{filename}", f"/mnt/calendar-images/{filename_static}"
+                                    )
 
                             # upload to s3 and remove local file
                             slack_app_settings = region_org_record[2].settings
@@ -488,16 +540,14 @@ def create_special_events_blocks(slack_settings_dict: dict) -> blocks.Block:
                 EventInstance.org.has(Org.parent_id == slack_settings_dict.get("org_id")),
             ),
             EventInstance.start_date >= current_date_cst(),
-            EventInstance.start_date
-            <= current_date_cst() + timedelta(days=slack_settings_dict.get("special_events_post_days") or 60),
             EventInstance.is_active,
             EventInstance.highlight,
         ],
         joinedloads=[EventInstance.org],
     )
+    # limit to 10 upcoming events
+    special_events = sorted(special_events, key=lambda x: (x.start_date, x.start_time))[:10]
     if len(special_events) > 0:
-        # order by date and time
-        special_events.sort(key=lambda x: (x.start_date, x.start_time))
         blocks_list.append(blocks.HeaderBlock(text=":tada: Special Events:"))
         msg = create_special_events_text(special_events, slack_settings_dict)
         blocks_list.append(blocks.SectionBlock(text=blocks.MarkdownTextObject(text=msg)))
@@ -505,4 +555,4 @@ def create_special_events_blocks(slack_settings_dict: dict) -> blocks.Block:
 
 
 if __name__ == "__main__":
-    generate_calendar_images()
+    generate_calendar_images(force=True)
