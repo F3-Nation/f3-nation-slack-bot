@@ -231,6 +231,7 @@ EVENT_MAPPER = {
 OPTIONS_MAPPER = {
     actions.USER_OPTION_LOAD: (options.handle_request, False),
     user.USER_FORM_HOME_REGION: (options.handle_request, False),
+    user.USER_FORM_BROUGHT_BY: (options.handle_request, False),
     paxminer_mapping.PAXMINER_REGION: (options.handle_request, False),
     connect.SELECT_REGION: (options.handle_request, False),
     actions.EMERGENCY_DR_USER_SELECT: (options.handle_request, False),

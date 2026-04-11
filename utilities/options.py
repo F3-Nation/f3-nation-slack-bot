@@ -41,6 +41,24 @@ def handle_request(
                 }
             )
         return options
+    elif action_id == user_form.USER_FORM_BROUGHT_BY:
+        user_records = DbManager.find_records(
+            cls=User,
+            filters=[User.f3_name.ilike(f"%{value}%")],
+            joinedloads=[User.home_region_org],
+        )
+        options = []
+        for user in user_records[:30]:
+            display_name = user.f3_name
+            if user.home_region_org:
+                display_name += f" ({user.home_region_org.name})"
+            options.append(
+                {
+                    "text": {"type": "plain_text", "text": display_name},
+                    "value": str(user.id),
+                }
+            )
+        return options
     elif action_id in [user_form.USER_FORM_HOME_REGION, connect_form.SELECT_REGION, paxminer_mapping.PAXMINER_REGION]:
         # Handle the home region selection
         org_records = DbManager.find_records(
