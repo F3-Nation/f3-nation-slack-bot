@@ -23,7 +23,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import not_, or_
 from sqlmodel import func
 
-from features import backblast_legacy
+from features import connect
 from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
@@ -99,7 +99,7 @@ def backblast_middleware(
         or (safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now())
         > datetime.now()
     ):
-        backblast_legacy.build_backblast_form(body, client, logger, context, region_record)
+        connect.build_connect_options_form(body, client, logger, context, region_record)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
         event_instance = DbManager.get(EventInstance, event_instance_id)

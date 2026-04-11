@@ -34,6 +34,7 @@ from utilities.helper_functions import (
     safe_get,
     update_local_region_records,
 )
+from utilities.slack.actions import LOADING_ID
 
 CONNECT_EXISTING_REGION = "connect_existing_region"
 CREATE_NEW_REGION = "create_new_region"
@@ -79,7 +80,10 @@ def build_connect_options_form(
             ),
         ],
     )
-    client.views_push(trigger_id=safe_get(body, "trigger_id"), view=form)
+    if safe_get(body, LOADING_ID):
+        client.views_update(view_id=safe_get(body, LOADING_ID), view=form)
+    else:
+        client.views_push(trigger_id=safe_get(body, "trigger_id"), view=form)
     # client.views_push(interactivity_pointer=safe_get(body, "trigger_id"), view=form)
 
 
@@ -117,14 +121,17 @@ def build_existing_region_form(
                 optional=False,
             ),
             InputBlock(
-                label="Migration Date",
+                label="Start Date",
                 block_id=MIGRATION_DATE,
                 element=DatePickerElement(
                     action_id=MIGRATION_DATE,
-                    placeholder="Select a date for migration",
+                    placeholder="Select a start date",
                 ),
                 optional=False,
-                hint="Event instances will be created for this day forward in the new system. If you are using QSignups, events after the migration date will be deleted.",  # noqa
+                hint="Event instances will be created for this day forward in the system.",  # noqa
+            ),
+            SectionBlock(
+                text="If your region is not appearing in the search, it's likely because it hasn't been set up yet. Please submit a new region request at https://f3nation.com/start-region. Once your Expansion Q has reached out and approved your request, you can come back here to connect the app.",  # noqa
             ),
         ],
         submit="Request Connection",

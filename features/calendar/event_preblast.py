@@ -19,7 +19,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
-from features import backblast, preblast_legacy
+from features import backblast, connect
 from features.calendar import get_preblast_action_blocks
 from utilities import constants
 from utilities.builders import add_loading_form
@@ -73,7 +73,7 @@ def preblast_middleware(
         or (safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now())
         > datetime.now()
     ):
-        preblast_legacy.build_preblast_form(body, client, logger, context, region_record)
+        connect.build_connect_options_form(body, client, logger, context, region_record)
     else:
         build_event_preblast_select_form(body, client, logger, context, region_record)
 
