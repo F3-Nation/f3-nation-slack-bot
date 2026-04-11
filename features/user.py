@@ -218,7 +218,7 @@ FORM = BlockView(
             action=USER_FORM_BROUGHT_BY,
             element=ExternalSelectElement(placeholder="Type to search..."),
             optional=True,
-            hint="Select the PAX who introduced you to F3.",
+            hint="Select the PAX who introduced you to F3. To filter by home region, include the region in parentheses after their name, e.g. 'money (wash)' -> Moneyball (WashMo).",  # noqa: E501
         ),
         ActionsBlock(
             elements=[

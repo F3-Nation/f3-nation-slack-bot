@@ -71,6 +71,7 @@ BACKBLAST_FORM = orm.BlockView(
             action=actions.USER_OPTION_LOAD,
             optional=True,
             element=orm.MultiExternalSelectElement(placeholder="Type to search..."),
+            hint="To filter by home region, include the region in parentheses after their name, e.g. 'money (wash)' -> Moneyball (WashMo).",  # noqa: E501
         ),
         orm.InputBlock(
             label="List untaggable PAX, separated by commas (not FNGs)",
