@@ -23,7 +23,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import not_, or_
 from sqlmodel import func
 
-from features import backblast_legacy
+from features import connect
 from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
@@ -99,7 +99,7 @@ def backblast_middleware(
         or (safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now())
         > datetime.now()
     ):
-        backblast_legacy.build_backblast_form(body, client, logger, context, region_record)
+        connect.build_connect_options_form(body, client, logger, context, region_record)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
         event_instance = DbManager.get(EventInstance, event_instance_id)
@@ -1005,3 +1005,30 @@ def handle_backblast_edit_button(
             title_text="Backblast Edit",
             submit_button_text="None",
         )
+
+
+def handle_legacy_edit_button(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    form = slack_orm.BlockView(
+        blocks=[
+            slack_orm.SectionBlock(
+                label="This backblast was created before migration to F3 Nation. To edit the backblast or attendance details, have an admin go to the calendar, use the start date filter to go back, and hit 'Edit Backblast' on the appropriate event.",  # noqa
+            ),
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="Open Calendar",
+                        action=actions.OPEN_CALENDAR_BUTTON,
+                    ),
+                ]
+            ),
+        ]
+    )
+    form.update_modal(
+        client=client,
+        view_id=safe_get(body, actions.LOADING_ID),
+        callback_id=actions.BACKBLAST_EDIT_CALLBACK_ID,
+        title_text="Legacy Backblast",
+        submit_button_text="None",
+    )
