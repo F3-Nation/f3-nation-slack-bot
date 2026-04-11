@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.1.0 (2026-04-11)
+
+### Bug Fixes
+
+- Improved user search to sort by relevance and optionally include home region
+  ([`adba213`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/adba2139c3a7cb818e863631685d88d7fd1431f7))
+
+### Features
+
+- Added new fields to user form: who brought you, f3 name origin story, and my f3why
+  ([`b809f50`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/b809f50d50e0ec42c0fff2e95a8a2caf468c8abb))
+
+
 ## v1.0.3 (2026-04-10)
 
 ### Bug Fixes
