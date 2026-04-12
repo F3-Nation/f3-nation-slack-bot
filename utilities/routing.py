@@ -1,6 +1,5 @@
 from features import (
     backblast,
-    backblast_legacy,
     canvas,
     config,
     connect,
@@ -10,8 +9,6 @@ from features import (
     help,
     paxminer_mapping,
     positions,
-    preblast,
-    preblast_legacy,
     region,
     reporting,
     special_events,
@@ -49,12 +46,6 @@ COMMAND_MAPPER = {
 VIEW_MAPPER = {
     actions.BACKBLAST_CALLBACK_ID: (backblast.handle_backblast_post, False),
     actions.BACKBLAST_EDIT_CALLBACK_ID: (backblast.handle_backblast_post, False),
-    actions.BACKBLAST_CALLBACK_ID_LEGACY: (backblast_legacy.handle_backblast_post, False),
-    actions.BACKBLAST_EDIT_CALLBACK_ID_LEGACY: (backblast_legacy.handle_backblast_post, False),
-    actions.PREBLAST_CALLBACK_ID: (preblast.handle_preblast_post, False),
-    actions.PREBLAST_EDIT_CALLBACK_ID: (preblast.handle_preblast_post, False),
-    actions.PREBLAST_CALLBACK_ID_LEGACY: (preblast_legacy.handle_preblast_post, False),
-    actions.PREBLAST_EDIT_CALLBACK_ID_LEGACY: (preblast_legacy.handle_preblast_post, False),
     actions.WELCOME_MESSAGE_CONFIG_CALLBACK_ID: (welcome.handle_welcome_message_config_post, False),
     actions.CONFIG_GENERAL_CALLBACK_ID: (config.handle_config_general_post, False),
     actions.CONFIG_EMAIL_CALLBACK_ID: (config.handle_config_email_post, False),
@@ -91,7 +82,7 @@ VIEW_MAPPER = {
 
 ACTION_MAPPER = {
     actions.BACKBLAST_EDIT_BUTTON: (backblast.handle_backblast_edit_button, True),
-    actions.BACKBLAST_EDIT_BUTTON_LEGACY: (backblast_legacy.handle_backblast_edit_button, True),
+    actions.BACKBLAST_EDIT_BUTTON_LEGACY: (backblast.handle_legacy_edit_button, True),
     actions.BACKBLAST_NEW_BUTTON: (backblast.backblast_middleware, True),
     actions.BACKBLAST_STRAVA_BUTTON: (strava.build_strava_form, True),
     actions.STRAVA_ACTIVITY_BUTTON: (strava.build_strava_modify_form, False),
@@ -101,7 +92,6 @@ ACTION_MAPPER = {
     actions.CUSTOM_FIELD_EDIT: (custom_fields.build_custom_field_add_edit, False),
     actions.CUSTOM_FIELD_DELETE: (custom_fields.delete_custom_field, False),
     actions.PREBLAST_NEW_BUTTON: (event_preblast.preblast_middleware, True),
-    actions.PREBLAST_EDIT_BUTTON_LEGACY: (preblast_legacy.handle_preblast_edit_button, True),
     actions.CONFIG_WEASELBOT: (weaselbot.build_config_form, False),
     actions.CONFIG_WELCOME_MESSAGE: (welcome.build_welcome_message_form, False),
     actions.CONFIG_EMAIL: (config.build_config_email_form, False),

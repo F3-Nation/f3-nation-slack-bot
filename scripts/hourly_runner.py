@@ -13,7 +13,6 @@ from scripts import (
     backblast_reminders,
     calendar_images,
     monthly_reporting,
-    paxminer_migration,
     preblast_reminders,
     q_lineups,
     update_slack_users,
@@ -72,12 +71,6 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
         update_slack_users.update_home_regions()
     except Exception as e:
         print(f"Error updating home regions for users: {e}")
-
-    print("Running Paxminer migrations")
-    try:
-        paxminer_migration.check_and_run_paxminer_migration()
-    except Exception as e:
-        print(f"Error running Paxminer migrations: {e}")
 
     if run_reporting:
         print("Running monthly reporting")

@@ -1005,3 +1005,30 @@ def handle_backblast_edit_button(
             title_text="Backblast Edit",
             submit_button_text="None",
         )
+
+
+def handle_legacy_edit_button(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    form = slack_orm.BlockView(
+        blocks=[
+            slack_orm.SectionBlock(
+                label="This backblast was created before migration to F3 Nation. To edit the backblast or attendance details, have an admin go to the calendar, use the start date filter to go back, and hit 'Edit Backblast' on the appropriate event.",  # noqa
+            ),
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="Open Calendar",
+                        action=actions.OPEN_CALENDAR_BUTTON,
+                    ),
+                ]
+            ),
+        ]
+    )
+    form.update_modal(
+        client=client,
+        view_id=safe_get(body, actions.LOADING_ID),
+        callback_id=actions.BACKBLAST_EDIT_CALLBACK_ID,
+        title_text="Legacy Backblast",
+        submit_button_text="None",
+    )
