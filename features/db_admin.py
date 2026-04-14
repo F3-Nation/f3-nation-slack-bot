@@ -16,7 +16,6 @@ from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from scripts.update_slack_users import update_slack_users
 from utilities.database.orm import SlackSettings
-from utilities.database.paxminer_migration import run_paxminer_migration as run_paxminer_migration_bulk
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import (
     MapUpdateData,
@@ -112,52 +111,6 @@ def handle_slack_user_refresh(
     region_record: SlackSettings,
 ):
     update_slack_users(force=True)
-
-
-def handle_paxminer_migration(
-    body: dict,
-    client: WebClient,
-    logger: Logger,
-    context: dict,
-    region_record: SlackSettings,
-):
-    form_data = DB_ADMIN_FORM.get_selected_values(body)
-    region = safe_get(form_data, actions.PAXMINER_MIGRATION_REGION)
-    region = None if region == "" else region
-    view_id = safe_get(body, "view", "id")
-    if region:
-        build_db_admin_form(
-            body,
-            client,
-            logger,
-            context,
-            region_record,
-            update_view_id=view_id,
-            message="Paxminer migration started!",
-        )
-        msg = run_paxminer_migration_bulk(region)
-    build_db_admin_form(
-        body,
-        client,
-        logger,
-        context,
-        region_record,
-        update_view_id=view_id,
-        message=f"Paxminer migration complete!\n{msg}",
-    )
-
-
-def handle_paxminer_migration_all(
-    body: dict,
-    client: WebClient,
-    logger: Logger,
-    context: dict,
-    region_record: SlackSettings,
-):
-    form_data = DB_ADMIN_FORM.get_selected_values(body)
-    region = safe_get(form_data, actions.PAXMINER_MIGRATION_REGION)
-    region = None if region == "" else region
-    run_paxminer_migration_bulk(region)
 
 
 def handle_make_admin(
