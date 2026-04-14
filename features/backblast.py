@@ -13,6 +13,7 @@ from f3_data_models.models import (
     AttendanceType,
     EventInstance,
     EventType_x_EventInstance,
+    Location,
     Org,
     Org_Type,
     SlackUser,
@@ -32,6 +33,7 @@ from utilities.database.special_queries import (
 )
 from utilities.helper_functions import (
     current_date_cst,
+    get_location_display_name,
     get_pax,
     get_user,
     parse_rich_block,
@@ -458,6 +460,18 @@ def build_backblast_form(
         aos: List[Org] = DbManager.find_records(
             Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
         )
+        location_records: List[Location] = DbManager.find_records(
+            Location, [Location.org_id == region_record.org_id, Location.is_active]
+        )
+        ao_location_records = DbManager.find_join_records2(
+            Location,
+            Org,
+            [Location.org_id == Org.id, Org.parent_id == region_record.org_id, Location.is_active],
+        )
+        location_records.extend(record[0] for record in ao_location_records)
+        # De-duplicate in case a location appears in both sources.
+        location_records = list({location.id: location for location in location_records}.values())
+        location_records.sort(key=lambda location: (get_location_display_name(location) or "").lower())
         region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.event_types])
         backblast_form.set_options(
             {
@@ -468,6 +482,10 @@ def build_backblast_form(
                 actions.BACKBLAST_EVENT_TYPE: slack_orm.as_selector_options(
                     names=[event_type.name for event_type in region_org_record.event_types],
                     values=[str(event_type.id) for event_type in region_org_record.event_types],
+                ),
+                actions.BACKBLAST_LOCATION: slack_orm.as_selector_options(
+                    names=[get_location_display_name(location) for location in location_records],
+                    values=[str(location.id) for location in location_records],
                 ),
             }
         )
@@ -583,6 +601,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     send_options = safe_get(backblast_data, actions.BACKBLAST_SEND_OPTIONS)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
     event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event_type
+    location_id = safe_convert(safe_get(backblast_data, actions.BACKBLAST_LOCATION), int) or safe_get(
+        event, "location_id"
+    )
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
     file_ids = safe_get(backblast_data, "file_ids") or []
     selected_options = safe_get(backblast_data, actions.BACKBLAST_OPTIONS) or []
@@ -723,8 +744,18 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     backblast_data["event_instance_id"] = event_instance_id
 
     if not event_instance_id:
-        event_instance = DbManager.create_record(EventInstance(start_date=the_date, org_id=event_org.id, name=title))
+        event_instance = DbManager.create_record(
+            EventInstance(start_date=the_date, org_id=event_org.id, name=title, location_id=location_id)
+        )
         event_instance_id = event_instance.id
+        DbManager.create_record(
+            Attendance(
+                event_instance_id=event_instance_id,
+                user_id=q_user.user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # assign as Q
+                is_planned=True,
+            )
+        )
         DbManager.create_record(
             EventType_x_EventInstance(event_instance_id=event_instance_id, event_type_id=event_type)
         )
@@ -860,7 +891,6 @@ FNGs: {fngs_formatted}
 COUNT: {count}
 {moleskin_msg}
             """
-
             try:
                 # Decrypt password
                 fernet = Fernet(os.environ[constants.PASSWORD_ENCRYPT_KEY].encode())
@@ -928,6 +958,7 @@ COUNT: {count}
         EventInstance.pax_count: count,
         EventInstance.fng_count: fng_count,
         EventInstance.meta: custom_fields,
+        EventInstance.location_id: location_id,
         EventInstance.is_active: True,
     }
     event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")

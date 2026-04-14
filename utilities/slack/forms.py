@@ -15,6 +15,12 @@ UNSCHEDULED_BACKBLAST_BLOCKS = [
         element=orm.StaticSelectElement(placeholder="Select the event type..."),
     ),
     orm.InputBlock(
+        label="Location",
+        action=actions.BACKBLAST_LOCATION,
+        optional=True,
+        element=orm.StaticSelectElement(placeholder="Select the location..."),
+    ),
+    orm.InputBlock(
         label="The AO",
         action=actions.BACKBLAST_AO,
         optional=False,
