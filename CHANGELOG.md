@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v1.1.1 (2026-04-15)
+
+### Bug Fixes
+
+- More cleanup
+  ([`61e8bbe`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/61e8bbef6c31ac4b102a5b1a4da52977321f35f4))
+
+- Removed leftover PaxMiner migration bits
+  ([#192](https://github.com/F3-Nation/f3-nation-slack-bot/pull/192),
+  [`f1d283a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/f1d283a53d065f6f710f26637c33f63478590d31))
+
+### Refactoring
+
+- Removed all legacy paxminer functionality
+  ([`61e8bbe`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/61e8bbef6c31ac4b102a5b1a4da52977321f35f4))
+
+
 ## v1.1.0 (2026-04-11)
 
 ### Bug Fixes
