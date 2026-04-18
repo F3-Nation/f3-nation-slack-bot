@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.2.0 (2026-04-18)
+
+### Features
+
+- Added optional location to unscheduled backblast form
+  ([`18bd74f`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/18bd74f8702523dbddcc2c17f48ee64bf2b7ab62))
+
+
 ## v1.1.1 (2026-04-15)
 
 ### Bug Fixes

@@ -22,7 +22,7 @@ known-first-party = []
 
 [tool.poetry]
 name = "f3-nation-slack-bot"
-version = "1.1.1"
+version = "1.2.0"
 description = ""
 authors = ["Evan Petzoldt <evan.petzoldt@protonmail.com>"]
 readme = "README.md"
