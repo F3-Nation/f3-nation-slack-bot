@@ -503,6 +503,20 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             ),
             hint="This sets the number of reminders a Q will get until they complete their backblast. If set to 0, no reminders will be sent. Defaults to 5.",  # noqa
         ),
+        orm.DividerBlock(),
+        orm.InputBlock(
+            label="HC Announcement in Preblast Thread",
+            action=actions.CONFIG_HC_ANNOUNCE_OPTION,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                initial_value="off",
+                options=orm.as_selector_options(
+                    names=["Off", "Standard", "Snarky"],
+                    values=["off", "standard", "snarky"],
+                ),
+            ),
+            hint="When enabled, the bot posts a reply in the preblast thread when someone HC's or Un-HC's.",
+        ),
     ]
 )
 

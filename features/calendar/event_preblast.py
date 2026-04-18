@@ -1,4 +1,5 @@
 import json
+import random
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -59,6 +60,32 @@ def get_preblast_channel(region_record: SlackSettings, preblast_info: PreblastIn
     ):
         return region_record.preblast_destination_channel
     return safe_get(preblast_info.event_record.org.meta, "slack_channel_id")
+
+
+def post_hc_thread_reply(
+    client: WebClient,
+    logger: Logger,
+    region_record: SlackSettings,
+    preblast_channel: str | None,
+    preblast_ts: str | None,
+    slack_user_id: str,
+    is_hc: bool,
+) -> None:
+    """Post an optional announcement in the preblast thread when a user HCs or Un-HCs."""
+    option = region_record.hc_announce_option
+    if not option or option == "off" or not preblast_channel or not preblast_ts:
+        return
+    user_mention = f"<@{slack_user_id}>"
+    if option == "snarky":
+        responses = constants.HC_SNARKY_RESPONSES if is_hc else constants.UNHC_SNARKY_RESPONSES
+        text = random.choice(responses).format(user=user_mention)
+    else:
+        template = constants.HC_STANDARD_RESPONSE if is_hc else constants.UNHC_STANDARD_RESPONSE
+        text = template.format(user=user_mention)
+    try:
+        client.chat_postMessage(channel=preblast_channel, thread_ts=preblast_ts, text=text)
+    except Exception as e:
+        logger.error(f"Error posting HC thread reply for event in channel {preblast_channel}: {e}")
 
 
 def preblast_middleware(
@@ -857,6 +884,16 @@ def handle_event_preblast_action(
                 logger.error(
                     f"Error updating preblast message after action {action_id} and event_instance_id {event_instance_id}: {e}"  # noqa
                 )
+            if action_id in (actions.EVENT_PREBLAST_HC, actions.EVENT_PREBLAST_UN_HC):
+                post_hc_thread_reply(
+                    client,
+                    logger,
+                    region_record,
+                    preblast_channel,
+                    metadata["preblast_ts"],
+                    slack_user_id,
+                    is_hc=action_id == actions.EVENT_PREBLAST_HC,
+                )
         build_event_preblast_form(
             body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
         )
@@ -921,6 +958,15 @@ def handle_event_preblast_action(
                 metadata={"event_type": "preblast", "event_payload": metadata},
                 username=f"{q_name} (via F3 Nation)",
                 icon_url=q_url,
+            )
+            post_hc_thread_reply(
+                client,
+                logger,
+                region_record,
+                preblast_channel,
+                body["message"]["ts"],
+                slack_user_id,
+                is_hc=not already_hcd,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:
             if constants.ALL_USERS_ARE_ADMINS:

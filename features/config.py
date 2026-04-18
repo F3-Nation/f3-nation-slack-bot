@@ -123,6 +123,7 @@ def build_config_general_form(
             actions.CONFIG_SCHEDULED_PREBLAST_TIME: f"{str(region_record.scheduled_preblast_hour_cst).zfill(2)}:00"
             if region_record.scheduled_preblast_hour_cst is not None
             else "12:00",
+            actions.CONFIG_HC_ANNOUNCE_OPTION: region_record.hc_announce_option or "off",
         }
     )
 
@@ -196,6 +197,7 @@ def handle_config_general_post(
     region_record.scheduled_preblast_hour_cst = safe_convert(
         (safe_get(config_data, actions.CONFIG_SCHEDULED_PREBLAST_TIME) or "12:00").split(":")[0], int
     )
+    region_record.hc_announce_option = safe_get(config_data, actions.CONFIG_HC_ANNOUNCE_OPTION) or "off"
 
     DbManager.update_records(
         cls=SlackSpace,
