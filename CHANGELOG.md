@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-04-18)
+
+### Features
+
+- Feat: added HC / unHC thread callout functionality
+  ([`3b36a60`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/3b36a60a38b309773845cf5d98a875d90b5c13e0))
+
+
 ## v1.2.0 (2026-04-18)
 
 ### Features
