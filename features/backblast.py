@@ -460,15 +460,16 @@ def build_backblast_form(
         aos: List[Org] = DbManager.find_records(
             Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
         )
-        location_records: List[Location] = DbManager.find_records(
-            Location, [Location.org_id == region_record.org_id, Location.is_active]
-        )
         ao_location_records = DbManager.find_join_records2(
             Location,
             Org,
-            [Location.org_id == Org.id, Org.parent_id == region_record.org_id, Location.is_active],
+            [
+                Location.org_id == Org.id, 
+                or_(Org.parent_id == region_record.org_id, Org.id == region_record.org_id),
+                Location.is_active,
+            ],
         )
-        location_records.extend(record[0] for record in ao_location_records)
+        location_records: List[Location] = [record[0] for record in ao_location_records]
         # De-duplicate in case a location appears in both sources.
         location_records = list({location.id: location for location in location_records}.values())
         location_records.sort(key=lambda location: (get_location_display_name(location) or "").lower())
