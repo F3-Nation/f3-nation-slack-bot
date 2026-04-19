@@ -13,6 +13,7 @@ from f3_data_models.models import (
     AttendanceType,
     EventInstance,
     EventType_x_EventInstance,
+    Location,
     Org,
     Org_Type,
     SlackUser,
@@ -23,7 +24,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import not_, or_
 from sqlmodel import func
 
-from features import backblast_legacy
+from features import connect
 from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
@@ -32,6 +33,7 @@ from utilities.database.special_queries import (
 )
 from utilities.helper_functions import (
     current_date_cst,
+    get_location_display_name,
     get_pax,
     get_user,
     parse_rich_block,
@@ -99,7 +101,7 @@ def backblast_middleware(
         or (safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now())
         > datetime.now()
     ):
-        backblast_legacy.build_backblast_form(body, client, logger, context, region_record)
+        connect.build_connect_options_form(body, client, logger, context, region_record)
     elif action_id == actions.MSG_EVENT_BACKBLAST_BUTTON:
         event_instance_id = safe_convert(safe_get(body, "actions", 0, "value"), int)
         event_instance = DbManager.get(EventInstance, event_instance_id)
@@ -458,6 +460,19 @@ def build_backblast_form(
         aos: List[Org] = DbManager.find_records(
             Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
         )
+        ao_location_records = DbManager.find_join_records2(
+            Location,
+            Org,
+            [
+                Location.org_id == Org.id, 
+                or_(Org.parent_id == region_record.org_id, Org.id == region_record.org_id),
+                Location.is_active,
+            ],
+        )
+        location_records: List[Location] = [record[0] for record in ao_location_records]
+        # De-duplicate in case a location appears in both sources.
+        location_records = list({location.id: location for location in location_records}.values())
+        location_records.sort(key=lambda location: (get_location_display_name(location) or "").lower())
         region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.event_types])
         backblast_form.set_options(
             {
@@ -468,6 +483,10 @@ def build_backblast_form(
                 actions.BACKBLAST_EVENT_TYPE: slack_orm.as_selector_options(
                     names=[event_type.name for event_type in region_org_record.event_types],
                     values=[str(event_type.id) for event_type in region_org_record.event_types],
+                ),
+                actions.BACKBLAST_LOCATION: slack_orm.as_selector_options(
+                    names=[get_location_display_name(location) for location in location_records],
+                    values=[str(location.id) for location in location_records],
                 ),
             }
         )
@@ -583,6 +602,9 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     send_options = safe_get(backblast_data, actions.BACKBLAST_SEND_OPTIONS)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
     event_type = safe_convert(safe_get(backblast_data, actions.BACKBLAST_EVENT_TYPE), int) or event_type
+    location_id = safe_convert(safe_get(backblast_data, actions.BACKBLAST_LOCATION), int) or safe_get(
+        event, "location_id"
+    )
     files = safe_get(backblast_data, actions.BACKBLAST_FILE) or []
     file_ids = safe_get(backblast_data, "file_ids") or []
     selected_options = safe_get(backblast_data, actions.BACKBLAST_OPTIONS) or []
@@ -723,8 +745,18 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     backblast_data["event_instance_id"] = event_instance_id
 
     if not event_instance_id:
-        event_instance = DbManager.create_record(EventInstance(start_date=the_date, org_id=event_org.id, name=title))
+        event_instance = DbManager.create_record(
+            EventInstance(start_date=the_date, org_id=event_org.id, name=title, location_id=location_id)
+        )
         event_instance_id = event_instance.id
+        DbManager.create_record(
+            Attendance(
+                event_instance_id=event_instance_id,
+                user_id=q_user.user_id,
+                attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # assign as Q
+                is_planned=True,
+            )
+        )
         DbManager.create_record(
             EventType_x_EventInstance(event_instance_id=event_instance_id, event_type_id=event_type)
         )
@@ -860,7 +892,6 @@ FNGs: {fngs_formatted}
 COUNT: {count}
 {moleskin_msg}
             """
-
             try:
                 # Decrypt password
                 fernet = Fernet(os.environ[constants.PASSWORD_ENCRYPT_KEY].encode())
@@ -928,6 +959,7 @@ COUNT: {count}
         EventInstance.pax_count: count,
         EventInstance.fng_count: fng_count,
         EventInstance.meta: custom_fields,
+        EventInstance.location_id: location_id,
         EventInstance.is_active: True,
     }
     event: EventInstance = DbManager.get(EventInstance, event_instance_id, joinedloads="all")
@@ -1005,3 +1037,30 @@ def handle_backblast_edit_button(
             title_text="Backblast Edit",
             submit_button_text="None",
         )
+
+
+def handle_legacy_edit_button(
+    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+):
+    form = slack_orm.BlockView(
+        blocks=[
+            slack_orm.SectionBlock(
+                label="This backblast was created before migration to F3 Nation. To edit the backblast or attendance details, have an admin go to the calendar, use the start date filter to go back, and hit 'Edit Backblast' on the appropriate event.",  # noqa
+            ),
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="Open Calendar",
+                        action=actions.OPEN_CALENDAR_BUTTON,
+                    ),
+                ]
+            ),
+        ]
+    )
+    form.update_modal(
+        client=client,
+        view_id=safe_get(body, actions.LOADING_ID),
+        callback_id=actions.BACKBLAST_EDIT_CALLBACK_ID,
+        title_text="Legacy Backblast",
+        submit_button_text="None",
+    )

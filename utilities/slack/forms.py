@@ -15,6 +15,12 @@ UNSCHEDULED_BACKBLAST_BLOCKS = [
         element=orm.StaticSelectElement(placeholder="Select the event type..."),
     ),
     orm.InputBlock(
+        label="Location",
+        action=actions.BACKBLAST_LOCATION,
+        optional=True,
+        element=orm.StaticSelectElement(placeholder="Select the location..."),
+    ),
+    orm.InputBlock(
         label="The AO",
         action=actions.BACKBLAST_AO,
         optional=False,
@@ -71,6 +77,7 @@ BACKBLAST_FORM = orm.BlockView(
             action=actions.USER_OPTION_LOAD,
             optional=True,
             element=orm.MultiExternalSelectElement(placeholder="Type to search..."),
+            hint="To filter by home region, include the region in parentheses after their name, e.g. 'money (wash)' -> Moneyball (WashMo).",  # noqa: E501
         ),
         orm.InputBlock(
             label="List untaggable PAX, separated by commas (not FNGs)",
@@ -495,6 +502,20 @@ CONFIG_GENERAL_FORM = orm.BlockView(
                 placeholder="Enter the number of days...", is_decimal_allowed=False, min_value=0, max_value=7
             ),
             hint="This sets the number of reminders a Q will get until they complete their backblast. If set to 0, no reminders will be sent. Defaults to 5.",  # noqa
+        ),
+        orm.DividerBlock(),
+        orm.InputBlock(
+            label="HC Announcement in Preblast Thread",
+            action=actions.CONFIG_HC_ANNOUNCE_OPTION,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                initial_value="off",
+                options=orm.as_selector_options(
+                    names=["Off", "Standard", "Snarky"],
+                    values=["off", "standard", "snarky"],
+                ),
+            ),
+            hint="When enabled, the bot posts a reply in the preblast thread when someone HC's or Un-HC's.",
         ),
     ]
 )

@@ -128,6 +128,35 @@ DEFAULT_PREBLAST_MOLESKINE_TEMPLATE = {
 
 STATE_METADATA = "STATE_METADATA"
 
+HC_STANDARD_RESPONSE = "{user} has HC'd!"
+UNHC_STANDARD_RESPONSE = "{user} has Un-HC'd"
+
+HC_SNARKY_RESPONSES = [
+    "{user} has HC'd and is locked and loaded!",
+    "{user} just HC'd. The PAX just got better looking.",
+    "Oh snap, {user} just dropped an HC! Better stretch now.",
+    "{user} is IN. The gloom shall not be denied.",
+    "Lock it up boys, {user} just HC'd. No backing out now!",
+    "The legend himself, {user}, has HC'd. Shield your eyes.",
+    "{user} just HC'd. Moleskin not required, courage is.",
+    "HC ALERT: {user} is coming out to play. Hide your weinke.",
+    "{user} has committed. The Q weeps tears of joy.",
+    "Someone tell the Q — {user} just HC'd and they mean business.",
+]
+
+UNHC_SNARKY_RESPONSES = [
+    "What?!? {user} has Un-HC'd. Guess they don't like you guys.",
+    "{user} just Un-HC'd. The Q is not crying, you're crying.",
+    "Breaking news: {user} has abandoned the PAX. Stay strong, men.",
+    "{user} Un-HC'd. The weinke has been updated accordingly. :cry:",
+    "Another one bites the dust. {user} is out. #EH them again.",
+    "{user} Un-HC'd. Their parking spot has been reassigned.",
+    "Thoughts and prayers for the Q — {user} just Un-HC'd.",
+    "{user} has Un-HC'd. The downrange spirit is shaken but not stirred.",
+    "Well well well, {user} Un-HC'd. The coffeeteria has been notified.",
+    "{user} just Un-HC'd. The gloom misses them already.",
+]
+
 AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID"
 AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY"
 

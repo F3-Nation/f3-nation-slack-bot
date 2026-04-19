@@ -2,6 +2,61 @@
 
 <!-- version list -->
 
+## v1.3.0 (2026-04-18)
+
+### Features
+
+- Feat: added HC / unHC thread callout functionality
+  ([`3b36a60`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/3b36a60a38b309773845cf5d98a875d90b5c13e0))
+
+
+## v1.2.0 (2026-04-18)
+
+### Features
+
+- Added optional location to unscheduled backblast form
+  ([`18bd74f`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/18bd74f8702523dbddcc2c17f48ee64bf2b7ab62))
+
+
+## v1.1.1 (2026-04-15)
+
+### Bug Fixes
+
+- More cleanup
+  ([`61e8bbe`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/61e8bbef6c31ac4b102a5b1a4da52977321f35f4))
+
+- Removed leftover PaxMiner migration bits
+  ([#192](https://github.com/F3-Nation/f3-nation-slack-bot/pull/192),
+  [`f1d283a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/f1d283a53d065f6f710f26637c33f63478590d31))
+
+### Refactoring
+
+- Removed all legacy paxminer functionality
+  ([`61e8bbe`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/61e8bbef6c31ac4b102a5b1a4da52977321f35f4))
+
+
+## v1.1.0 (2026-04-11)
+
+### Bug Fixes
+
+- Improved user search to sort by relevance and optionally include home region
+  ([`adba213`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/adba2139c3a7cb818e863631685d88d7fd1431f7))
+
+### Features
+
+- Added new fields to user form: who brought you, f3 name origin story, and my f3why
+  ([`b809f50`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/b809f50d50e0ec42c0fff2e95a8a2caf468c8abb))
+
+
+## v1.0.3 (2026-04-10)
+
+### Bug Fixes
+
+- Fixed calendar list showing all regions' locations when group by location used
+  ([#189](https://github.com/F3-Nation/f3-nation-slack-bot/pull/189),
+  [`f8b69dc`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/f8b69dcc26520e93f5c863a5fa11198640cf418a))
+
+
 ## v1.0.2 (2026-04-08)
 
 ### Bug Fixes
