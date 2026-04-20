@@ -196,6 +196,7 @@ ACTION_MAPPER = {
     actions.DOWNRANGE_INVITE_APPROVE_BUTTON: (downrange.handle_invite_approve, False),
     actions.DOWNRANGE_INVITE_DENY_BUTTON: (downrange.handle_invite_deny, False),
     actions.DOWNRANGE_INVITE_LINK_BROKEN_BUTTON: (downrange.handle_invite_link_broken, False),
+    actions.DOWNRANGE_INVITE_MARK_DONE_BUTTON: (downrange.handle_invite_mark_done, False),
 }
 
 ACTION_PREFIXES = [

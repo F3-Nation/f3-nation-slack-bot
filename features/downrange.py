@@ -95,6 +95,26 @@ def _build_form_base(selected_org_id: int = None, selected_org_name: str = None)
     )
 
 
+def _build_contact_info_blocks(org) -> list:
+    """Return display blocks showing available contact info for an Org. Returns [] if none set."""
+    if not org:
+        return []
+    lines = []
+    if org.website:
+        lines.append(f"\u2022 *Website:* <{org.website}|{org.website}>")
+    if org.email:
+        lines.append(f"\u2022 *Email:* {org.email}")
+    if org.twitter:
+        lines.append(f"\u2022 *Twitter:* {org.twitter}")
+    if org.facebook:
+        lines.append(f"\u2022 *Facebook:* {org.facebook}")
+    if org.instagram:
+        lines.append(f"\u2022 *Instagram:* {org.instagram}")
+    if not lines:
+        return []
+    return [SectionBlock(label=":phone: *Contact Information*\n" + "\n".join(lines))]
+
+
 def _build_region_info_blocks(
     has_slack: bool,
     target_settings,
@@ -106,12 +126,15 @@ def _build_region_info_blocks(
     requester_user_id: str,
     requester_name: str,
     requester_region_name: str,
+    requester_email: str = "",
+    org=None,
 ) -> list:
     """Return the dynamic info blocks shown after a region is selected."""
     blocks = [DividerBlock()]
 
     if not has_slack:
         blocks.append(SectionBlock(label=f"*{selected_org_name}* is not known to be on Slack."))
+        blocks.extend(_build_contact_info_blocks(org))
         return blocks
 
     payload = json.dumps(
@@ -124,6 +147,7 @@ def _build_region_info_blocks(
             "requester_user_id": requester_user_id,
             "requester_name": requester_name,
             "requester_region_name": requester_region_name,
+            "requester_email": requester_email,
         }
     )
 
@@ -154,15 +178,25 @@ def _build_region_info_blocks(
                 ]
             )
         )
-    else:
+    elif target_settings and target_settings.downrange_invite_sharing == "direct_email":
         blocks.append(
             SectionBlock(
-                label=f":airplane: *{selected_org_name}* is on Slack! You can request an invite from their admins."
+                label=f":email: *{selected_org_name}* is on Slack! They accept invite requests via direct email."
+            )
+        )
+        blocks.append(
+            ContextBlock(
+                element=ContextElement(
+                    initial_value=(
+                        f"Your email address ({requester_email or 'on file with Slack'}) will be shared "
+                        "with their admins so they can send you a direct Slack invite."
+                    )
+                )
             )
         )
         blocks.append(
             InputBlock(
-                label="Introduction (optional)",
+                label="Introduction",
                 action=actions.DOWNRANGE_INTRO_TEXT,
                 element=PlainTextInputElement(
                     placeholder="Your F3 name, home region, why you want to join...",
@@ -182,6 +216,35 @@ def _build_region_info_blocks(
                 ]
             )
         )
+    else:
+        blocks.append(
+            SectionBlock(
+                label=f":airplane: *{selected_org_name}* is on Slack! You can request an invite from their admins."
+            )
+        )
+        blocks.append(
+            InputBlock(
+                label="Introduction",
+                action=actions.DOWNRANGE_INTRO_TEXT,
+                element=PlainTextInputElement(
+                    placeholder="Your F3 name, home region, why you want to join...",
+                    multiline=True,
+                ),
+                optional=True,
+            )
+        )
+        blocks.append(
+            ActionsBlock(
+                elements=[
+                    ButtonElement(
+                        label=":envelope: Send Request for Invite",
+                        action=actions.DOWNRANGE_INVITE_REQUEST_BUTTON,
+                        value=payload,
+                    ),
+                ]
+            )
+        )
+    blocks.extend(_build_contact_info_blocks(org))
     return blocks
 
 
@@ -214,14 +277,15 @@ DOWNRANGE_ADMIN_BLOCKS = [
         element=RadioButtonsElement(
             initial_value="request_only",
             options=as_selector_options(
-                names=["Share invite link proactively", "Require a request for invite"],
-                values=["proactive", "request_only"],
+                names=["Share invite link proactively", "Require a request for invite", "Direct email invite"],
+                values=["proactive", "request_only", "direct_email"],
             ),
         ),
         optional=False,
         hint=(
             "Proactive: any bot user can see your invite link directly. "
-            "Request: users must request an invite, and you approve it."
+            "Request: users must request an invite, and you approve it. "
+            "Direct email: the requester's email is shared with your admins so they can send a direct Slack invite."
         ),
     ),
     InputBlock(
@@ -331,6 +395,7 @@ def handle_region_select(body: dict, client: WebClient, logger: Logger, context:
     # Look up requester info
     requester_slack_user = get_user(user_id, region_record, client, logger)
     requester_name = requester_slack_user.user_name or "Unknown"
+    requester_email = requester_slack_user.email or ""
     requester_region_name = None
     if requester_slack_user.user_id:
         requester_user = DbManager.get(User, requester_slack_user.user_id, joinedloads=[User.home_region_org])
@@ -342,6 +407,7 @@ def handle_region_select(body: dict, client: WebClient, logger: Logger, context:
 
     # Look up target region
     target_team_id, target_bot_token, target_settings = _get_target_region_info(selected_org_id, logger)
+    org = DbManager.get(Org, selected_org_id)
 
     # Rebuild the form with the selection preserved
     form = _build_form_base(selected_org_id=selected_org_id, selected_org_name=selected_org_name)
@@ -358,6 +424,8 @@ def handle_region_select(body: dict, client: WebClient, logger: Logger, context:
         requester_user_id=user_id,
         requester_name=requester_name,
         requester_region_name=requester_region_name,
+        requester_email=requester_email,
+        org=org,
     )
     for block in info_blocks:
         form.add_block(block)
@@ -407,6 +475,7 @@ def handle_invite_request(body: dict, client: WebClient, logger: Logger, context
     requester_user_id = action_value.get("requester_user_id") or safe_get(body, "user", "id")
     requester_name = action_value.get("requester_name", "Unknown")
     requester_region_name = action_value.get("requester_region_name", "Unknown")
+    requester_email = action_value.get("requester_email", "")
 
     # Get intro text from form state (may be None)
     state_values = safe_get(body, "view", "state", "values") or {}
@@ -445,13 +514,12 @@ def handle_invite_request(body: dict, client: WebClient, logger: Logger, context
         )
         return
 
+    # Get the target region's current invite-sharing setting to determine DM format
+    _, _, target_settings = _get_target_region_info(target_org_id, logger)
+    is_direct_email = target_settings and target_settings.downrange_invite_sharing == "direct_email"
+
     # Build request message for target admins
     intro_section = f"\n\n*Their intro:*\n{intro_text}" if intro_text else ""
-    message_text = (
-        f":airplane: *Downrange Invite Request*\n"
-        f"*{requester_name}* from *{requester_region_name}* would like to join your Slack workspace.{intro_section}"
-    )
-
     metadata = {
         "event_type": "downrange_invite_request",
         "event_payload": {
@@ -463,32 +531,72 @@ def handle_invite_request(body: dict, client: WebClient, logger: Logger, context
         },
     }
 
-    request_blocks = [
-        SectionBlock(label=message_text).as_form_field(),
-        ActionsBlock(
-            elements=[
-                ButtonElement(
-                    label=":white_check_mark: Approve & Send Invite",
-                    action=actions.DOWNRANGE_INVITE_APPROVE_BUTTON,
-                    style="primary",
-                    value="approve",
-                ),
-                ButtonElement(
-                    label=":x: Deny",
-                    action=actions.DOWNRANGE_INVITE_DENY_BUTTON,
-                    style="danger",
-                    value="deny",
-                ),
-            ]
-        ).as_form_field(),
-        ContextBlock(
-            element=ContextElement(
-                initial_value=(
-                    "To set or update your workspace invite link, open `/f3-nation-settings` → Downrange → Admin settings."  # noqa: E501
+    if is_direct_email:
+        dm_text = f"Downrange email invite request from {requester_name} ({requester_region_name})"
+        message_text = (
+            f":email: *Downrange Email Invite Request*\n"
+            f"*{requester_name}* from *{requester_region_name}* would like to join your Slack workspace."
+            f"{intro_section}\n\n*Their email:* `{requester_email}`"
+        )
+        request_blocks = [
+            SectionBlock(label=message_text).as_form_field(),
+            ContextBlock(
+                element=ContextElement(
+                    initial_value=(
+                        "To invite them, go to your Slack workspace *Settings* \u2192 *Invite People* "
+                        "and enter their email address above."
+                    )
                 )
-            )
-        ).as_form_field(),
-    ]
+            ).as_form_field(),
+            ActionsBlock(
+                elements=[
+                    ButtonElement(
+                        label=":white_check_mark: Mark as Invited",
+                        action=actions.DOWNRANGE_INVITE_MARK_DONE_BUTTON,
+                        style="primary",
+                        value="done",
+                    ),
+                    ButtonElement(
+                        label=":x: Deny",
+                        action=actions.DOWNRANGE_INVITE_DENY_BUTTON,
+                        style="danger",
+                        value="deny",
+                    ),
+                ]
+            ).as_form_field(),
+        ]
+    else:
+        dm_text = f"Downrange invite request from {requester_name} ({requester_region_name})"
+        message_text = (
+            f":airplane: *Downrange Invite Request*\n"
+            f"*{requester_name}* from *{requester_region_name}* would like to join your Slack workspace.{intro_section}"
+        )
+        request_blocks = [
+            SectionBlock(label=message_text).as_form_field(),
+            ActionsBlock(
+                elements=[
+                    ButtonElement(
+                        label=":white_check_mark: Approve & Send Invite",
+                        action=actions.DOWNRANGE_INVITE_APPROVE_BUTTON,
+                        style="primary",
+                        value="approve",
+                    ),
+                    ButtonElement(
+                        label=":x: Deny",
+                        action=actions.DOWNRANGE_INVITE_DENY_BUTTON,
+                        style="danger",
+                        value="deny",
+                    ),
+                ]
+            ).as_form_field(),
+            ContextBlock(
+                element=ContextElement(
+                    initial_value=(
+                        "To set or update your workspace invite link, open `/f3-nation-settings` \u2192 Downrange \u2192 Admin settings."  # noqa: E501
+                    )
+                )
+            ).as_form_field(),
+        ]
 
     try:
         target_client = WebClient(token=target_bot_token, ssl=_ssl_context())
@@ -496,7 +604,7 @@ def handle_invite_request(body: dict, client: WebClient, logger: Logger, context
         dm_channel = safe_get(dm, "channel", "id")
         target_client.chat_postMessage(
             channel=dm_channel,
-            text=f"Downrange invite request from {requester_name} ({requester_region_name})",
+            text=dm_text,
             blocks=request_blocks,
             metadata=metadata,
         )
@@ -705,6 +813,54 @@ def handle_invite_link_broken(
         )
     except Exception as e:
         logger.error(f"handle_invite_link_broken: error notifying requester: {e}")
+
+
+def handle_invite_mark_done(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+    """Admin clicked 'Mark as Invited'. Update the DM and notify the requester to check their email."""
+    metadata = safe_get(body, "message", "metadata", "event_payload") or {}
+    requester_bot_token = metadata.get("requester_bot_token")
+    requester_user_id = metadata.get("requester_user_id")
+    requester_name = metadata.get("requester_name", "the requester")
+    target_org_name = metadata.get("target_org_name", "our region")
+
+    channel_id = safe_get(body, "channel", "id")
+    message_ts = safe_get(body, "message", "ts")
+
+    if not requester_bot_token or not requester_user_id:
+        logger.error("handle_invite_mark_done: missing requester_bot_token or requester_user_id in metadata")
+        return
+
+    try:
+        send_client = WebClient(token=requester_bot_token, ssl=_ssl_context())
+        send_client.chat_postMessage(
+            channel=requester_user_id,
+            text=f"Your invite to {target_org_name} has been sent — check your email!",
+            blocks=[
+                SectionBlock(
+                    label=f":email: The admins of *{target_org_name}* have sent you a direct email invite! "
+                    "Check your email inbox for an invitation to join their Slack workspace."
+                ).as_form_field()
+            ],
+        )
+    except Exception as e:
+        logger.error(f"handle_invite_mark_done: error notifying requester: {e}")
+        return
+
+    # Update the admin group DM to mark as handled
+    if channel_id and message_ts:
+        try:
+            client.chat_update(
+                channel=channel_id,
+                ts=message_ts,
+                text=f"Email invite request from {requester_name} — *Invited* :white_check_mark:",
+                blocks=[
+                    SectionBlock(
+                        label=f"Email invite request from *{requester_name}* — *Invited* :white_check_mark: by <@{safe_get(body, 'user', 'id')}>"  # noqa: E501
+                    ).as_form_field()
+                ],
+            )
+        except Exception as e:
+            logger.error(f"handle_invite_mark_done: error updating admin message: {e}")
 
 
 def handle_downrange_settings(
