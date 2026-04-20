@@ -46,6 +46,7 @@ from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from utilities.builders import add_loading_form
+from utilities.constants import ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
     current_date_cst,
@@ -688,11 +689,24 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
     """Build and display the achievement configuration modal."""
     trigger_id = safe_get(body, "trigger_id")
 
-    service = AchievementService()
-    views = AchievementViews()
+    if region_record.org_id not in ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS:
+        form = SdkBlockView(
+            blocks=[
+                SectionBlock(
+                    text=MarkdownTextObject(
+                        text=":construction: This feature is currently in alpha testing, coming soon to all regions! :construction:"  # noqa E501
+                    ),
+                ),
+            ]
+        )
+        submit = "None"
+    else:
+        service = AchievementService()
+        views = AchievementViews()
 
-    achievements = service.get_all_achievements(region_record.org_id)
-    form = views.build_config_modal(region_record, achievements)
+        achievements = service.get_all_achievements(region_record.org_id)
+        form = views.build_config_modal(region_record, achievements)
+        submit = "Submit"
 
     form.post_modal(
         client=client,
@@ -700,6 +714,7 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
         title_text="Achievement Settings",
         callback_id=ACHIEVEMENT_CONFIG_CALLBACK_ID,
         new_or_add="add",
+        submit_button_text=submit,
     )
 
 
