@@ -2,6 +2,19 @@
 
 <!-- version list -->
 
+## v1.4.0 (2026-04-20)
+
+### Bug Fixes
+
+- Fixed query which was preventing preblast reminders from generating
+  ([`0ed3404`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/0ed3404286ddf5f974b59d12ad5ce9bf8d4d52e6))
+
+### Features
+
+- Added a downrange feature for automated DR posts and requesting Slack space invites
+  ([`a71008d`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/a71008d125ee9af8767e2ff2b15540d98360e16d))
+
+
 ## v1.3.0 (2026-04-18)
 
 ### Features
