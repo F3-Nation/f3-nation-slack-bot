@@ -274,6 +274,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":computer: Paxminer Mapping",
                     action=actions.PAXMINER_MAPPING,
                 ),
+                orm.ButtonElement(
+                    label=":airplane: Downrange",
+                    action=actions.CONFIG_DOWNRANGE,
+                ),
             ],
         ),
     ]
@@ -773,6 +777,10 @@ CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":grey_question: Help Menu",
                     action=actions.CONFIG_HELP_MENU,
+                ),
+                orm.ButtonElement(
+                    label=":airplane: Downrange",
+                    action=actions.CONFIG_DOWNRANGE,
                 ),
             ],
         ),
