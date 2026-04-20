@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.4.1 (2026-04-20)
+
+### Bug Fixes
+
+- Added direct email method and surfacing region contact info on downrange search
+  ([`b411e93`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/b411e93e597c6787162e57ce041c5312f2113bbe))
+
+- Fixed user mention and other formatting for downrange posts
+  ([`e9dc680`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/e9dc68080bab2b54f70d6064d11c83d923a99ea9))
+
+
 ## v1.4.0 (2026-04-20)
 
 ### Bug Fixes
