@@ -995,6 +995,18 @@ COUNT: {count}
     # ── Downrange cross-posting ────────────────────────────────────────────────
     # Find PAX who have a home region different from the current region and cross-post
     # backblasts to those regions if they have cross-posting enabled.
+    cross_post_msg = f""":airplane: *Downrange! {title}*
+*DATE*: {the_date}
+*REGION*: {region_record.workspace_name or event_org.name}
+*AO*: {event_org.name}
+*Q*: {q_name}{the_coqs_names}
+*PAX*: {pax_names}
+*FNGs*: {fngs_formatted}
+*COUNT*: {count}"""
+    for field, value in custom_fields.items():
+        if field not in ("files", "file_ids", "downrange_posts") and not field.endswith("_low_rez") and value:
+            cross_post_msg += f"\n*{field}*: {str(value)}"
+
     all_user_ids = [u.user_id for u in db_users if u.user_id]
     if all_user_ids:
         pax_user_records = DbManager.find_records(
@@ -1034,10 +1046,10 @@ COUNT: {count}
                 continue
 
             cross_blocks = [
-                slack_orm.SectionBlock(label=post_msg).as_form_field(),
+                slack_orm.SectionBlock(label=cross_post_msg).as_form_field(),
                 moleskin,
                 slack_orm.ContextBlock(
-                    element=slack_orm.ContextElement(initial_value=f"Cross-posted from *{event_org.name}* F3 workout.")
+                    element=slack_orm.ContextElement(initial_value=f"Cross-posted from *{event_org.name}*")
                 ).as_form_field(),
             ]
 
@@ -1049,7 +1061,7 @@ COUNT: {count}
                     dr_client.chat_update(
                         channel=existing_post["channel"],
                         ts=existing_post["ts"],
-                        text=post_msg[:1500],
+                        text=cross_post_msg[:1500],
                         username=f"{q_name} (via F3 Nation)",
                         icon_url=q_url,
                         blocks=cross_blocks,
@@ -1057,7 +1069,7 @@ COUNT: {count}
                 else:
                     dr_res = dr_client.chat_postMessage(
                         channel=dr_settings.downrange_channel,
-                        text=post_msg[:1500],
+                        text=cross_post_msg[:1500],
                         username=f"{q_name} (via F3 Nation)",
                         icon_url=q_url,
                         blocks=cross_blocks,
