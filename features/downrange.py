@@ -76,20 +76,20 @@ def _build_form_base(selected_org_id: int = None, selected_org_name: str = None)
     """Build a fresh BlockView containing just the region search input."""
     return BlockView(
         blocks=[
-            InputBlock(
-                label="Search for a region",
-                action=actions.DOWNRANGE_REGION_SELECT,
-                element=ExternalSelectElement(
-                    placeholder="Type to search for a region...",
-                    min_query_length=2,
-                    initial_value=(
-                        {"text": selected_org_name, "value": str(selected_org_id)}
-                        if selected_org_id and selected_org_name
-                        else None
+            SectionBlock(label="*Search for a region*"),
+            ActionsBlock(
+                elements=[
+                    ExternalSelectElement(
+                        placeholder="Type to search for a region...",
+                        action=actions.DOWNRANGE_REGION_SELECT,
+                        min_query_length=2,
+                        initial_value=(
+                            {"text": selected_org_name, "value": str(selected_org_id)}
+                            if selected_org_id and selected_org_name
+                            else None
+                        ),
                     ),
-                ),
-                optional=True,
-                dispatch_action=True,
+                ]
             ),
         ]
     )
@@ -452,7 +452,7 @@ def handle_region_select(body: dict, client: WebClient, logger: Logger, context:
         )
         submit_text = "Save Admin Settings"
     else:
-        submit_text = "None"
+        submit_text = "Done"
 
     form.update_modal(
         client=client,
@@ -867,6 +867,10 @@ def handle_downrange_settings(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
     """Admin submitted the downrange settings form. Persist changes to SlackSettings."""
+    private_metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
+    if not private_metadata.get("is_admin", False):
+        return
+
     from f3_data_models.models import SlackSpace
 
     form_data = BlockView(blocks=copy.deepcopy(DOWNRANGE_ADMIN_BLOCKS)).get_selected_values(body)
