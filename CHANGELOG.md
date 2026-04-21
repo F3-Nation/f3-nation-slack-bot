@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.0 (2026-04-21)
+
+### Features
+
+- Added script for nudging users about their home region when it looks like they joined a new one
+  ([`cb2f798`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/cb2f798defc1017f4c90ab28568d67a84f855ecd))
+
+
 ## v1.4.2 (2026-04-21)
 
 ### Bug Fixes
