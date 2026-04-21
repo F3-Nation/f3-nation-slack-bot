@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.4.2 (2026-04-21)
+
+### Bug Fixes
+
+- Fixed downrange region selector not working for non-admin
+  ([`8d53263`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/8d53263423686e4765b5c2e95d43db531672aae9))
+
+
 ## v1.4.1 (2026-04-20)
 
 ### Bug Fixes
