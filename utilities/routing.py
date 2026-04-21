@@ -21,6 +21,7 @@ from features import (
 from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
 from features.calendar import config as calendar_config
 from scripts.backblast_reminders import handle_backblast_reminder_dismiss
+from scripts.home_region_nudge import handle_home_region_dismiss, handle_home_region_opt_out, handle_home_region_switch
 from scripts.monthly_reporting import run_reporting_single_org
 from scripts.q_lineups import handle_lineup_signup
 from utilities import builders, options
@@ -197,6 +198,9 @@ ACTION_MAPPER = {
     actions.DOWNRANGE_INVITE_DENY_BUTTON: (downrange.handle_invite_deny, False),
     actions.DOWNRANGE_INVITE_LINK_BROKEN_BUTTON: (downrange.handle_invite_link_broken, False),
     actions.DOWNRANGE_INVITE_MARK_DONE_BUTTON: (downrange.handle_invite_mark_done, False),
+    actions.HOME_REGION_NUDGE_SWITCH_BUTTON: (handle_home_region_switch, False),
+    actions.HOME_REGION_NUDGE_DISMISS_BUTTON: (handle_home_region_dismiss, False),
+    actions.HOME_REGION_NUDGE_OPT_OUT_BUTTON: (handle_home_region_opt_out, False),
 }
 
 ACTION_PREFIXES = [

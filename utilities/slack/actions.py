@@ -363,3 +363,7 @@ DOWNRANGE_INVITE_LINK_BROKEN_BUTTON = "downrange_invite_link_broken"
 DOWNRANGE_CHANNEL_POSTING = "downrange_channel_posting"
 DOWNRANGE_CHANNEL = "downrange_channel"
 DOWNRANGE_INVITE_MARK_DONE_BUTTON = "downrange_invite_mark_done"
+
+HOME_REGION_NUDGE_SWITCH_BUTTON = "home-region-nudge-switch"
+HOME_REGION_NUDGE_DISMISS_BUTTON = "home-region-nudge-dismiss"
+HOME_REGION_NUDGE_OPT_OUT_BUTTON = "home-region-nudge-opt-out"
