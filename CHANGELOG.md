@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.2 (2026-04-22)
+
+### Bug Fixes
+
+- Logic on when to run the home region nudge script
+  ([`3c90e8e`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/3c90e8e1c8d4882639b070ef9f1a38c1ffaca773))
+
+
 ## v1.5.1 (2026-04-22)
 
 ### Bug Fixes
