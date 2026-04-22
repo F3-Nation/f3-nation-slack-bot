@@ -155,9 +155,11 @@ def send_home_region_nudges(force: bool = False):
         other_90 = sum(r.posts_90 for r in other_rows if r.region_id == top_other_region_id)
         other_30 = sum(r.posts_30 for r in other_rows if r.region_id == top_other_region_id)
 
-        qualifies_30 = total_30 >= MIN_POSTS_30 and (other_30 / total_30) >= PCT_THRESHOLD_30
+        qualifies_30 = total_30 >= MIN_POSTS_30 and (other_30 / max(total_30, 1)) >= PCT_THRESHOLD_30
         qualifies_90 = (
-            total_90 >= MIN_POSTS_90 and (other_90 / total_90) >= PCT_THRESHOLD_90 and (other_30 / total_30) >= 0.30
+            total_90 >= MIN_POSTS_90
+            and (other_90 / max(total_90, 1)) >= PCT_THRESHOLD_90
+            and (other_30 / max(total_30, 1)) >= 0.30
         )  # Ensure at least 30% in last 30 days to avoid nudging users who have recently switched
 
         if not qualifies_30 and not qualifies_90:
