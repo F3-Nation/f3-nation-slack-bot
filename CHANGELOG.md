@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.5.1 (2026-04-22)
+
+### Bug Fixes
+
+- Fixed divide by zero error on home region nudge script
+  ([`ea10c90`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/ea10c90869cfc7640cc8dcdbc40a2845b1d8f47c))
+
+
 ## v1.5.0 (2026-04-21)
 
 ### Features
