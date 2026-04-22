@@ -72,7 +72,7 @@ def _build_dm_blocks(f3_name: str, home_region_name: str, other_region_name: str
 
 def send_home_region_nudges(force: bool = False):
     current_time = datetime.now(pytz.timezone("US/Central"))
-    if current_time.day != NUDGE_DAY and not force and current_time.hour != NUDGE_HOUR:
+    if not force and (current_time.day != NUDGE_DAY or current_time.hour != NUDGE_HOUR):
         return
 
     print("Pulling home region nudge activity data...")
