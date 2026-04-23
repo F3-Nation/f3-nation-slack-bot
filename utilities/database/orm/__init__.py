@@ -69,6 +69,7 @@ class SlackSettings:
     automated_preblast_hour_cst: Optional[int] = None
     scheduled_preblast_hour_cst: Optional[int] = None
     hc_announce_option: Optional[str] = None
+    hc_announce_targets: Optional[str] = None
     downrange_invite_link: Optional[str] = None
     downrange_invite_sharing: Optional[str] = None  # "proactive" or "request_only"
     downrange_channel_posting: Optional[str] = None  # "off" or "enabled"

@@ -70,11 +70,28 @@ def post_hc_thread_reply(
     preblast_ts: str | None,
     slack_user_id: str,
     is_hc: bool,
+    event_instance_id: int | None = None,
 ) -> None:
     """Post an optional announcement in the preblast thread when a user HCs or Un-HCs."""
     option = region_record.hc_announce_option
     if not option or option == "off" or not preblast_channel or not preblast_ts:
         return
+    targets = region_record.hc_announce_targets or "both"
+    if is_hc and targets == "unhc_only":
+        return
+    if not is_hc and targets == "hc_only":
+        return
+    # Only post the first time a user performs each action (HC or Un-HC) for this event
+    if event_instance_id is not None:
+        event_record: EventInstance = DbManager.get(EventInstance, event_instance_id)
+        meta = event_record.meta or {}
+        hc_announced = meta.get("hc_announced", {})
+        key = "hc" if is_hc else "unhc"
+        if slack_user_id in (hc_announced.get(key) or []):
+            return
+        hc_announced.setdefault(key, []).append(slack_user_id)
+        meta["hc_announced"] = hc_announced
+        DbManager.update_record(EventInstance, event_instance_id, {EventInstance.meta: meta})
     user_mention = f"<@{slack_user_id}>"
     if option == "snarky":
         responses = constants.HC_SNARKY_RESPONSES if is_hc else constants.UNHC_SNARKY_RESPONSES
@@ -893,6 +910,7 @@ def handle_event_preblast_action(
                     metadata["preblast_ts"],
                     slack_user_id,
                     is_hc=action_id == actions.EVENT_PREBLAST_HC,
+                    event_instance_id=event_instance_id,
                 )
         build_event_preblast_form(
             body, client, logger, context, region_record, event_instance_id=event_instance_id, update_view_id=view_id
@@ -967,6 +985,7 @@ def handle_event_preblast_action(
                 body["message"]["ts"],
                 slack_user_id,
                 is_hc=not already_hcd,
+                event_instance_id=event_instance_id,
             )
         elif action_id == actions.EVENT_PREBLAST_EDIT:
             if constants.ALL_USERS_ARE_ADMINS:
