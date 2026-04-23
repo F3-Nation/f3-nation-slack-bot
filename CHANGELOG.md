@@ -2,6 +2,20 @@
 
 <!-- version list -->
 
+## v1.6.0 (2026-04-23)
+
+### Documentation
+
+- Added new snarky responses for HC and un-HC events; enhance welcome message templates
+  ([#197](https://github.com/F3-Nation/f3-nation-slack-bot/pull/197),
+  [`11a2172`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/11a2172659f047a3f07bda5b6940e0a3fcbb6507))
+
+### Features
+
+- Added option to only announce HCs or unHCs in preblast and preventing thread spamming
+  ([`bd4e272`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/bd4e2722e4a51194a963abb228c0e943df41de32))
+
+
 ## v1.5.2 (2026-04-22)
 
 ### Bug Fixes
