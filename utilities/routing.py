@@ -18,7 +18,17 @@ from features import (
     weaselbot,
     welcome,
 )
-from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
+from features.calendar import (
+    ao,
+    event_instance,
+    event_preblast,
+    event_tag,
+    event_type,
+    home,
+    location,
+    nearby_events,
+    series,
+)
 from features.calendar import config as calendar_config
 from scripts.backblast_reminders import handle_backblast_reminder_dismiss
 from scripts.home_region_nudge import handle_home_region_dismiss, handle_home_region_opt_out, handle_home_region_switch
@@ -201,6 +211,11 @@ ACTION_MAPPER = {
     actions.HOME_REGION_NUDGE_SWITCH_BUTTON: (handle_home_region_switch, False),
     actions.HOME_REGION_NUDGE_DISMISS_BUTTON: (handle_home_region_dismiss, False),
     actions.HOME_REGION_NUDGE_OPT_OUT_BUTTON: (handle_home_region_opt_out, False),
+    actions.NEARBY_EVENTS_OPEN: (nearby_events.build_nearby_events_modal, False),
+    actions.NEARBY_EVENTS_DISTANCE: (nearby_events.build_nearby_events_modal, False),
+    actions.NEARBY_EVENTS_SORT: (nearby_events.build_nearby_events_modal, False),
+    actions.NEARBY_EVENTS_HC: (nearby_events.handle_nearby_events_hc_action, False),
+    actions.NEARBY_EVENTS_UN_HC: (nearby_events.handle_nearby_events_hc_action, False),
 }
 
 ACTION_PREFIXES = [

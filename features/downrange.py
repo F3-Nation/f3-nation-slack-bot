@@ -91,6 +91,15 @@ def _build_form_base(selected_org_id: int = None, selected_org_name: str = None)
                     ),
                 ]
             ),
+            DividerBlock(),
+            ActionsBlock(
+                elements=[
+                    ButtonElement(
+                        label=":world_map: Nearby Special Events",
+                        action=actions.NEARBY_EVENTS_OPEN,
+                    ),
+                ]
+            ),
         ]
     )
 

@@ -467,6 +467,10 @@ def generate_calendar_images(force: bool = False):
                                         text=":calendar: Open Full Calendar",
                                         action_id=actions.OPEN_CALENDAR_BUTTON,
                                     ),
+                                    blocks.ButtonElement(
+                                        text=":world_map: Nearby Special Events",
+                                        action_id=actions.NEARBY_EVENTS_OPEN,
+                                    ),
                                 ]
                             )
                         )

@@ -112,7 +112,10 @@ def build_home_form(
             elements=[
                 orm.ButtonElement(
                     ":calendar: Calendar Images", value="calendar", action=actions.OPEN_CALENDAR_IMAGE_BUTTON
-                )
+                ),
+                orm.ButtonElement(
+                    ":world_map: Nearby Special Events", value="nearby", action=actions.NEARBY_EVENTS_OPEN
+                ),
             ]
         ),
         orm.DividerBlock(),
