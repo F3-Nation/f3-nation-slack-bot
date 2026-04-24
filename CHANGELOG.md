@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-04-24)
+
+### Features
+
+- Added a new `nearby special events` menu to see upcoming special events in nearby regions
+  ([`92c6649`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/92c664913584bf7b1ed285cef720ffa89bc48f1e))
+
+
 ## v1.6.0 (2026-04-23)
 
 ### Documentation
