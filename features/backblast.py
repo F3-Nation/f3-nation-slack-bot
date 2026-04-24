@@ -1,6 +1,8 @@
 import copy
 import json
 import os
+import ssl
+import time
 from datetime import datetime
 from logging import Logger
 from typing import List
@@ -16,6 +18,8 @@ from f3_data_models.models import (
     Location,
     Org,
     Org_Type,
+    Org_x_SlackSpace,
+    SlackSpace,
     SlackUser,
     User,
 )
@@ -32,6 +36,7 @@ from utilities.database.special_queries import (
     get_admin_users,
 )
 from utilities.helper_functions import (
+    REGION_RECORDS,
     current_date_cst,
     get_location_display_name,
     get_pax,
@@ -464,7 +469,7 @@ def build_backblast_form(
             Location,
             Org,
             [
-                Location.org_id == Org.id, 
+                Location.org_id == Org.id,
                 or_(Org.parent_id == region_record.org_id, Org.id == region_record.org_id),
                 Location.is_active,
             ],
@@ -986,6 +991,107 @@ COUNT: {count}
         filters=[Attendance.event_instance_id == event_instance_id, not_(Attendance.is_planned)],
     )
     DbManager.create_records(attendance_records)
+
+    # ── Downrange cross-posting ────────────────────────────────────────────────
+    # Find PAX who have a home region different from the current region and cross-post
+    # backblasts to those regions if they have cross-posting enabled.
+    cross_post_msg = f""":airplane: *Downrange! {title}*
+*DATE*: {the_date}
+*REGION*: {region_record.workspace_name or event_org.name}
+*AO*: {event_org.name}
+*Q*: {q_name}{the_coqs_names}
+*PAX*: {pax_names}
+*FNGs*: {fngs_formatted}
+*COUNT*: {count}"""
+    for field, value in custom_fields.items():
+        if field not in ("files", "file_ids", "downrange_posts") and not field.endswith("_low_rez") and value:
+            cross_post_msg += f"\n*{field}*: {str(value)}"
+
+    all_user_ids = [u.user_id for u in db_users if u.user_id]
+    if all_user_ids:
+        pax_user_records = DbManager.find_records(
+            User,
+            [User.id.in_(all_user_ids), User.home_region_id.isnot(None)],
+        )
+        foreign_region_ids = {
+            u.home_region_id for u in pax_user_records if u.home_region_id and u.home_region_id != region_record.org_id
+        }
+
+        existing_dr_posts = safe_get(event.meta if event else {}, "downrange_posts") or []
+        existing_by_team = {p["team_id"]: p for p in existing_dr_posts}
+        new_dr_posts = list(existing_by_team.values())  # preserve existing; updated in-place below
+
+        ssl_ctx = ssl.create_default_context()
+        ssl_ctx.check_hostname = False
+        ssl_ctx.verify_mode = ssl.CERT_NONE
+
+        for home_region_id in foreign_region_ids:
+            ox = DbManager.find_first_record(Org_x_SlackSpace, [Org_x_SlackSpace.org_id == home_region_id])
+            if not ox:
+                continue
+            dr_slack_space = DbManager.get(SlackSpace, ox.slack_space_id)
+            if not dr_slack_space or not dr_slack_space.bot_token:
+                continue
+
+            dr_settings = REGION_RECORDS.get(dr_slack_space.team_id)
+            if not dr_settings and dr_slack_space.settings:
+                try:
+                    dr_settings = SlackSettings(**dr_slack_space.settings)
+                except Exception:
+                    continue
+
+            if not dr_settings:
+                continue
+            if dr_settings.downrange_channel_posting != "enabled" or not dr_settings.downrange_channel:
+                continue
+
+            cross_blocks = [
+                slack_orm.SectionBlock(label=cross_post_msg).as_form_field(),
+                moleskin,
+                slack_orm.ContextBlock(
+                    element=slack_orm.ContextElement(initial_value=f"Cross-posted from *{event_org.name}*")
+                ).as_form_field(),
+            ]
+
+            try:
+                dr_client = WebClient(token=dr_slack_space.bot_token, ssl=ssl_ctx)
+                existing_post = existing_by_team.get(dr_slack_space.team_id)
+
+                if create_or_edit == "edit" and existing_post:
+                    dr_client.chat_update(
+                        channel=existing_post["channel"],
+                        ts=existing_post["ts"],
+                        text=cross_post_msg[:1500],
+                        username=f"{q_name} (via F3 Nation)",
+                        icon_url=q_url,
+                        blocks=cross_blocks,
+                    )
+                else:
+                    dr_res = dr_client.chat_postMessage(
+                        channel=dr_settings.downrange_channel,
+                        text=cross_post_msg[:1500],
+                        username=f"{q_name} (via F3 Nation)",
+                        icon_url=q_url,
+                        blocks=cross_blocks,
+                    )
+                    new_post_entry = {
+                        "team_id": dr_slack_space.team_id,
+                        "channel": dr_settings.downrange_channel,
+                        "ts": dr_res["ts"],
+                    }
+                    idx = next((i for i, p in enumerate(new_dr_posts) if p["team_id"] == dr_slack_space.team_id), None)
+                    if idx is not None:
+                        new_dr_posts[idx] = new_post_entry
+                    else:
+                        new_dr_posts.append(new_post_entry)
+            except Exception as e:
+                logger.warning(f"Downrange cross-post failed for team {dr_slack_space.team_id}: {e}")
+                time.sleep(1)
+
+        if new_dr_posts:
+            updated_meta = dict(custom_fields)
+            updated_meta["downrange_posts"] = new_dr_posts
+            DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.meta: updated_meta})
 
 
 def handle_backblast_edit_button(

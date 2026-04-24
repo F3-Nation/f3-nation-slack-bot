@@ -6,6 +6,7 @@ from features import (
     connect,
     custom_fields,
     db_admin,
+    downrange,
     emergency,
     help,
     paxminer_mapping,
@@ -18,9 +19,20 @@ from features import (
     weaselbot,
     welcome,
 )
-from features.calendar import ao, event_instance, event_preblast, event_tag, event_type, home, location, series
+from features.calendar import (
+    ao,
+    event_instance,
+    event_preblast,
+    event_tag,
+    event_type,
+    home,
+    location,
+    nearby_events,
+    series,
+)
 from features.calendar import config as calendar_config
 from scripts.backblast_reminders import handle_backblast_reminder_dismiss
+from scripts.home_region_nudge import handle_home_region_dismiss, handle_home_region_opt_out, handle_home_region_switch
 from scripts.monthly_reporting import run_reporting_single_org
 from scripts.q_lineups import handle_lineup_signup
 from utilities import builders, options
@@ -82,6 +94,7 @@ VIEW_MAPPER = {
     paxminer_mapping.PAXMINER_MAPPING_ID: (paxminer_mapping.handle_paxminer_mapping_post, False),
     event_instance.EVENT_CLOSE_CALLBACK_ID: (event_instance.handle_event_instance_close, False),
     actions.EVENT_CLOSE_HOME_CALLBACK_ID: (home.handle_event_instance_close, False),
+    actions.DOWNRANGE_CALLBACK_ID: (downrange.handle_downrange_settings, False),
 }
 
 ACTION_MAPPER = {
@@ -196,6 +209,21 @@ ACTION_MAPPER = {
     actions.CONFIG_EMERGENCY_INFO: (emergency.build_emergency_search_form, True),
     actions.EMERGENCY_LOCAL_USER_SELECT: (emergency.handle_local_user_select, False),
     actions.EMERGENCY_DR_USER_SELECT: (emergency.handle_dr_user_select, False),
+    actions.CONFIG_DOWNRANGE: (downrange.build_downrange_menu, True),
+    actions.DOWNRANGE_REGION_SELECT: (downrange.handle_region_select, False),
+    actions.DOWNRANGE_INVITE_REQUEST_BUTTON: (downrange.handle_invite_request, False),
+    actions.DOWNRANGE_INVITE_APPROVE_BUTTON: (downrange.handle_invite_approve, False),
+    actions.DOWNRANGE_INVITE_DENY_BUTTON: (downrange.handle_invite_deny, False),
+    actions.DOWNRANGE_INVITE_LINK_BROKEN_BUTTON: (downrange.handle_invite_link_broken, False),
+    actions.DOWNRANGE_INVITE_MARK_DONE_BUTTON: (downrange.handle_invite_mark_done, False),
+    actions.HOME_REGION_NUDGE_SWITCH_BUTTON: (handle_home_region_switch, False),
+    actions.HOME_REGION_NUDGE_DISMISS_BUTTON: (handle_home_region_dismiss, False),
+    actions.HOME_REGION_NUDGE_OPT_OUT_BUTTON: (handle_home_region_opt_out, False),
+    actions.NEARBY_EVENTS_OPEN: (nearby_events.build_nearby_events_modal, False),
+    actions.NEARBY_EVENTS_DISTANCE: (nearby_events.build_nearby_events_modal, False),
+    actions.NEARBY_EVENTS_SORT: (nearby_events.build_nearby_events_modal, False),
+    actions.NEARBY_EVENTS_HC: (nearby_events.handle_nearby_events_hc_action, False),
+    actions.NEARBY_EVENTS_UN_HC: (nearby_events.handle_nearby_events_hc_action, False),
 }
 
 ACTION_PREFIXES = [
@@ -232,6 +260,7 @@ OPTIONS_MAPPER = {
     paxminer_mapping.PAXMINER_REGION: (options.handle_request, False),
     connect.SELECT_REGION: (options.handle_request, False),
     actions.EMERGENCY_DR_USER_SELECT: (options.handle_request, False),
+    actions.DOWNRANGE_REGION_SELECT: (options.handle_request, False),
 }
 
 SHORTCUT_MAPPER = {

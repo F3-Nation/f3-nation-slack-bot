@@ -2,6 +2,84 @@
 
 <!-- version list -->
 
+## v1.7.0 (2026-04-24)
+
+### Features
+
+- Added a new `nearby special events` menu to see upcoming special events in nearby regions
+  ([`92c6649`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/92c664913584bf7b1ed285cef720ffa89bc48f1e))
+
+
+## v1.6.0 (2026-04-23)
+
+### Documentation
+
+- Added new snarky responses for HC and un-HC events; enhance welcome message templates
+  ([#197](https://github.com/F3-Nation/f3-nation-slack-bot/pull/197),
+  [`11a2172`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/11a2172659f047a3f07bda5b6940e0a3fcbb6507))
+
+### Features
+
+- Added option to only announce HCs or unHCs in preblast and preventing thread spamming
+  ([`bd4e272`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/bd4e2722e4a51194a963abb228c0e943df41de32))
+
+
+## v1.5.2 (2026-04-22)
+
+### Bug Fixes
+
+- Logic on when to run the home region nudge script
+  ([`3c90e8e`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/3c90e8e1c8d4882639b070ef9f1a38c1ffaca773))
+
+
+## v1.5.1 (2026-04-22)
+
+### Bug Fixes
+
+- Fixed divide by zero error on home region nudge script
+  ([`ea10c90`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/ea10c90869cfc7640cc8dcdbc40a2845b1d8f47c))
+
+
+## v1.5.0 (2026-04-21)
+
+### Features
+
+- Added script for nudging users about their home region when it looks like they joined a new one
+  ([`cb2f798`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/cb2f798defc1017f4c90ab28568d67a84f855ecd))
+
+
+## v1.4.2 (2026-04-21)
+
+### Bug Fixes
+
+- Fixed downrange region selector not working for non-admin
+  ([`8d53263`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/8d53263423686e4765b5c2e95d43db531672aae9))
+
+
+## v1.4.1 (2026-04-20)
+
+### Bug Fixes
+
+- Added direct email method and surfacing region contact info on downrange search
+  ([`b411e93`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/b411e93e597c6787162e57ce041c5312f2113bbe))
+
+- Fixed user mention and other formatting for downrange posts
+  ([`e9dc680`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/e9dc68080bab2b54f70d6064d11c83d923a99ea9))
+
+
+## v1.4.0 (2026-04-20)
+
+### Bug Fixes
+
+- Fixed query which was preventing preblast reminders from generating
+  ([`0ed3404`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/0ed3404286ddf5f974b59d12ad5ce9bf8d4d52e6))
+
+### Features
+
+- Added a downrange feature for automated DR posts and requesting Slack space invites
+  ([`a71008d`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/a71008d125ee9af8767e2ff2b15540d98360e16d))
+
+
 ## v1.3.0 (2026-04-18)
 
 ### Features

@@ -89,7 +89,12 @@ def handle_request(
         return _search_users(value)
     elif action_id == user_form.USER_FORM_BROUGHT_BY:
         return _search_users(value)
-    elif action_id in [user_form.USER_FORM_HOME_REGION, connect_form.SELECT_REGION, paxminer_mapping.PAXMINER_REGION]:
+    elif action_id in [
+        user_form.USER_FORM_HOME_REGION,
+        connect_form.SELECT_REGION,
+        paxminer_mapping.PAXMINER_REGION,
+        actions.DOWNRANGE_REGION_SELECT,
+    ]:
         # Handle the home region selection
         org_records = DbManager.find_records(
             cls=Org,

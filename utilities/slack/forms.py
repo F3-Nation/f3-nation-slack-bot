@@ -274,6 +274,10 @@ CONFIG_FORM = orm.BlockView(
                     label=":computer: Paxminer Mapping",
                     action=actions.PAXMINER_MAPPING,
                 ),
+                orm.ButtonElement(
+                    label=":airplane: Downrange",
+                    action=actions.CONFIG_DOWNRANGE,
+                ),
             ],
         ),
     ]
@@ -516,6 +520,19 @@ CONFIG_GENERAL_FORM = orm.BlockView(
                 ),
             ),
             hint="When enabled, the bot posts a reply in the preblast thread when someone HC's or Un-HC's.",
+        ),
+        orm.InputBlock(
+            label="HC Announcement Target",
+            action=actions.CONFIG_HC_ANNOUNCE_TARGETS,
+            optional=False,
+            element=orm.RadioButtonsElement(
+                initial_value="both",
+                options=orm.as_selector_options(
+                    names=["Both HCs and Un-HCs", "HCs Only", "Un-HCs Only"],
+                    values=["both", "hc_only", "unhc_only"],
+                ),
+            ),
+            hint="Select which actions trigger an announcement in the preblast thread.",
         ),
     ]
 )
@@ -773,6 +790,10 @@ CONFIG_NO_PERMISSIONS_FORM = orm.BlockView(
                 orm.ButtonElement(
                     label=":grey_question: Help Menu",
                     action=actions.CONFIG_HELP_MENU,
+                ),
+                orm.ButtonElement(
+                    label=":airplane: Downrange",
+                    action=actions.CONFIG_DOWNRANGE,
                 ),
             ],
         ),

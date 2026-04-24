@@ -13,6 +13,7 @@ from scripts import (
     award_achievements,
     backblast_reminders,
     calendar_images,
+    home_region_nudge,
     monthly_reporting,
     preblast_reminders,
     q_lineups,
@@ -66,6 +67,12 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
         update_slack_users.update_home_regions()
     except Exception as e:
         print(f"Error updating home regions for users: {e}")
+
+    print("Running home region nudge")
+    try:
+        home_region_nudge.send_home_region_nudges()
+    except Exception as e:
+        print(f"Error running home region nudge: {e}")
 
     if run_reporting:
         print("Running monthly reporting")

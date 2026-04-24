@@ -142,6 +142,21 @@ HC_SNARKY_RESPONSES = [
     "HC ALERT: {user} is coming out to play. Hide your weinke.",
     "{user} has committed. The Q weeps tears of joy.",
     "Someone tell the Q — {user} just HC'd and they mean business.",
+    "{user} just HC'd. The excuses stop here.",
+    "An HC from {user}? The mumblechatter is going to be epic.",
+    "{user} is in. Cancel the search party.",
+    "HC confirmed for {user}. The fartsack has been defeated.",
+    "Warning: {user} has HC'd. Expect heavy breathing and questionable form.",
+    "{user} just HC'd. Bring your own coupon.",
+    "The gloom beckons, and {user} answered the call. HC logged.",
+    "Prepare the blacktop, {user} has officially HC'd.",
+    "That’s an HC from {user}. See you in the gloom, brother.",
+    "{user} just dropped an HC. Let the beatdown commence.",
+    "Lock the gates! {user} has HC'd and is ready for the pain.",
+    "{user} just HC'd. Time to double check the weinke.",
+    "Boom! {user} is on the board. The PAX grows stronger.",
+    "{user} HC'd. Get that man a coffee... after the COT.",
+    "The EH worked! {user} just HC'd.",
 ]
 
 UNHC_SNARKY_RESPONSES = [
@@ -155,18 +170,42 @@ UNHC_SNARKY_RESPONSES = [
     "{user} has Un-HC'd. The downrange spirit is shaken but not stirred.",
     "Well well well, {user} Un-HC'd. The coffeeteria has been notified.",
     "{user} just Un-HC'd. The gloom misses them already.",
+    "Oof. {user} just un-HC'd. The fartsack claims another victim.",
+    "Sad clown alert! {user} has un-HC'd.",
+    "{user} just un-HC'd. Someone check on their M, they might have chores.",
+    "Un-HC from {user}. We’ll do an extra burpee in their honor.",
+    "Alert the EH committee, {user} just un-HC'd.",
+    "{user} un-HC'd. The gloom will have to wait.",
+    "Looks like {user} hit snooze. Un-HC recorded.",
+    "{user} just un-HC'd. Guess those coupons were too heavy.",
+    "Tragic news: {user} un-HC'd. More respect for the rest of us.",
+    "{user} un-HC'd. Keep them in your thoughts during the plank jacks.",
+    "Well, this is awkward. {user} just un-HC'd.",
+    "{user} backed out. Cue the tiny violin.",
+    "Un-HC detected from {user}. The Q will remember this.",
+    "{user} has left the chat (and the beatdown).",
+    "Someone tag {user} tomorrow morning. The un-HC stings.",
 ]
 
 AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID"
 AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY"
 
+WELCOME_MESSAGE_SUFFIX = " Welcome to {region}! We're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!"
+
 WELCOME_MESSAGE_TEMPLATES = [
-    "The man, the myth, the LEGEND, it's {user}! Welcome to {region}! We're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!",  # noqa: E501
-    "Who's this?!? It's {user}! Welcome to {region}! We're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!",  # noqa: E501
-    "Hey, it's {user}! Welcome to {region}, we're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!",  # noqa: E501
-    "Sharkbait, ooh ha ha! It's {user}! Welcome to {region}, we're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!",  # noqa: E501
-    "Could it be?!? It's {user}! Welcome to {region}, we're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!",  # noqa: E501
-    "{user} is in the house! Welcome to {region}, we're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!",  # noqa: E501
+    "The man, the myth, the LEGEND, it's {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "Who's this?!? It's {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "Hey, it's {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "Sharkbait, ooh ha ha! It's {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "Could it be?!? It's {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "{user} is in the house!" + WELCOME_MESSAGE_SUFFIX,
+    "Hold the phone, {user} just joined!" + WELCOME_MESSAGE_SUFFIX,
+    "A wild {user} appears!" + WELCOME_MESSAGE_SUFFIX,
+    "The fartsack is officially on notice. {user} has arrived!" + WELCOME_MESSAGE_SUFFIX,
+    "Alert the Qs, {user} is on the roster!" + WELCOME_MESSAGE_SUFFIX,
+    "Look who decided to step out of the sad clown car! It's {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "Drop your coupons and welcome {user}!" + WELCOME_MESSAGE_SUFFIX,
+    "New blood in the brotherhood! Give it up for {user}!" + WELCOME_MESSAGE_SUFFIX,
 ]
 
 MAX_HEIC_SIZE = 1000
