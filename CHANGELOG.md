@@ -2,6 +2,15 @@
 
 <!-- version list -->
 
+## v1.8.0 (2026-04-26)
+
+### Features
+
+- Added a missing backblast menu for admins and site Qs, accessible from the New Backblast selection
+  screen
+  ([`34a808c`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/34a808c666d867ed3b56a687381b117918723e7b))
+
+
 ## v1.7.0 (2026-04-24)
 
 ### Features
