@@ -216,6 +216,9 @@ ACTION_MAPPER = {
     actions.NEARBY_EVENTS_SORT: (nearby_events.build_nearby_events_modal, False),
     actions.NEARBY_EVENTS_HC: (nearby_events.handle_nearby_events_hc_action, False),
     actions.NEARBY_EVENTS_UN_HC: (nearby_events.handle_nearby_events_hc_action, False),
+    actions.MISSING_BACKBLASTS_BUTTON: (backblast.build_missing_backblasts_form, True),
+    actions.MISSING_BACKBLASTS_AO_FILTER: (backblast.build_missing_backblasts_form, False),
+    actions.MISSING_BACKBLASTS_EVENT: (backblast.handle_missing_backblasts_overflow, False),
 }
 
 ACTION_PREFIXES = [
@@ -232,6 +235,7 @@ ACTION_PREFIXES = [
     actions.BACKBLAST_FILL_BUTTON,
     actions.EVENT_PREBLAST_FILL_BUTTON,
     actions.POSITION_EDIT_DELETE,
+    actions.MISSING_BACKBLASTS_EVENT,
 ]
 
 VIEW_CLOSED_MAPPER = {

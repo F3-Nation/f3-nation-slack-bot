@@ -32,8 +32,11 @@ from features import connect
 from utilities import constants, sendmail
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
+    MissingBackblastQuery,
     event_attendance_query,
     get_admin_users,
+    get_aoq_users,
+    missing_backblasts_query,
 )
 from utilities.helper_functions import (
     REGION_RECORDS,
@@ -194,18 +197,6 @@ def backblast_middleware(
                 ),
             ],
         )
-        # no_q_event_records = event_instances_without_attendance_types(
-        #     excluded_attendance_type_ids=[2, 3],
-        #     event_filter=[
-        #         EventInstance.start_date <= current_date_cst(),
-        #         EventInstance.backblast_ts.is_(None),
-        #         EventInstance.is_active,
-        #         or_(
-        #             EventInstance.org_id == region_record.org_id,
-        #             EventInstance.org.has(Org.parent_id == region_record.org_id),
-        #         ),
-        #     ],
-        # )
 
         if event_records:
             # sort by most recent date first
@@ -248,38 +239,10 @@ def backblast_middleware(
                 slack_orm.SectionBlock(label="No past events for you to send a backblast for!"),
             ]
 
-        # no_q_event_records.sort(key=lambda r: r.start_date, reverse=True)
         blocks = [
             *select_blocks,
             slack_orm.DividerBlock(),
         ]
-        # if no_q_event_records:
-        #     (slack_orm.SectionBlock(label="*Or, select from a list of recent events with no Q assigned:*"),)
-        #     blocks += [
-        #         slack_orm.InputBlock(
-        #             label="Recent unclaimed Qs",
-        #             action=actions.BACKBLAST_NOQ_SELECT,
-        #             dispatch_action=True,
-        #             optional=False,
-        #             element=slack_orm.StaticSelectElement(
-        #                 placeholder="Select an event",
-        #                 options=slack_orm.as_selector_options(
-        #                     names=[
-        #                         f"{r.start_date} {r.org.name} {' / '.join([t.name for t in r.event_types])}"[:50]
-        #                         for r in no_q_event_records
-        #                     ],
-        #                     values=[str(r.id) for r in no_q_event_records[:20]],
-        #                 ),
-        #                 confirm=slack_orm.ConfirmObject(
-        #                     title="Are you sure?",
-        #                     text="You are selecting an event with no assigned Q. Selecting it will assign you as the Q for this event. Do you want to proceed?",  # noqa
-        #                     confirm="Yes, I'm sure",
-        #                     deny="Whups, never mind",
-        #                 ),
-        #             ),
-        #         ),
-        #         slack_orm.DividerBlock(),
-        #     ]
         blocks += [
             slack_orm.SectionBlock(label="Or, create a backblast for an event *not on the calendar:*"),
             slack_orm.ActionsBlock(
@@ -298,6 +261,24 @@ def backblast_middleware(
                 ]
             ),
         ]
+
+        admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+        aoq_users = get_aoq_users(region_record.org_id)
+        user_is_admin = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
+        if user_is_admin:
+            blocks.append(slack_orm.DividerBlock())
+            blocks.append(
+                slack_orm.ActionsBlock(
+                    elements=[
+                        slack_orm.ButtonElement(
+                            label=":mag: Missing Backblasts",
+                            action=actions.MISSING_BACKBLASTS_BUTTON,
+                            value="missing",
+                        )
+                    ]
+                )
+            )
+
         form = slack_orm.BlockView(blocks=blocks)
         form.update_modal(
             client=client,
@@ -306,6 +287,209 @@ def backblast_middleware(
             title_text="Select Backblast",
             submit_button_text="None",
         )
+
+
+def build_missing_backblasts_form(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+    update_view_id: str = None,
+):
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+    user_id = get_user(slack_user_id, region_record, client, logger).user_id
+
+    admin_users = get_admin_users(region_record.org_id, region_record.team_id)
+    aoq_users = get_aoq_users(region_record.org_id)
+    user_is_admin = any(u[0].id == user_id for u in admin_users) or any(u.id == user_id for u in aoq_users)
+    if not user_is_admin:
+        return
+
+    from f3_data_models.models import Org_Type
+
+    ao_records = DbManager.find_records(
+        Org,
+        filters=[Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)],
+    )
+
+    # Build filter blocks first so we can parse existing selections
+    filter_block = slack_orm.InputBlock(
+        label="Filter by AO",
+        action=actions.MISSING_BACKBLASTS_AO_FILTER,
+        element=slack_orm.MultiStaticSelectElement(
+            placeholder="All AOs",
+            options=slack_orm.as_selector_options(
+                names=[ao.name for ao in ao_records],
+                values=[str(ao.id) for ao in ao_records],
+            ),
+        ),
+        dispatch_action=True,
+        optional=True,
+    )
+
+    existing_filter_data = {}
+    if safe_get(body, "view"):
+        existing_filter_data = slack_orm.BlockView(blocks=[filter_block]).get_selected_values(body)
+
+    selected_ao_ids = [
+        v
+        for v in (
+            safe_convert(x, int) for x in (safe_get(existing_filter_data, actions.MISSING_BACKBLASTS_AO_FILTER) or [])
+        )
+        if v is not None
+    ]
+
+    missing: List[MissingBackblastQuery] = missing_backblasts_query(
+        region_org_id=region_record.org_id,
+        slack_team_id=region_record.team_id,
+        org_ids=selected_ao_ids or None,
+    )
+
+    blocks = [
+        slack_orm.HeaderBlock(label=":mag: Missing Backblasts (Last 60 Days)"),
+        filter_block,
+        slack_orm.DividerBlock(),
+    ]
+
+    if missing:
+        for item in missing:
+            event_type_str = " / ".join(t.name for t in item.event_types)
+            q_tag = " / ".join(f"<@{sid}>" for sid in item.q_slack_ids) if item.q_slack_ids else "Open"
+            site_q_tag = " / ".join(f"<@{sid}>" for sid in item.site_q_slack_ids) if item.site_q_slack_ids else "None"
+            label = (
+                f"*{item.event.start_date.strftime('%m/%d')}* @ {item.org.name} {event_type_str}"
+                f" | Q: {q_tag} | Site Q: {site_q_tag}"
+            )
+
+            overflow_names = ["Edit Backblast", "Remove from List"]
+            if item.site_q_slack_ids:
+                overflow_names.append("Notify Site Q")
+            if item.q_slack_ids:
+                overflow_names.append("Notify Q")
+
+            blocks.append(
+                slack_orm.SectionBlock(
+                    label=label,
+                    element=slack_orm.OverflowElement(
+                        action=f"{actions.MISSING_BACKBLASTS_EVENT}_{item.event.id}",
+                        options=slack_orm.as_selector_options(overflow_names),
+                    ),
+                )
+            )
+    else:
+        blocks.append(slack_orm.SectionBlock(label="No missing backblasts in the last 60 days! :tada:"))
+
+    form = slack_orm.BlockView(blocks=blocks)
+    form.set_initial_values(existing_filter_data)
+    view_id = update_view_id or safe_get(body, actions.LOADING_ID) or safe_get(body, "view", "id")
+    if view_id:
+        form.update_modal(
+            client=client,
+            view_id=view_id,
+            title_text="Missing Backblasts",
+            callback_id=actions.MISSING_BACKBLASTS_CALLBACK_ID,
+            submit_button_text="None",
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Missing Backblasts",
+            callback_id=actions.MISSING_BACKBLASTS_CALLBACK_ID,
+            new_or_add="add",
+            submit_button_text="None",
+        )
+
+
+def handle_missing_backblasts_overflow(
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+):
+    action_id = safe_get(body, "actions", 0, "action_id") or ""
+    event_instance_id = safe_convert(action_id[len(actions.MISSING_BACKBLASTS_EVENT) + 1 :], int)
+    action = safe_get(body, "actions", 0, "selected_option", "value")
+    view_id = safe_get(body, "view", "id")
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+
+    if action == "Edit Backblast":
+        build_backblast_form(body, client, logger, context, region_record, event_instance_id=event_instance_id)
+        return
+
+    if action == "Remove from List":
+        event_record = DbManager.get(EventInstance, event_instance_id)
+        meta = (event_record.meta or {}).copy()
+        meta["backblast_admin_dismissed"] = True
+        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.meta: meta})
+
+    elif action in ("Notify Q", "Notify Site Q"):
+        event_record = DbManager.get(
+            EventInstance, event_instance_id, joinedloads=[EventInstance.org, EventInstance.event_types]
+        )
+        event_label = f"{event_record.org.name} on {event_record.start_date.strftime('%A, %B %d')}"
+        event_type_str = " / ".join(t.name for t in event_record.event_types)
+
+        notify_blocks = [
+            slack_orm.SectionBlock(
+                label=(
+                    f"<@{slack_user_id}> is reminding you that the backblast for "
+                    f"*{event_label}* ({event_type_str}) has not been submitted."
+                )
+            ),
+            slack_orm.ActionsBlock(
+                elements=[
+                    slack_orm.ButtonElement(
+                        label="Submit Backblast",
+                        value=str(event_instance_id),
+                        style="primary",
+                        action=actions.MSG_EVENT_BACKBLAST_BUTTON,
+                    )
+                ]
+            ),
+        ]
+        notify_blocks_rendered = [b.as_form_field() for b in notify_blocks]
+        notify_text = f"Reminder: backblast for {event_label} has not been submitted."
+
+        if action == "Notify Q":
+            # Pull planned Q/CoQ Slack IDs for this event
+            q_attendance = DbManager.find_records(
+                Attendance,
+                filters=[
+                    Attendance.event_instance_id == event_instance_id,
+                    Attendance.is_planned,
+                    Attendance.attendance_x_attendance_types.any(
+                        Attendance_x_AttendanceType.attendance_type_id.in_([2, 3])
+                    ),
+                ],
+                joinedloads=[Attendance.slack_users, Attendance.attendance_x_attendance_types],
+            )
+            target_slack_ids = [
+                s.slack_id
+                for r in q_attendance
+                for s in (r.slack_users or [])
+                if s.slack_team_id == region_record.team_id
+            ]
+        else:
+            # Site Q — look up via Position
+            from utilities.database.special_queries import get_site_q_slack_ids_by_ao
+
+            site_q_map = get_site_q_slack_ids_by_ao([event_record.org_id], region_record.team_id)
+            target_slack_ids = site_q_map.get(event_record.org_id, [])
+
+        for target_id in target_slack_ids:
+            try:
+                client.chat_postMessage(
+                    channel=target_id,
+                    text=notify_text,
+                    blocks=notify_blocks_rendered,
+                )
+            except Exception as e:
+                logger.error(f"Error sending missing backblast notification to {target_id}: {e}")
+
+    build_missing_backblasts_form(body, client, logger, context, region_record, update_view_id=view_id)
 
 
 def build_backblast_form(
