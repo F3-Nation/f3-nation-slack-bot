@@ -46,6 +46,7 @@ from utilities.helper_functions import (
     get_user,
     parse_rich_block,
     remove_keys_from_dict,
+    replace_rich_text_user_channel,
     replace_user_channel_ids,
     safe_convert,
     safe_get,
@@ -997,6 +998,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     moleskin_text_w_names = replace_user_channel_ids(
         moleskin_text, region_record, client, logger
     )  # check this for efficiency
+    moleskin_text_w_names = replace_rich_text_user_channel(moleskin, region_record, client, logger)
 
     # Handle "Save and send later" option - save to DB but don't post to Slack
     if create_or_edit == "create" and send_options == "Save and send later":

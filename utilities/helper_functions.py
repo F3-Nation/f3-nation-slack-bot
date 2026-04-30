@@ -587,6 +587,43 @@ def replace_user_channel_ids(
     return text
 
 
+def replace_rich_text_user_channel(
+    block: Dict[str, Any],
+    region_record: SlackSettings,
+    client: WebClient,
+    logger: Logger,
+) -> str:
+    """Replace user and channel ids with their names in a rich text block
+
+    Args:
+        block (Dict[str, Any]): rich text block with slack ids
+        region_record (SlackSettings): region record
+        client (WebClient): slack client
+        logger (Logger): logger
+
+    Returns:
+        block (Dict[str, Any]): rich text block with slack ids replaced
+    """
+    if not block or block.get("type") != "rich_text":
+        return block
+
+    for element in safe_get(block, "elements") or []:
+        if element["type"] in ["rich_text_section", "rich_text_preformatted", "rich_text_quote"]:
+            for text in element["elements"]:
+                if text["type"] == "user":
+                    user_name = get_user_names([text["user_id"]], logger, client, return_urls=False)[0]
+                    text["text"] = f"@{user_name}"
+                    text["type"] = "text"
+                    del text["user_id"]
+                elif text["type"] == "channel":
+                    channel_name = get_channel_names([text["channel_id"]], logger, client)[0]
+                    text["text"] = f"#{channel_name}"
+                    text["type"] = "text"
+                    del text["channel_id"]
+
+    return block
+
+
 def plain_text_to_rich_block(text: str) -> Dict[str, Any]:
     """Converts plain text to a rich text block
 
