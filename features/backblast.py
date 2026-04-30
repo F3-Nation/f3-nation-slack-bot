@@ -1234,10 +1234,21 @@ COUNT: {count}
             cross_blocks = [
                 slack_orm.SectionBlock(label=cross_post_msg).as_form_field(),
                 moleskin,
+            ]
+
+            for url in low_rez_file_list or []:
+                cross_blocks.append(
+                    slack_orm.ImageBlock(
+                        alt_text=title,
+                        image_url=url,
+                    ).as_form_field()
+                )
+
+            cross_blocks.append(
                 slack_orm.ContextBlock(
                     element=slack_orm.ContextElement(initial_value=f"Cross-posted from *{event_org.name}*")
-                ).as_form_field(),
-            ]
+                ).as_form_field()
+            )
 
             try:
                 dr_client = WebClient(token=dr_slack_space.bot_token, ssl=ssl_ctx)
