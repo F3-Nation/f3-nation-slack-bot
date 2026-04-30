@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v1.9.0 (2026-04-30)
+
+### Bug Fixes
+
+- Fixing user mentions in moleskin of downrange cross posts
+  ([`392486a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/392486ae760c7e03fba970cf0c37d537a6e4fa68))
+
+- Preventing invalid trigger error when a new position is added, and other SLT menu enhancements
+  ([`0a6bc35`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/0a6bc35ca05c8bd47a04c03fa5cdee846b86ab62))
+
+### Features
+
+- Added boybands to automated downrange posts
+  ([`8df4049`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/8df4049c270264eb1f700be3eedbfd99a743ab16))
+
+- Added setting for when Q / preblast reminders go out to Qs
+  ([`c076a6a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/c076a6a6936d5c972ce4648ad8e29bde8618b660))
+
+
 ## v1.8.0 (2026-04-26)
 
 ### Features
