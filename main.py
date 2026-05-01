@@ -17,7 +17,6 @@ from slack_sdk.web import WebClient
 
 import scripts
 from features import strava
-from features.calendar import series
 from utilities.builders import add_debug_form, add_loading_form, send_error_response
 from utilities.constants import ENABLE_DEBUGGING, LOCAL_DEVELOPMENT, SOCKET_MODE
 from utilities.database.orm import SlackSettings
@@ -89,8 +88,6 @@ if not LOCAL_DEVELOPMENT:
         elif request.path[:6] == "/slack":
             slack_handler = SlackRequestHandler(app=app)
             return slack_handler.handle(request)
-        elif request.path == "/map-update":
-            return series.update_from_map(request)
         elif request.path == "/hourly-runner-complete":
             update_local_region_records()
             return Response("Hourly runner completion endpoint", status=200)

@@ -19,7 +19,6 @@ from f3_data_models.models import (
     Org_Type,
 )
 from f3_data_models.utils import DbManager
-from flask import Request, Response
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
@@ -27,7 +26,6 @@ from utilities import constants
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
-    MapUpdate,
     MapUpdateData,
     _parse_view_private_metadata,
     current_date_cst,
@@ -335,72 +333,6 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             event_ids = [record.id for record in records]
             records = DbManager.find_records(Event, [Event.id.in_(event_ids)], joinedloads="all")
             create_events(records)
-
-
-def update_from_map(request: Request) -> Response:
-    """
-    This endpoint is used to update the map with new data.
-    It is called by the map service when updates are made to the map data.
-
-    Sample payload from Spuds:
-    {
-        "version": "1.0",
-        "timestamp": "2025-05-07T19:45:12Z",
-        "action": "map.updated", // OR map.created / map.deleted
-        "data": {
-            "eventId":   1123,   // may be null / omitted
-            "locationId": 987,   // may be null / omitted
-            "orgId":     null.   // may be null / omitted
-        } // likely in the future I will send the actual data here too (like new address)
-    }
-    """
-
-    if request.json:
-        try:
-            # Check source early and ignore if from slackbot
-            source = safe_get(request.json, "source")
-            if source == "slackbot":
-                return Response("OK", status=200)
-            response_data = safe_get(request.json, "data") or {}
-            map_update_data = MapUpdateData(
-                eventId=safe_convert(safe_get(response_data, "eventId"), int),
-                locationId=safe_convert(safe_get(response_data, "locationId"), int),
-                orgId=safe_convert(safe_get(response_data, "orgId"), int),
-            )
-            map_update = MapUpdate(
-                version=safe_get(request.json, "version"),
-                timestamp=safe_get(request.json, "timestamp"),
-                action=safe_get(request.json, "action"),
-                source=source,
-                data=map_update_data,
-            )
-            if map_update.data.orgId:
-                if map_update.action in ["map.deleted"]:
-                    DbManager.update_records(
-                        Event,
-                        filters=[Event.org_id == map_update.data.orgId],
-                        fields={Event.is_active: False},
-                    )
-                    DbManager.update_records(
-                        EventInstance,
-                        filters=[EventInstance.org_id == map_update.data.orgId],
-                        fields={EventInstance.is_active: False},
-                    )
-            elif map_update.data.eventId:
-                if map_update.action in ["map.updated", "map.created"]:
-                    series: Event = DbManager.get(Event, map_update.data.eventId, joinedloads="all")
-                    # TODO: only recreate instances if certain things have changed (ie not just the description)
-                    create_events([series], clear_first=True)
-                elif map_update.action == "map.deleted":
-                    DbManager.update_records(
-                        EventInstance,
-                        filters=[EventInstance.series_id == map_update.data.eventId],
-                        fields={EventInstance.is_active: False},
-                    )
-        except Exception as e:
-            print(f"Error parsing map update data: {e}")
-            return Response("Invalid data", status=400)
-    return Response("OK", status=200)
 
 
 def _is_last_occurrence_of_dow_in_month(check_date: date, day_of_week_name: str) -> bool:
