@@ -45,7 +45,7 @@ def time_int_to_str(time: int) -> str:
     return f"{time // 100:02d}{time % 100:02d}"
 
 
-def highlight_cells(s, color_dict):
+def highlight_cells(s, color_dicts):
     import pandas as pd
 
     highlight_cells_list = []
@@ -55,8 +55,24 @@ def highlight_cells(s, color_dict):
         found = False
         if tags:
             for tag in tags:
-                if tag in color_dict.keys():
-                    highlight_cells_list.append(f"background-color: {EVENT_TAG_COLORS[color_dict[tag]][0]}")
+                if tag in color_dicts["region"].keys():
+                    highlight_cells_list.append(f"background-color: {EVENT_TAG_COLORS[color_dicts['region'][tag]][0]}")
+                    found = True
+                    break
+                elif tag in color_dicts["nation_not_black"].keys():
+                    highlight_cells_list.append(
+                        f"background-color: {EVENT_TAG_COLORS[color_dicts['nation_not_black'][tag]][0]}"
+                    )
+                    found = True
+                    break
+                elif tag in color_dicts["nation_black"].keys():
+                    highlight_cells_list.append(
+                        f"background-color: {EVENT_TAG_COLORS[color_dicts['nation_black'][tag]][0]}"
+                    )
+                    found = True
+                    break
+                elif tag in color_dicts["generic"].keys():
+                    highlight_cells_list.append(f"background-color: {EVENT_TAG_COLORS[color_dicts['generic'][tag]][0]}")
                     found = True
                     break
         if not found:
@@ -64,7 +80,7 @@ def highlight_cells(s, color_dict):
     return pd.Series(highlight_cells_list)
 
 
-def set_text_color(s, color_dict):
+def set_text_color(s, color_dicts):
     text_color_list = []
     for cell in s:
         cell_str = str(cell)
@@ -72,8 +88,20 @@ def set_text_color(s, color_dict):
         found = False
         if tags:
             for tag in tags:
-                if tag in color_dict.keys():
-                    text_color_list.append(f"color: {EVENT_TAG_COLORS[color_dict[tag]][1]}")
+                if tag in color_dicts["region"].keys():
+                    text_color_list.append(f"color: {EVENT_TAG_COLORS[color_dicts['region'][tag]][1]}")
+                    found = True
+                    break
+                elif tag in color_dicts["nation_not_black"].keys():
+                    text_color_list.append(f"color: {EVENT_TAG_COLORS[color_dicts['nation_not_black'][tag]][1]}")
+                    found = True
+                    break
+                elif tag in color_dicts["nation_black"].keys():
+                    text_color_list.append(f"color: {EVENT_TAG_COLORS[color_dicts['nation_black'][tag]][1]}")
+                    found = True
+                    break
+                elif tag in color_dicts["generic"].keys():
+                    text_color_list.append(f"color: {EVENT_TAG_COLORS[color_dicts['generic'][tag]][1]}")
                     found = True
                     break
         if not found:
@@ -200,15 +228,23 @@ def generate_calendar_images(force: bool = False):
                     print(f"Running for {region_name}")
 
                     group_by_option = slack_app_settings.get("calendar_group_by_option") or "ao"
-                    color_dict = {
-                        t.name: t.color
-                        for t in event_tags
-                        if t.specific_org_id == region_id or t.specific_org_id is None
+                    color_dict_region = {t.name: t.color for t in event_tags if t.specific_org_id == region_id}
+                    color_dict_nation_not_black = {
+                        t.name: t.color for t in event_tags if t.specific_org_id is None and t.color != "Black"
                     }
-                    # if "Open" in color_dict:
-                    #     color_dict["OPEN!"] = color_dict.pop("Open")
-                    color_dict["OPEN!"] = "Green"
-                    color_dict["CLOSED"] = "Closed"  # Dark gray for closed events
+                    color_dict_nation_black = {
+                        t.name: t.color for t in event_tags if t.specific_org_id is None and t.color == "Black"
+                    }
+                    color_dict_generic = {
+                        "OPEN!": "Green",
+                        "CLOSED": "Closed",
+                    }
+                    all_color_dicts = {
+                        "region": color_dict_region,
+                        "nation_not_black": color_dict_nation_not_black,
+                        "nation_black": color_dict_nation_black,
+                        "generic": color_dict_generic,
+                    }
                     calendar_updated = False
 
                     for week in ["current", "next"]:
@@ -383,10 +419,10 @@ def generate_calendar_images(force: bool = False):
                             # apply styles, hide the index
                             df_styled = (
                                 df2.style.set_table_styles(styles)
-                                .apply(highlight_cells, color_dict=color_dict)
+                                .apply(highlight_cells, color_dicts=all_color_dicts)
                                 .hide(axis="index")
                             )
-                            df_styled = df_styled.apply(set_text_color, color_dict=color_dict, axis=1)
+                            df_styled = df_styled.apply(set_text_color, color_dicts=all_color_dicts, axis=1)
 
                             # create calendar image
                             random_chars = "".join(random.choices("abcdefghijklmnopqrstuvwxyz", k=10))
