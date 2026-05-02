@@ -75,3 +75,4 @@ class SlackSettings:
     downrange_invite_sharing: Optional[str] = None  # "proactive" or "request_only"
     downrange_channel_posting: Optional[str] = None  # "off" or "enabled"
     downrange_channel: Optional[str] = None
+    open_event_color: Optional[str] = None

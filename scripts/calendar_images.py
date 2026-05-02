@@ -236,7 +236,7 @@ def generate_calendar_images(force: bool = False):
                         t.name: t.color for t in event_tags if t.specific_org_id is None and t.color == "Black"
                     }
                     color_dict_generic = {
-                        "OPEN!": "Green",
+                        "OPEN!": slack_app_settings.get("open_event_color") or "Green",
                         "CLOSED": "Closed",
                     }
                     all_color_dicts = {
