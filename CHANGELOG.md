@@ -2,6 +2,23 @@
 
 <!-- version list -->
 
+## v1.10.0 (2026-05-02)
+
+### Features
+
+- Added option to change OPEN color on calendar images (Calendar Settings -> General Calendar
+  Settings)
+  ([`73c0689`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/73c0689a2059cebec6ef5a0d26acf9c2736bea98))
+
+- Added priority ordering of coloring logic
+  ([`858b4a7`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/858b4a7c78734ec7ad331d7fb3a3158895f54fb4))
+
+### Refactoring
+
+- Removed handling of map update webhook as the API now has cascading
+  ([`fa08c76`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/fa08c76c0b1fb39e7923c3a8fe6eb1febbc2ba1f))
+
+
 ## v1.9.0 (2026-04-30)
 
 ### Bug Fixes
