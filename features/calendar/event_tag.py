@@ -1,10 +1,7 @@
 import copy
 import json
 from logging import Logger
-from typing import List
 
-from f3_data_models.models import EventTag, Org
-from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import (
     ContextBlock,
     InputBlock,
@@ -14,6 +11,9 @@ from slack_sdk.models.blocks.basic_components import PlainTextObject
 from slack_sdk.models.blocks.block_elements import PlainTextInputElement, StaticSelectElement
 from slack_sdk.web import WebClient
 
+from application.event_tag import EventTagData
+from application.event_tag.repository import EventTagRepository
+from infrastructure.api_client import get_api_event_tag_repository
 from utilities.builders import add_loading_form
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
@@ -32,48 +32,32 @@ CALENDAR_EVENT_TAG_COLORS_IN_USE = "calendar-event-tag-colors-in-use"
 
 class EventTagService:
     """
-    A service class for handling business logic related to event tags.
+    Business logic for event tags.  All data access is delegated to an
+    ``EventTagRepository``; the default implementation uses the F3 Nation API.
     """
 
-    @staticmethod
-    def get_org_event_tags(org_id: str) -> List[EventTag]:
-        """
-        Fetches the event tags associated with a specific organization.
-        """
-        org_record: Org = DbManager.get(Org, org_id, joinedloads=[Org.event_tags])
-        org_event_tags = [tag for tag in org_record.event_tags if tag.specific_org_id == org_id]
-        return org_event_tags
+    def __init__(self, repository: EventTagRepository | None = None) -> None:
+        self._repository: EventTagRepository = repository or get_api_event_tag_repository()
 
-    @staticmethod
-    def create_org_specific_tag(name: str, color: str, org_id: str):
-        """
-        Creates a new event tag that is specific to an organization.
-        """
-        DbManager.create_record(
-            EventTag(
-                name=name,
-                color=color,
-                specific_org_id=org_id,
-            )
-        )
+    def get_org_event_tags(self, org_id: str) -> list[EventTagData]:
+        """Return org-specific event tags for *org_id*."""
+        return self._repository.get_by_org(int(org_id))
 
-    @staticmethod
-    def update_org_specific_tag(tag_id: int, name: str, color: str):
-        """
-        Updates an organization-specific event tag.
-        """
-        DbManager.update_record(
-            EventTag,
-            tag_id,
-            {EventTag.color: color, EventTag.name: name},
-        )
+    def get_event_tag_by_id(self, tag_id: int) -> EventTagData | None:
+        """Return a single event tag, or *None* if not found."""
+        return self._repository.get_by_id(tag_id)
 
-    @staticmethod
-    def delete_org_specific_tag(tag_id: int):
-        """
-        Deletes an organization-specific event tag.
-        """
-        DbManager.delete_record(EventTag, tag_id)
+    def create_org_specific_tag(self, name: str, color: str, org_id: str) -> None:
+        """Create a new org-specific event tag."""
+        self._repository.create(name, color, int(org_id))
+
+    def update_org_specific_tag(self, tag_id: int, name: str, color: str) -> None:
+        """Update the name and colour of an existing event tag."""
+        self._repository.update(tag_id, name, color)
+
+    def delete_org_specific_tag(self, tag_id: int) -> None:
+        """Soft-delete an event tag."""
+        self._repository.delete(tag_id)
 
 
 class EventTagViews:
@@ -82,7 +66,7 @@ class EventTagViews:
     """
 
     @staticmethod
-    def build_add_tag_modal(org_tags: List[EventTag]) -> SdkBlockView:
+    def build_add_tag_modal(org_tags: list[EventTagData]) -> SdkBlockView:
         """
         Constructs the modal for adding a new org-specific event tag.
         """
@@ -93,7 +77,7 @@ class EventTagViews:
         return form
 
     @staticmethod
-    def build_edit_tag_modal(tag_to_edit: EventTag, org_tags: List[EventTag]) -> SdkBlockView:
+    def build_edit_tag_modal(tag_to_edit: EventTagData, org_tags: list[EventTagData]) -> SdkBlockView:
         """
         Constructs the modal for editing an existing event tag.
         """
@@ -118,7 +102,7 @@ class EventTagViews:
         return form
 
     @staticmethod
-    def build_tag_list_modal(org_tags: List[EventTag]) -> SdkBlockView:
+    def build_tag_list_modal(org_tags: list[EventTagData]) -> SdkBlockView:
         """
         Constructs the modal that lists an organization's event tags, with options to edit or delete them.
         """
@@ -202,7 +186,7 @@ def handle_event_tag_edit_delete(
 
     if action == "Edit":
         update_view_id = add_loading_form(body, client, new_or_add="add")
-        event_tag = DbManager.get(EventTag, event_tag_id)
+        event_tag = service.get_event_tag_by_id(event_tag_id)
         org_tags = service.get_org_event_tags(region_record.org_id)
         form = views.build_edit_tag_modal(event_tag, org_tags)
         form.update_modal(

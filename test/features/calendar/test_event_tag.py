@@ -6,8 +6,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../.
 import unittest
 from unittest.mock import MagicMock, patch
 
-from f3_data_models.models import EventTag, Org
-
+from application.event_tag import EventTagData
 from features.calendar.event_tag import (
     CALENDAR_ADD_EVENT_TAG_COLOR,
     CALENDAR_ADD_EVENT_TAG_NEW,
@@ -21,49 +20,50 @@ from features.calendar.event_tag import (
 )
 
 
+def _make_tag(id: int = 1, name: str = "Tag1", color: str = "Red", org_id: int = 1) -> EventTagData:
+    return EventTagData(id=id, name=name, color=color, specific_org_id=org_id)
+
+
 class EventTagServiceTest(unittest.TestCase):
-    @patch("features.calendar.event_tag.DbManager")
-    def test_get_org_event_tags(self, mock_db_manager):
-        mock_org = Org(id="org1", name="Test Org", event_tags=[EventTag(id=1, name="Tag1", color="Red")])
-        mock_db_manager.get.return_value = mock_org
+    def _mock_repo(self):
+        return MagicMock()
 
-        service = EventTagService()
-        result = service.get_org_event_tags("org1")
+    def test_get_org_event_tags(self):
+        repo = self._mock_repo()
+        repo.get_by_org.return_value = [_make_tag()]
 
+        service = EventTagService(repository=repo)
+        result = service.get_org_event_tags("1")
+
+        repo.get_by_org.assert_called_once_with(1)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].name, "Tag1")
-        mock_db_manager.get.assert_called_once_with(Org, "org1", joinedloads=[Org.event_tags])
 
-    @patch("features.calendar.event_tag.DbManager")
-    def test_create_org_specific_tag(self, mock_db_manager):
-        service = EventTagService()
-        service.create_org_specific_tag("New Tag", "Green", "org1")
+    def test_create_org_specific_tag(self):
+        repo = self._mock_repo()
+        service = EventTagService(repository=repo)
+        service.create_org_specific_tag("New Tag", "Green", "1")
 
-        mock_db_manager.create_record.assert_called_once()
-        created_instance = mock_db_manager.create_record.call_args[0][0]
-        self.assertEqual(created_instance.name, "New Tag")
-        self.assertEqual(created_instance.color, "Green")
-        self.assertEqual(created_instance.specific_org_id, "org1")
+        repo.create.assert_called_once_with("New Tag", "Green", 1)
 
-    @patch("features.calendar.event_tag.DbManager")
-    def test_update_org_specific_tag(self, mock_db_manager):
-        service = EventTagService()
+    def test_update_org_specific_tag(self):
+        repo = self._mock_repo()
+        service = EventTagService(repository=repo)
         service.update_org_specific_tag(1, "Updated Tag", "Yellow")
 
-        mock_db_manager.update_record.assert_called_once_with(
-            EventTag, 1, {EventTag.name: "Updated Tag", EventTag.color: "Yellow"}
-        )
+        repo.update.assert_called_once_with(1, "Updated Tag", "Yellow")
 
-    @patch("features.calendar.event_tag.DbManager")
-    def test_delete_org_specific_tag(self, mock_db_manager):
-        service = EventTagService()
+    def test_delete_org_specific_tag(self):
+        repo = self._mock_repo()
+        service = EventTagService(repository=repo)
         service.delete_org_specific_tag(1)
-        mock_db_manager.delete_record.assert_called_once_with(EventTag, 1)
+
+        repo.delete.assert_called_once_with(1)
 
 
 class EventTagViewsTest(unittest.TestCase):
     def test_build_add_tag_modal(self):
-        org_tags = [EventTag(id=1, name="Tag1", color="Red")]
+        org_tags = [_make_tag()]
 
         views = EventTagViews()
         form = views.build_add_tag_modal(org_tags)
@@ -75,8 +75,8 @@ class EventTagViewsTest(unittest.TestCase):
         self.assertIn("Tag1 - Red", colors_block.text.text)
 
     def test_build_edit_tag_modal(self):
-        tag_to_edit = EventTag(id=1, name="Tag1", color="Red")
-        org_tags = [EventTag(id=1, name="Tag1", color="Red")]
+        tag_to_edit = _make_tag()
+        org_tags = [_make_tag()]
 
         views = EventTagViews()
         form = views.build_edit_tag_modal(tag_to_edit, org_tags)
@@ -88,7 +88,7 @@ class EventTagViewsTest(unittest.TestCase):
         self.assertEqual(name_block.element.initial_value, "Tag1")
 
     def test_build_tag_list_modal(self):
-        org_tags = [EventTag(id=1, name="Tag1", color="Red")]
+        org_tags = [_make_tag()]
 
         views = EventTagViews()
         form = views.build_tag_list_modal(org_tags)
@@ -139,10 +139,9 @@ class EventTagHandlersTest(unittest.TestCase):
 
         mock_service.return_value.create_org_specific_tag.assert_called_once_with("New Tag", "Green", "org1")
 
-    @patch("features.calendar.event_tag.DbManager")
     @patch("features.calendar.event_tag.EventTagViews")
     @patch("features.calendar.event_tag.EventTagService")
-    def test_handle_event_tag_edit_delete_edit(self, mock_service, mock_views, mock_db_manager):
+    def test_handle_event_tag_edit_delete_edit(self, mock_service, mock_views):
         body = {
             "actions": [{"action_id": f"{EVENT_TAG_EDIT_DELETE}_1", "selected_option": {"value": "Edit"}}],
             "trigger_id": "trigger123",
@@ -153,14 +152,15 @@ class EventTagHandlersTest(unittest.TestCase):
         region_record = MagicMock()
         region_record.org_id = "org1"
 
-        mock_event_tag = EventTag(id=1, name="Tag1", color="Red")
-        mock_db_manager.get.return_value = mock_event_tag
+        mock_event_tag = _make_tag()
+        mock_service.return_value.get_event_tag_by_id.return_value = mock_event_tag
+        mock_service.return_value.get_org_event_tags.return_value = [mock_event_tag]
         mock_modal = MagicMock()
         mock_views.return_value.build_edit_tag_modal.return_value = mock_modal
 
         handle_event_tag_edit_delete(body, client, logger, context, region_record)
 
-        mock_db_manager.get.assert_called_once_with(EventTag, 1)
+        mock_service.return_value.get_event_tag_by_id.assert_called_once_with(1)
         mock_service.return_value.get_org_event_tags.assert_called_once_with("org1")
         mock_views.return_value.build_edit_tag_modal.assert_called_once()
         mock_modal.update_modal.assert_called_once()
