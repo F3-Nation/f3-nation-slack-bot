@@ -998,7 +998,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     moleskin_text_w_names = replace_user_channel_ids(
         moleskin_text, region_record, client, logger
     )  # check this for efficiency
-    moleskin_text_w_names = replace_rich_text_user_channel(moleskin, region_record, client, logger)
+    moleskin_w_names = replace_rich_text_user_channel(moleskin, region_record, client, logger)
 
     # Handle "Save and send later" option - save to DB but don't post to Slack
     if create_or_edit == "create" and send_options == "Save and send later":
@@ -1233,7 +1233,7 @@ COUNT: {count}
 
             cross_blocks = [
                 slack_orm.SectionBlock(label=cross_post_msg).as_form_field(),
-                moleskin,
+                moleskin_w_names,
             ]
 
             for url in low_rez_file_list or []:

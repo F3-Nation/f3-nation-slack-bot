@@ -592,7 +592,7 @@ def replace_rich_text_user_channel(
     region_record: SlackSettings,
     client: WebClient,
     logger: Logger,
-) -> str:
+) -> Dict[str, Any]:
     """Replace user and channel ids with their names in a rich text block
 
     Args:
