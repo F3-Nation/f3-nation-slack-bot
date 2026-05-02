@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.10.1 (2026-05-02)
+
+### Bug Fixes
+
+- Hotfix for backblast moleskin parsing preventing database save
+  ([`504f76f`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/504f76fbbf14fcb4fce13bd25067c7249b7ee07b))
+
+
 ## v1.10.0 (2026-05-02)
 
 ### Features
