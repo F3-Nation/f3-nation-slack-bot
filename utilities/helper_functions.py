@@ -624,6 +624,28 @@ def replace_rich_text_user_channel(
     return block
 
 
+def fix_from_llm_tags(block: Dict[str, Any]) -> Dict[str, Any]:
+    """Removes the 'from_llm' tag that Slack adds in the Android app to rich text blocks
+
+    Args:
+        block (Dict[str, Any]): rich text block with potential 'from_llm' tags
+
+    Returns:
+        Dict[str, Any]: rich text block with 'from_llm' tags removed
+    """
+
+    if not block or block.get("type") != "rich_text":
+        return block
+
+    for element in safe_get(block, "elements") or []:
+        if element["type"] in ["rich_text_section", "rich_text_preformatted", "rich_text_quote"]:
+            for text in element["elements"]:
+                if text.get("from_llm") is not None:
+                    del text["from_llm"]
+
+    return block
+
+
 def plain_text_to_rich_block(text: str) -> Dict[str, Any]:
     """Converts plain text to a rich text block
 

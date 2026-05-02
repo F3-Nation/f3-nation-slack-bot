@@ -41,6 +41,7 @@ from utilities.database.special_queries import (
 from utilities.helper_functions import (
     REGION_RECORDS,
     current_date_cst,
+    fix_from_llm_tags,
     get_location_display_name,
     get_pax,
     get_user,
@@ -787,7 +788,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     non_slack_pax = safe_get(backblast_data, actions.BACKBLAST_NONSLACK_PAX)
     fngs = safe_get(backblast_data, actions.BACKBLAST_FNGS)
     count = safe_get(backblast_data, actions.BACKBLAST_COUNT)
-    moleskin = safe_get(backblast_data, actions.BACKBLAST_MOLESKIN)
+    moleskin = fix_from_llm_tags(safe_get(backblast_data, actions.BACKBLAST_MOLESKIN))
     email_send = safe_get(backblast_data, actions.BACKBLAST_EMAIL_SEND)
     send_options = safe_get(backblast_data, actions.BACKBLAST_SEND_OPTIONS)
     # ao = safe_get(backblast_data, actions.BACKBLAST_AO)
