@@ -7,12 +7,12 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 from application.event_tag import EventTagData
+from application.event_tag.service import EventTagService
 from features.calendar.event_tag import (
     CALENDAR_ADD_EVENT_TAG_COLOR,
     CALENDAR_ADD_EVENT_TAG_NEW,
     CALENDAR_EVENT_TAG_COLORS_IN_USE,
     EVENT_TAG_EDIT_DELETE,
-    EventTagService,
     EventTagViews,
     handle_event_tag_add,
     handle_event_tag_edit_delete,
