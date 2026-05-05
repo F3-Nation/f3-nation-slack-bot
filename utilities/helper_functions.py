@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import json
 import os
@@ -604,10 +605,12 @@ def replace_rich_text_user_channel(
     Returns:
         block (Dict[str, Any]): rich text block with slack ids replaced
     """
-    if not block or block.get("type") != "rich_text":
-        return block
+    new_block = copy.deepcopy(block)
 
-    for element in safe_get(block, "elements") or []:
+    if not new_block or new_block.get("type") != "rich_text":
+        return new_block
+
+    for element in safe_get(new_block, "elements") or []:
         if element["type"] in ["rich_text_section", "rich_text_preformatted", "rich_text_quote"]:
             for text in element["elements"]:
                 if text["type"] == "user":
@@ -621,7 +624,7 @@ def replace_rich_text_user_channel(
                     text["type"] = "text"
                     del text["channel_id"]
 
-    return block
+    return new_block
 
 
 def fix_from_llm_tags(block: Dict[str, Any]) -> Dict[str, Any]:
