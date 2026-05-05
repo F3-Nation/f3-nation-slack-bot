@@ -13,6 +13,7 @@ from slack_sdk.web import WebClient
 
 from application.event_tag import EventTagData
 from application.event_tag.service import EventTagService
+from infrastructure.api_client import get_api_event_tag_repository
 from utilities.builders import add_loading_form
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
@@ -27,6 +28,12 @@ EVENT_TAG_EDIT_DELETE = "event-tag-edit-delete"
 CALENDAR_ADD_EVENT_TAG_CALLBACK_ID = "calendar-add-event-tag-id"
 EDIT_DELETE_AO_CALLBACK_ID = "edit-delete-ao-id"
 CALENDAR_EVENT_TAG_COLORS_IN_USE = "calendar-event-tag-colors-in-use"
+CALENDAR_EVENT_TAG_NOTICE = "calendar-event-tag-notice"
+
+
+def _build_event_tag_service() -> EventTagService:
+    """Build the event-tag service using the production API-backed repository."""
+    return EventTagService(repository=get_api_event_tag_repository())
 
 
 class EventTagViews:
@@ -71,28 +78,40 @@ class EventTagViews:
         return form
 
     @staticmethod
-    def build_tag_list_modal(org_tags: list[EventTagData]) -> SdkBlockView:
+    def build_tag_list_modal(org_tags: list[EventTagData], notice_text: str | None = None) -> SdkBlockView:
         """
         Constructs the modal that lists an organization's event tags, with options to edit or delete them.
         """
-        blocks = [
-            SectionBlock(
-                text=s.name,
-                block_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
-                accessory=StaticSelectElement(
-                    placeholder="Edit",  # TODO: Change to "Edit / Delete"
-                    options=as_selector_options(names=["Edit"]),
-                    # confirm=ConfirmObject(
-                    #     title="Are you sure?",
-                    #     text="Are you sure you want to edit / delete this Event Tag? This cannot be undone.",
-                    #     confirm="Yes, I'm sure",
-                    #     deny="Whups, never mind",
-                    # ),
-                    action_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
-                ),
+        blocks = []
+
+        if notice_text:
+            blocks.append(
+                SectionBlock(
+                    text=PlainTextObject(text=notice_text),
+                    block_id=CALENDAR_EVENT_TAG_NOTICE,
+                )
             )
-            for s in org_tags
-        ]
+
+        blocks.extend(
+            [
+                SectionBlock(
+                    text=s.name,
+                    block_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
+                    accessory=StaticSelectElement(
+                        placeholder="Edit",  # TODO: Change to "Edit / Delete"
+                        options=as_selector_options(names=["Edit", "Delete"]),
+                        # confirm=ConfirmObject(
+                        #     title="Are you sure?",
+                        #     text="Are you sure you want to edit / delete this Event Tag? This cannot be undone.",
+                        #     confirm="Yes, I'm sure",
+                        #     deny="Whups, never mind",
+                        # ),
+                        action_id=f"{EVENT_TAG_EDIT_DELETE}_{s.id}",
+                    ),
+                )
+                for s in org_tags
+            ]
+        )
         blocks.append(
             ContextBlock(
                 elements=[PlainTextObject(text="Only custom event tags can be edited or deleted.")],
@@ -103,7 +122,7 @@ class EventTagViews:
 
 def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    service = EventTagService()
+    service = _build_event_tag_service()
     views = EventTagViews()
 
     if action == "add":
@@ -136,7 +155,7 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     edit_event_tag_id = safe_convert(metadata.get("edit_event_tag_id"), int)
 
-    service = EventTagService()
+    service = _build_event_tag_service()
 
     if event_tag_name and event_color:
         if edit_event_tag_id:
@@ -150,13 +169,32 @@ def handle_event_tag_edit_delete(
 ):
     event_tag_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
-    service = EventTagService()
+    service = _build_event_tag_service()
     views = EventTagViews()
 
+    org_tags = service.get_org_event_tags(region_record.org_id)
+
     if action == "Edit":
+        if event_tag_id is None:
+            return
+
         update_view_id = add_loading_form(body, client, new_or_add="add")
-        event_tag = service.get_event_tag_by_id(event_tag_id)
-        org_tags = service.get_org_event_tags(region_record.org_id)
+        event_tag = next((t for t in org_tags if t.id == event_tag_id), None)
+
+        if event_tag is None:
+            form = views.build_tag_list_modal(
+                org_tags,
+                notice_text="The selected event tag no longer exists. The list has been refreshed.",
+            )
+            form.update_modal(
+                client=client,
+                view_id=update_view_id,
+                title_text="Edit an Event Tag",
+                callback_id=EDIT_DELETE_AO_CALLBACK_ID,
+                submit_button_text="None",
+            )
+            return
+
         form = views.build_edit_tag_modal(event_tag, org_tags)
         form.update_modal(
             client=client,
@@ -166,7 +204,17 @@ def handle_event_tag_edit_delete(
             parent_metadata={"edit_event_tag_id": event_tag.id},
         )
     elif action == "Delete":
+        deleted_tag_name = next((t.name for t in org_tags if t.id == event_tag_id), "selected")
         service.delete_org_specific_tag(event_tag_id)
+        org_tags = [t for t in org_tags if t.id != event_tag_id]
+        forms = views.build_tag_list_modal(org_tags, notice_text=f"The {deleted_tag_name} tag has been deleted.")
+        forms.update_modal(
+            client=client,
+            view_id=safe_get(body, "view", "id"),
+            title_text="Edit an Event Tag",
+            callback_id=EDIT_DELETE_AO_CALLBACK_ID,
+            submit_button_text="None",
+        )
 
 
 EVENT_TAG_FORM = SdkBlockView(

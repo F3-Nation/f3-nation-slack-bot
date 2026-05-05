@@ -1,18 +1,20 @@
 from application.event_tag import EventTagData
 from application.event_tag.repository import EventTagRepository
-from infrastructure.api_client import get_api_event_tag_repository
 
 
 class EventTagService:
     """
-    Business logic for event tags.  All data access is delegated to an
-    ``EventTagRepository``; the default implementation uses the F3 Nation API.
+    Business logic for event tags.
+
+    Data access is delegated to an ``EventTagRepository`` and is injected by the
+    caller (composition root), which keeps the application layer independent of
+    infrastructure details.
     """
 
-    def __init__(self, repository: EventTagRepository | None = None) -> None:
-        self._repository: EventTagRepository = repository or get_api_event_tag_repository()
+    def __init__(self, repository: EventTagRepository) -> None:
+        self._repository: EventTagRepository = repository
 
-    def get_org_event_tags(self, org_id: str) -> list[EventTagData]:
+    def get_org_event_tags(self, org_id: int | str) -> list[EventTagData]:
         """Return org-specific event tags for *org_id*."""
         return self._repository.get_by_org(int(org_id))
 
@@ -20,7 +22,7 @@ class EventTagService:
         """Return a single event tag, or *None* if not found."""
         return self._repository.get_by_id(tag_id)
 
-    def create_org_specific_tag(self, name: str, color: str, org_id: str) -> None:
+    def create_org_specific_tag(self, name: str, color: str, org_id: int | str) -> None:
         """Create a new org-specific event tag."""
         self._repository.create(name, color, int(org_id))
 

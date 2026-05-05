@@ -12,6 +12,7 @@ from features.calendar.event_tag import (
     CALENDAR_ADD_EVENT_TAG_COLOR,
     CALENDAR_ADD_EVENT_TAG_NEW,
     CALENDAR_EVENT_TAG_COLORS_IN_USE,
+    EDIT_DELETE_AO_CALLBACK_ID,
     EVENT_TAG_EDIT_DELETE,
     EventTagViews,
     handle_event_tag_add,
@@ -97,12 +98,22 @@ class EventTagViewsTest(unittest.TestCase):
         self.assertEqual(form.blocks[0].block_id, f"{EVENT_TAG_EDIT_DELETE}_1")
         self.assertEqual(form.blocks[0].accessory.action_id, f"{EVENT_TAG_EDIT_DELETE}_1")
 
+    def test_build_tag_list_modal_with_notice(self):
+        org_tags = [_make_tag()]
+
+        views = EventTagViews()
+        form = views.build_tag_list_modal(org_tags, notice_text="Tag missing")
+
+        self.assertEqual(len(form.blocks), 3)
+        self.assertEqual(form.blocks[0].text.text, "Tag missing")
+        self.assertEqual(form.blocks[1].block_id, f"{EVENT_TAG_EDIT_DELETE}_1")
+
 
 class EventTagHandlersTest(unittest.TestCase):
     @patch("features.calendar.event_tag.add_loading_form")
     @patch("features.calendar.event_tag.EventTagViews")
-    @patch("features.calendar.event_tag.EventTagService")
-    def test_manage_event_tags_add(self, mock_service, mock_views, mock_add_loading_form):
+    @patch("features.calendar.event_tag._build_event_tag_service")
+    def test_manage_event_tags_add(self, mock_build_service, mock_views, mock_add_loading_form):
         body = {"actions": [{"selected_option": {"value": "add"}}], "trigger_id": "trigger123"}
         client = MagicMock()
         logger = MagicMock()
@@ -110,20 +121,22 @@ class EventTagHandlersTest(unittest.TestCase):
         region_record = MagicMock()
         region_record.org_id = "org1"
 
+        mock_service = MagicMock()
+        mock_build_service.return_value = mock_service
         mock_add_loading_form.return_value = "view123"
-        mock_service.return_value.get_org_event_tags.return_value = []
+        mock_service.get_org_event_tags.return_value = []
         mock_modal = MagicMock()
         mock_views.return_value.build_add_tag_modal.return_value = mock_modal
 
         manage_event_tags(body, client, logger, context, region_record)
 
-        mock_service.return_value.get_org_event_tags.assert_called_once_with("org1")
+        mock_service.get_org_event_tags.assert_called_once_with("org1")
         mock_views.return_value.build_add_tag_modal.assert_called_once_with([])
         mock_modal.update_modal.assert_called_once()
 
     @patch("features.calendar.event_tag.EVENT_TAG_FORM")
-    @patch("features.calendar.event_tag.EventTagService")
-    def test_handle_event_tag_add_new(self, mock_service, mock_form):
+    @patch("features.calendar.event_tag._build_event_tag_service")
+    def test_handle_event_tag_add_new(self, mock_build_service, mock_form):
         mock_form.get_selected_values.return_value = {
             CALENDAR_ADD_EVENT_TAG_NEW: "New Tag",
             CALENDAR_ADD_EVENT_TAG_COLOR: "Green",
@@ -135,13 +148,16 @@ class EventTagHandlersTest(unittest.TestCase):
         region_record = MagicMock()
         region_record.org_id = "org1"
 
+        mock_service = MagicMock()
+        mock_build_service.return_value = mock_service
+
         handle_event_tag_add(body, client, logger, context, region_record)
 
-        mock_service.return_value.create_org_specific_tag.assert_called_once_with("New Tag", "Green", "org1")
+        mock_service.create_org_specific_tag.assert_called_once_with("New Tag", "Green", "org1")
 
     @patch("features.calendar.event_tag.EventTagViews")
-    @patch("features.calendar.event_tag.EventTagService")
-    def test_handle_event_tag_edit_delete_edit(self, mock_service, mock_views):
+    @patch("features.calendar.event_tag._build_event_tag_service")
+    def test_handle_event_tag_edit_delete_edit(self, mock_build_service, mock_views):
         body = {
             "actions": [{"action_id": f"{EVENT_TAG_EDIT_DELETE}_1", "selected_option": {"value": "Edit"}}],
             "trigger_id": "trigger123",
@@ -152,30 +168,68 @@ class EventTagHandlersTest(unittest.TestCase):
         region_record = MagicMock()
         region_record.org_id = "org1"
 
+        mock_service = MagicMock()
+        mock_build_service.return_value = mock_service
         mock_event_tag = _make_tag()
-        mock_service.return_value.get_event_tag_by_id.return_value = mock_event_tag
-        mock_service.return_value.get_org_event_tags.return_value = [mock_event_tag]
+        mock_service.get_event_tag_by_id.return_value = mock_event_tag
+        mock_service.get_org_event_tags.return_value = [mock_event_tag]
         mock_modal = MagicMock()
         mock_views.return_value.build_edit_tag_modal.return_value = mock_modal
 
         handle_event_tag_edit_delete(body, client, logger, context, region_record)
 
-        mock_service.return_value.get_event_tag_by_id.assert_called_once_with(1)
-        mock_service.return_value.get_org_event_tags.assert_called_once_with("org1")
+        mock_service.get_event_tag_by_id.assert_called_once_with(1)
+        mock_service.get_org_event_tags.assert_called_once_with("org1")
         mock_views.return_value.build_edit_tag_modal.assert_called_once()
         mock_modal.update_modal.assert_called_once()
 
-    @patch("features.calendar.event_tag.EventTagService")
-    def test_handle_event_tag_edit_delete_delete(self, mock_service):
+    @patch("features.calendar.event_tag.add_loading_form")
+    @patch("features.calendar.event_tag.EventTagViews")
+    @patch("features.calendar.event_tag._build_event_tag_service")
+    def test_handle_event_tag_edit_delete_missing_tag_refreshes_list(
+        self, mock_build_service, mock_views, mock_add_loading_form
+    ):
+        body = {
+            "actions": [{"action_id": f"{EVENT_TAG_EDIT_DELETE}_1", "selected_option": {"value": "Edit"}}],
+            "trigger_id": "trigger123",
+        }
+        client = MagicMock()
+        logger = MagicMock()
+        context = MagicMock()
+        region_record = MagicMock()
+        region_record.org_id = "org1"
+
+        mock_service = MagicMock()
+        mock_build_service.return_value = mock_service
+        mock_add_loading_form.return_value = "view123"
+        mock_service.get_event_tag_by_id.return_value = None
+        mock_service.get_org_event_tags.return_value = [_make_tag()]
+        mock_modal = MagicMock()
+        mock_views.return_value.build_tag_list_modal.return_value = mock_modal
+
+        handle_event_tag_edit_delete(body, client, logger, context, region_record)
+
+        mock_views.return_value.build_tag_list_modal.assert_called_once_with(
+            [_make_tag()], notice_text="The selected event tag no longer exists. The list has been refreshed."
+        )
+        mock_views.return_value.build_edit_tag_modal.assert_not_called()
+        mock_modal.update_modal.assert_called_once()
+        self.assertEqual(mock_modal.update_modal.call_args.kwargs["callback_id"], EDIT_DELETE_AO_CALLBACK_ID)
+
+    @patch("features.calendar.event_tag._build_event_tag_service")
+    def test_handle_event_tag_edit_delete_delete(self, mock_build_service):
         body = {"actions": [{"action_id": f"{EVENT_TAG_EDIT_DELETE}_1", "selected_option": {"value": "Delete"}}]}
         client = MagicMock()
         logger = MagicMock()
         context = MagicMock()
         region_record = MagicMock()
 
+        mock_service = MagicMock()
+        mock_build_service.return_value = mock_service
+
         handle_event_tag_edit_delete(body, client, logger, context, region_record)
 
-        mock_service.return_value.delete_org_specific_tag.assert_called_once_with(1)
+        mock_service.delete_org_specific_tag.assert_called_once_with(1)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class EventTagData:
+class EventTagData(BaseModel):
     id: int
     name: str
     color: str | None

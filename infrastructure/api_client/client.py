@@ -26,6 +26,7 @@ from infrastructure.api_client.exceptions import F3ApiAuthError, F3ApiError, F3A
 
 _DEFAULT_BASE_URL = "https://api.f3nation.com"
 _CLIENT_IDENTIFIER = "f3-nation-slack-bot"
+_DEFAULT_TIMEOUT_SECONDS = 8.0
 
 
 class F3ApiClient:
@@ -33,10 +34,20 @@ class F3ApiClient:
     maps HTTP error codes to typed exceptions."""
 
     def __init__(self) -> None:
-        api_key = os.environ.get("F3_API_KEY", "")
+        api_key = os.environ.get("F3_API_KEY")
+        if not api_key:
+            raise ValueError("F3_API_KEY is required for F3ApiClient")
+
         base_url = os.environ.get("F3_API_BASE_URL", _DEFAULT_BASE_URL).rstrip("/")
+        timeout_raw = os.environ.get("F3_API_TIMEOUT_SECONDS", str(_DEFAULT_TIMEOUT_SECONDS))
 
         self._base_url = base_url
+        self._timeout_seconds = _DEFAULT_TIMEOUT_SECONDS
+        try:
+            self._timeout_seconds = float(timeout_raw)
+        except (TypeError, ValueError):
+            self._timeout_seconds = _DEFAULT_TIMEOUT_SECONDS
+
         self._session = requests.Session()
         self._session.headers.update(
             {
@@ -51,20 +62,26 @@ class F3ApiClient:
     # ------------------------------------------------------------------
 
     def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        response = self._session.get(f"{self._base_url}{path}", params=params)
-        return self._handle_response(response)
+        return self._request("get", path, params=params)
 
     def post(self, path: str, json: dict[str, Any] | None = None) -> Any:
-        response = self._session.post(f"{self._base_url}{path}", json=json)
-        return self._handle_response(response)
+        return self._request("post", path, json=json)
 
     def delete(self, path: str, json: dict[str, Any] | None = None) -> Any:
-        response = self._session.delete(f"{self._base_url}{path}", json=json)
-        return self._handle_response(response)
+        return self._request("delete", path, json=json)
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _request(self, method: str, path: str, **kwargs) -> Any:
+        request_fn = getattr(self._session, method)
+        url = f"{self._base_url}{path}"
+        try:
+            response = request_fn(url, timeout=self._timeout_seconds, **kwargs)
+        except requests.RequestException as exc:
+            raise F3ApiError(0, f"Network error calling F3 API {method.upper()} {path}: {exc}") from exc
+        return self._handle_response(response)
 
     def _handle_response(self, response: requests.Response) -> Any:
         if response.status_code == 404:
@@ -73,7 +90,14 @@ class F3ApiClient:
             raise F3ApiAuthError(response.status_code, response.text)
         if not response.ok:
             raise F3ApiError(response.status_code, response.text)
-        return response.json()
+
+        if response.status_code == 204:
+            return None
+
+        try:
+            return response.json()
+        except ValueError:
+            return response.text
 
 
 # ---------------------------------------------------------------------------
