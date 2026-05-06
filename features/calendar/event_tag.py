@@ -141,7 +141,7 @@ def manage_event_tags(body: dict, client: WebClient, logger: Logger, context: di
         form.post_modal(
             client=client,
             trigger_id=safe_get(body, "trigger_id"),
-            title_text="Edit an Event Tag",  # TODO: Edit/Delete
+            title_text="Edit/Delete Event Tags",
             callback_id=EDIT_DELETE_AO_CALLBACK_ID,
             submit_button_text="None",
             new_or_add="add",
@@ -167,17 +167,19 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
 def handle_event_tag_edit_delete(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
 ):
-    event_tag_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
+    action_id = safe_get(body, "actions", 0, "action_id") or ""
+    event_tag_id = safe_convert(action_id.split("_")[1] if "_" in action_id else None, int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+
+    if action in ("Edit", "Delete") and event_tag_id is None:
+        return
+
     service = _build_event_tag_service()
     views = EventTagViews()
 
     org_tags = service.get_org_event_tags(region_record.org_id)
 
     if action == "Edit":
-        if event_tag_id is None:
-            return
-
         update_view_id = add_loading_form(body, client, new_or_add="add")
         event_tag = next((t for t in org_tags if t.id == event_tag_id), None)
 
@@ -189,7 +191,7 @@ def handle_event_tag_edit_delete(
             form.update_modal(
                 client=client,
                 view_id=update_view_id,
-                title_text="Edit an Event Tag",
+                title_text="Edit/Delete Event Tags",
                 callback_id=EDIT_DELETE_AO_CALLBACK_ID,
                 submit_button_text="None",
             )
@@ -211,7 +213,7 @@ def handle_event_tag_edit_delete(
         forms.update_modal(
             client=client,
             view_id=safe_get(body, "view", "id"),
-            title_text="Edit an Event Tag",
+            title_text="Edit/Delete Event Tags",
             callback_id=EDIT_DELETE_AO_CALLBACK_ID,
             submit_button_text="None",
         )

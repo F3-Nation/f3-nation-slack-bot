@@ -7,7 +7,7 @@ import requests
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../..")))
 
-from infrastructure.api_client.client import F3ApiClient
+from infrastructure.api_client.client import F3ApiClient, get_f3_api_client
 from infrastructure.api_client.exceptions import F3ApiAuthError, F3ApiError, F3ApiNotFoundError
 
 
@@ -53,6 +53,30 @@ class F3ApiClientTest(unittest.TestCase):
             params={"pageSize": 1},
         )
 
+    def test_invalid_timeout_falls_back_to_default(self):
+        with patch("infrastructure.api_client.client.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value = mock_session
+            mock_session.get.return_value = self._make_response(json_payload={"ok": True})
+
+            with patch.dict(
+                os.environ,
+                {
+                    "F3_API_KEY": "test-key",
+                    "F3_API_TIMEOUT_SECONDS": "not-a-number",
+                },
+                clear=True,
+            ):
+                client = F3ApiClient()
+                client.get("/v1/event-tag")
+
+        self.assertEqual(client._timeout_seconds, 8.0)
+        mock_session.get.assert_called_once_with(
+            "https://api.f3nation.com/v1/event-tag",
+            timeout=8.0,
+            params=None,
+        )
+
     def test_raises_not_found_error(self):
         with patch("infrastructure.api_client.client.requests.Session") as mock_session_cls:
             mock_session = MagicMock()
@@ -74,6 +98,19 @@ class F3ApiClientTest(unittest.TestCase):
                 client = F3ApiClient()
                 with self.assertRaises(F3ApiAuthError):
                     client.get("/v1/event-tag/id/1")
+
+    def test_raises_generic_api_error(self):
+        with patch("infrastructure.api_client.client.requests.Session") as mock_session_cls:
+            mock_session = MagicMock()
+            mock_session_cls.return_value = mock_session
+            mock_session.get.return_value = self._make_response(status_code=500, ok=False, text="server error")
+
+            with patch.dict(os.environ, {"F3_API_KEY": "test-key"}, clear=True):
+                client = F3ApiClient()
+                with self.assertRaises(F3ApiError) as context:
+                    client.get("/v1/event-tag/id/1")
+
+        self.assertEqual(context.exception.status_code, 500)
 
     def test_wraps_network_errors(self):
         with patch("infrastructure.api_client.client.requests.Session") as mock_session_cls:
@@ -105,6 +142,20 @@ class F3ApiClientTest(unittest.TestCase):
 
         self.assertIsNone(delete_result)
         self.assertEqual(post_result, "ok")
+
+    def test_get_f3_api_client_returns_singleton(self):
+        with patch("infrastructure.api_client.client.F3ApiClient") as mock_client_cls:
+            first_client = MagicMock()
+            second_client = MagicMock()
+            mock_client_cls.side_effect = [first_client, second_client]
+
+            with patch("infrastructure.api_client.client._client", None):
+                result_one = get_f3_api_client()
+                result_two = get_f3_api_client()
+
+        self.assertIs(result_one, first_client)
+        self.assertIs(result_two, first_client)
+        mock_client_cls.assert_called_once()
 
 
 if __name__ == "__main__":
