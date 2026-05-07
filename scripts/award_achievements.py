@@ -36,6 +36,8 @@ import os
 import ssl
 import sys
 
+import pytz
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
 
 import argparse
@@ -51,6 +53,7 @@ from sqlalchemy import Integer, and_, distinct, func, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from utilities import constants
 from utilities.database.orm import SlackSettings
 from utilities.database.orm.views import EventAttendance, EventInstanceExpanded
 
@@ -762,6 +765,10 @@ def main():  # pragma: no cover - CLI
     print(f"Arguments: achievement_id={args.achievement_id}, dry_run={args.dry_run}, today={args.today}")
 
     today = datetime.strptime(args.today, "%Y-%m-%d").date() if args.today else datetime.now(UTC).date()
+    current_hour = datetime.now(pytz.timezone("US/Central")).hour
+
+    if current_hour != constants.ACHIEVEMENT_AWARD_HOUR_CST:
+        return
 
     with get_session() as session:
         ach_query = select(Achievement).filter(Achievement.auto_award.is_(True), Achievement.is_active.is_(True))
