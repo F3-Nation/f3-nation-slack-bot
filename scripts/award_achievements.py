@@ -49,7 +49,7 @@ from typing import Any, Dict, Iterable, List, Sequence, Tuple
 from f3_data_models.models import Achievement, Achievement_x_User, Org_x_SlackSpace, SlackSpace, SlackUser, User
 from f3_data_models.utils import get_session
 from slack_sdk.web import WebClient
-from sqlalchemy import Integer, and_, distinct, func, select, tuple_
+from sqlalchemy import Integer, and_, distinct, func, literal, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
@@ -225,8 +225,8 @@ def _compute_all_period_metrics(
             filters.append(EventAttendance.home_region_id == achievement.specific_org_id)
         query = select(
             EventAttendance.user_id.label("user_id"),
-            func.cast(func.literal(-1), Integer).label("award_year"),
-            func.cast(func.literal(-1), Integer).label("award_period"),
+            func.cast(literal(-1), Integer).label("award_year"),
+            func.cast(literal(-1), Integer).label("award_period"),
             metric_col.label("metric"),
         ).join(
             EventInstanceExpanded,
