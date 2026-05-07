@@ -929,6 +929,26 @@ def build_tag_achievement_form(
     from utilities.slack import forms as legacy_forms
     from utilities.slack import orm as legacy_orm
 
+    if region_record.org_id not in ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS:
+        form = SdkBlockView(
+            blocks=[
+                SectionBlock(
+                    text=MarkdownTextObject(
+                        text=":construction: This feature is currently in alpha testing, coming soon to all regions! :construction:"  # noqa E501
+                    ),
+                ),
+            ]
+        )
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Tag Achievements",
+            callback_id=ACHIEVEMENT_TAG_CALLBACK_ID,
+            new_or_add="add",
+            submit_button_text="None",
+        )
+        return
+
     update_view_id = safe_get(body, legacy_actions.LOADING_ID)
     achievement_form = copy.deepcopy(legacy_forms.ACHIEVEMENT_FORM)
     callback_id = ACHIEVEMENT_TAG_CALLBACK_ID
