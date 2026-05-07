@@ -190,7 +190,7 @@ UNHC_SNARKY_RESPONSES = [
 AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID"
 AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY"
 
-WELCOME_MESSAGE_SUFFIX = " Welcome to {region}! We're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!"
+WELCOME_MESSAGE_SUFFIX = " Welcome to {region}! We're glad you're here. Please take a moment to introduce yourself and let us know how we can help you get started. We're looking forward to seeing you in the gloom!"  # noqa: E501
 
 WELCOME_MESSAGE_TEMPLATES = [
     "The man, the myth, the LEGEND, it's {user}!" + WELCOME_MESSAGE_SUFFIX,
@@ -282,3 +282,8 @@ ALL_PERMISSIONS = "All"
 PERMISSIONS = {
     ALL_PERMISSIONS: "All",
 }
+
+ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS = [
+    int(org_id) for org_id in os.environ.get("ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS", "").split(",") if org_id
+]
+ACHIEVEMENT_AWARD_HOUR_CST = int(os.environ.get("ACHIEVEMENT_AWARD_HOUR_CST", 9))

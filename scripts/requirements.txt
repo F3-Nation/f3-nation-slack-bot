@@ -17,7 +17,7 @@ boto3==1.35.90 ; python_version >= "3.12" and python_version < "4.0"
 botocore==1.35.90 ; python_version >= "3.12" and python_version < "4.0"
 cachetools==5.5.0 ; python_version >= "3.12" and python_version < "4.0"
 certifi==2024.12.14 ; python_version >= "3.12" and python_version < "4.0"
-cffi==1.17.1 ; python_version >= "3.12" and python_version < "4.0" and (platform_python_implementation != "PyPy" or implementation_name == "pypy")
+cffi==1.17.1 ; python_version >= "3.12" and python_version < "4.0" and (implementation_name == "pypy" or platform_python_implementation != "PyPy")
 cfgv==3.4.0 ; python_version >= "3.12" and python_version < "4.0"
 charset-normalizer==3.4.1 ; python_version >= "3.12" and python_version < "4.0"
 choreographer==1.1.1 ; python_version >= "3.12" and python_version < "4.0"
@@ -120,7 +120,7 @@ ptyprocess==0.7.0 ; python_version >= "3.12" and python_version < "4.0" and sys_
 pure-eval==0.2.3 ; python_version >= "3.12" and python_version < "4.0"
 pyasn1-modules==0.4.1 ; python_version >= "3.12" and python_version < "4.0"
 pyasn1==0.6.1 ; python_version >= "3.12" and python_version < "4.0"
-pycparser==2.22 ; python_version >= "3.12" and python_version < "4.0" and (platform_python_implementation != "PyPy" or implementation_name == "pypy")
+pycparser==2.22 ; python_version >= "3.12" and python_version < "4.0" and (implementation_name == "pypy" or platform_python_implementation != "PyPy")
 pydantic-core==2.27.2 ; python_version >= "3.12" and python_version < "4.0"
 pydantic==2.10.4 ; python_version >= "3.12" and python_version < "4.0"
 pydot==3.0.3 ; python_version >= "3.12" and python_version < "4.0"
