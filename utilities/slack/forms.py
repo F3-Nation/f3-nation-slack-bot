@@ -243,10 +243,6 @@ CONFIG_FORM = orm.BlockView(
                     action=actions.CONFIG_WELCOME_MESSAGE,
                 ),
                 orm.ButtonElement(
-                    label=":sports_medal: Achievement Settings",
-                    action=actions.CONFIG_ACHIEVEMENTS,
-                ),
-                orm.ButtonElement(
                     label=":chart_with_upwards_trend: Reporting Settings",
                     action=actions.CONFIG_REPORTING,
                 ),
@@ -281,6 +277,11 @@ CONFIG_FORM = orm.BlockView(
             ],
         ),
     ]
+)
+
+ACHIEVEMENT_BUTTON = orm.ButtonElement(
+    label=":sports_medal: Achievement Settings",
+    action=actions.CONFIG_ACHIEVEMENTS,
 )
 
 CONFIG_NO_ORG_FORM = orm.BlockView(

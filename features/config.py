@@ -38,6 +38,8 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
 
         if user_is_admin:
             config_form = copy.deepcopy(forms.CONFIG_FORM)
+            if region_record.org_id in constants.ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS:
+                config_form.blocks[0].elements.append(copy.deepcopy(forms.ACHIEVEMENT_BUTTON))
         else:
             if region_record.org_id is None:
                 config_form = copy.deepcopy(forms.CONFIG_NO_ORG_FORM)
