@@ -474,6 +474,13 @@ CONFIG_GENERAL_FORM = orm.BlockView(
         ),
         orm.DividerBlock(),
         orm.InputBlock(
+            label="Preblast Reminder Time (CST)",
+            action=actions.CONFIG_PREBLAST_REMINDER_TIME,
+            optional=True,
+            element=orm.TimepickerElement(),
+            hint="Reminder DMs will be sent to Qs this time the day before their event. Set this earlier than your automated/scheduled preblast times so Qs have a chance to fill out their own preblast first.",  # noqa
+        ),
+        orm.InputBlock(
             label="Automated Preblast Options",
             action=actions.CONFIG_AUTOMATED_PREBLAST,
             optional=False,

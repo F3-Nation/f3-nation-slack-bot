@@ -123,6 +123,9 @@ def build_config_general_form(
             actions.CONFIG_SCHEDULED_PREBLAST_TIME: f"{str(region_record.scheduled_preblast_hour_cst).zfill(2)}:00"
             if region_record.scheduled_preblast_hour_cst is not None
             else "12:00",
+            actions.CONFIG_PREBLAST_REMINDER_TIME: f"{str(region_record.preblast_reminder_hour_cst).zfill(2)}:00"
+            if region_record.preblast_reminder_hour_cst is not None
+            else "10:00",
             actions.CONFIG_HC_ANNOUNCE_OPTION: region_record.hc_announce_option or "off",
             actions.CONFIG_HC_ANNOUNCE_TARGETS: region_record.hc_announce_targets or "both",
         }
@@ -197,6 +200,9 @@ def handle_config_general_post(
     )
     region_record.scheduled_preblast_hour_cst = safe_convert(
         (safe_get(config_data, actions.CONFIG_SCHEDULED_PREBLAST_TIME) or "12:00").split(":")[0], int
+    )
+    region_record.preblast_reminder_hour_cst = safe_convert(
+        (safe_get(config_data, actions.CONFIG_PREBLAST_REMINDER_TIME) or "10:00").split(":")[0], int
     )
     region_record.hc_announce_option = safe_get(config_data, actions.CONFIG_HC_ANNOUNCE_OPTION) or "off"
     region_record.hc_announce_targets = safe_get(config_data, actions.CONFIG_HC_ANNOUNCE_TARGETS) or "both"

@@ -2,6 +2,70 @@
 
 <!-- version list -->
 
+## v1.10.3 (2026-05-05)
+
+### Bug Fixes
+
+- Fixed users and channels not being tagged in backblast text
+  ([`d631b8e`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/d631b8e7c1ae0c74a2203f6b415302cf3e659868))
+
+
+## v1.10.2 (2026-05-02)
+
+
+## v1.10.1 (2026-05-02)
+
+### Bug Fixes
+
+- Hotfix for backblast moleskin parsing preventing database save
+  ([`504f76f`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/504f76fbbf14fcb4fce13bd25067c7249b7ee07b))
+
+
+## v1.10.0 (2026-05-02)
+
+### Features
+
+- Added option to change OPEN color on calendar images (Calendar Settings -> General Calendar
+  Settings)
+  ([`73c0689`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/73c0689a2059cebec6ef5a0d26acf9c2736bea98))
+
+- Added priority ordering of coloring logic
+  ([`858b4a7`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/858b4a7c78734ec7ad331d7fb3a3158895f54fb4))
+
+### Refactoring
+
+- Removed handling of map update webhook as the API now has cascading
+  ([`fa08c76`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/fa08c76c0b1fb39e7923c3a8fe6eb1febbc2ba1f))
+
+
+## v1.9.0 (2026-04-30)
+
+### Bug Fixes
+
+- Fixing user mentions in moleskin of downrange cross posts
+  ([`392486a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/392486ae760c7e03fba970cf0c37d537a6e4fa68))
+
+- Preventing invalid trigger error when a new position is added, and other SLT menu enhancements
+  ([`0a6bc35`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/0a6bc35ca05c8bd47a04c03fa5cdee846b86ab62))
+
+### Features
+
+- Added boybands to automated downrange posts
+  ([`8df4049`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/8df4049c270264eb1f700be3eedbfd99a743ab16))
+
+- Added setting for when Q / preblast reminders go out to Qs
+  ([`c076a6a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/c076a6a6936d5c972ce4648ad8e29bde8618b660))
+
+
+## v1.8.0 (2026-04-26)
+
+### Features
+
+- Added a missing backblast menu for admins and site Qs, accessible from the New Backblast selection
+  screen
+  ([`34a808c`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/34a808c666d867ed3b56a687381b117918723e7b))
+
+
 ## v1.7.0 (2026-04-24)
 
 ### Features

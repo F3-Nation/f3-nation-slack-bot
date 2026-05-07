@@ -30,9 +30,10 @@ def build_config_slt_form(
         org_id = safe_convert(safe_get(body, "actions", 0, "selected_option", "value"), int)
         org_id = org_id if org_id != 0 else region_record.org_id
         update_view_id = safe_get(body, "view", "id")
-    else:
+    elif update_view_id is None:
         update_view_id = safe_get(body, actions.LOADING_ID)
-        print(f"update_view_id: {update_view_id}")
+        org_id = selected_org_id or region_record.org_id
+    else:
         org_id = selected_org_id or region_record.org_id
 
     position_users = get_position_users(org_id, region_record.org_id, slack_team_id=region_record.team_id)
@@ -187,7 +188,12 @@ def handle_config_slt_post(body: dict, client: WebClient, logger: Logger, contex
 
 
 def build_position_list_form(
-    body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
+    body: dict,
+    client: WebClient,
+    logger: Logger,
+    context: dict,
+    region_record: SlackSettings,
+    update_view_id: str = None,
 ):
     """Build a form listing custom positions that can be edited or deleted."""
     positions_all: List[Position] = DbManager.find_records(Position, [Position.is_active])
@@ -226,14 +232,23 @@ def build_position_list_form(
 
     form = orm.BlockView(blocks=blocks)
 
-    form.post_modal(
-        client=client,
-        trigger_id=safe_get(body, "trigger_id"),
-        title_text="Edit/Delete Positions",
-        callback_id=actions.EDIT_DELETE_POSITION_CALLBACK_ID,
-        submit_button_text="None",
-        new_or_add="add",
-    )
+    if update_view_id:
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            callback_id=actions.EDIT_DELETE_POSITION_CALLBACK_ID,
+            title_text="Edit/Delete Positions",
+            submit_button_text="None",
+        )
+    else:
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Edit/Delete Positions",
+            callback_id=actions.EDIT_DELETE_POSITION_CALLBACK_ID,
+            submit_button_text="None",
+            new_or_add="add",
+        )
 
 
 def handle_position_edit_delete(
@@ -258,6 +273,9 @@ def handle_position_edit_delete(
             fields={
                 Position.is_active: False,
             },
+        )
+        build_position_list_form(
+            body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
         )
 
 
@@ -305,3 +323,13 @@ def handle_edit_position_post(
                 Position.description: safe_get(form_data, actions.CONFIG_NEW_POSITION_DESCRIPTION),
             },
         )
+
+    build_config_slt_form(
+        body,
+        client,
+        logger,
+        context,
+        region_record,
+        update_view_id=safe_get(body, "view", "previous_view_id"),
+        selected_org_id=metadata.get("org_id"),
+    )

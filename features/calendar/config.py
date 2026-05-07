@@ -6,6 +6,7 @@ from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
 from features.calendar import event_instance, event_tag
+from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
 from utilities.slack import actions, orm
@@ -17,6 +18,7 @@ CALENDAR_CONFIG_Q_LINEUP_CHANNEL = "calendar_config_q_lineup_channel"
 CALENDAR_CONFIG_Q_LINEUP_DAY = "calendar_config_q_lineup_day"
 CALENDAR_CONFIG_Q_LINEUP_TIME = "calendar_config_q_lineup_time"
 CALENDAR_CONFIG_GROUP_BY_OPTION = "calendar_config_group_by_option"
+CALENDAR_CONFIG_OPEN_EVENT_COLOR = "calendar_config_open_event_color"
 
 
 def build_calendar_config_form(
@@ -44,6 +46,7 @@ def build_calendar_general_config_form(
     form.set_initial_values(
         {
             CALENDAR_CONFIG_GROUP_BY_OPTION: region_record.calendar_group_by_option or "ao",
+            CALENDAR_CONFIG_OPEN_EVENT_COLOR: region_record.open_event_color or "Green",
             actions.CALENDAR_CONFIG_Q_LINEUP: "yes" if region_record.send_q_lineups else "no",
             CALENDAR_CONFIG_Q_LINEUP_METHOD: region_record.send_q_lineups_method or "yes_per_ao",
             CALENDAR_CONFIG_Q_LINEUP_CHANNEL: region_record.send_q_lineups_channel,
@@ -73,6 +76,7 @@ def handle_calendar_config_general(
     region_record.send_q_lineups_channel = safe_get(values, CALENDAR_CONFIG_Q_LINEUP_CHANNEL)
     region_record.q_image_posting_enabled = safe_get(values, CALENDAR_CONFIG_POST_CALENDAR_IMAGE) == "yes"
     region_record.q_image_posting_channel = safe_get(values, CALENDAR_CONFIG_CALENDAR_IMAGE_CHANNEL)
+    region_record.open_event_color = safe_get(values, CALENDAR_CONFIG_OPEN_EVENT_COLOR)
     region_record.send_q_lineups_day = safe_convert(safe_get(values, CALENDAR_CONFIG_Q_LINEUP_DAY), int)
     send_q_lineups_time = safe_convert(safe_get(values, CALENDAR_CONFIG_Q_LINEUP_TIME), str)
     region_record.send_q_lineups_hour_cst = (
@@ -168,7 +172,20 @@ CALENDAR_CONFIG_GENERAL_FORM = orm.BlockView(
                 initial_value="ao",
             ),
             optional=False,
-            hint="This setting controls how rows are grouped on calendar images.",
+            hint="This setting controls how events are grouped on calendar images and on `/f3-calendar`.",
+        ),
+        orm.InputBlock(
+            label="Open Event Color",
+            action=CALENDAR_CONFIG_OPEN_EVENT_COLOR,
+            element=orm.StaticSelectElement(
+                options=orm.as_selector_options(
+                    names=[c for c in EVENT_TAG_COLORS.keys() if c != "Closed"],
+                    values=[c for c in EVENT_TAG_COLORS.keys() if c != "Closed"],
+                ),
+                initial_value="Green",
+            ),
+            optional=False,
+            hint="Color used for open events on the calendar image.",
         ),
     ]
 )

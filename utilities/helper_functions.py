@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import json
 import os
@@ -585,6 +586,67 @@ def replace_user_channel_ids(
     text = text.format(*slack_channel_names)
 
     return text
+
+
+def replace_rich_text_user_channel(
+    block: Dict[str, Any],
+    region_record: SlackSettings,
+    client: WebClient,
+    logger: Logger,
+) -> Dict[str, Any]:
+    """Replace user and channel ids with their names in a rich text block
+
+    Args:
+        block (Dict[str, Any]): rich text block with slack ids
+        region_record (SlackSettings): region record
+        client (WebClient): slack client
+        logger (Logger): logger
+
+    Returns:
+        block (Dict[str, Any]): rich text block with slack ids replaced
+    """
+    new_block = copy.deepcopy(block)
+
+    if not new_block or new_block.get("type") != "rich_text":
+        return new_block
+
+    for element in safe_get(new_block, "elements") or []:
+        if element["type"] in ["rich_text_section", "rich_text_preformatted", "rich_text_quote"]:
+            for text in element["elements"]:
+                if text["type"] == "user":
+                    user_name = get_user_names([text["user_id"]], logger, client, return_urls=False)[0]
+                    text["text"] = f"@{user_name}"
+                    text["type"] = "text"
+                    del text["user_id"]
+                elif text["type"] == "channel":
+                    channel_name = get_channel_names([text["channel_id"]], logger, client)[0]
+                    text["text"] = f"#{channel_name}"
+                    text["type"] = "text"
+                    del text["channel_id"]
+
+    return new_block
+
+
+def fix_from_llm_tags(block: Dict[str, Any]) -> Dict[str, Any]:
+    """Removes the 'from_llm' tag that Slack adds in the Android app to rich text blocks
+
+    Args:
+        block (Dict[str, Any]): rich text block with potential 'from_llm' tags
+
+    Returns:
+        Dict[str, Any]: rich text block with 'from_llm' tags removed
+    """
+
+    if not block or block.get("type") != "rich_text":
+        return block
+
+    for element in safe_get(block, "elements") or []:
+        if element["type"] in ["rich_text_section", "rich_text_preformatted", "rich_text_quote"]:
+            for text in element["elements"]:
+                if text.get("from_llm") is not None:
+                    del text["from_llm"]
+
+    return block
 
 
 def plain_text_to_rich_block(text: str) -> Dict[str, Any]:
