@@ -32,6 +32,7 @@ from utilities.database.special_queries import (
 )
 from utilities.helper_functions import (
     current_date_cst,
+    fix_from_llm_tags,
     get_location_display_name,
     get_user,
     get_user_names,
@@ -442,9 +443,9 @@ def handle_event_preblast_edit(
     update_fields = {
         EventInstance.name: form_data[actions.EVENT_PREBLAST_TITLE],
         EventInstance.location_id: form_data[actions.EVENT_PREBLAST_LOCATION],
-        EventInstance.preblast_rich: form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT],
+        EventInstance.preblast_rich: fix_from_llm_tags(form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT]),
         EventInstance.preblast: replace_user_channel_ids(
-            parse_rich_block(form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT]),
+            parse_rich_block(fix_from_llm_tags(form_data[actions.EVENT_PREBLAST_MOLESKINE_EDIT])),
             region_record,
             client,
             logger,

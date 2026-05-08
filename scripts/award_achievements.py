@@ -21,7 +21,10 @@ Assumptions / notes:
                              "exclude": [...] }
        * We treat each dict in include as a dimension constraint (AND across dimensions, OR within values)
        * Exclude removes events matching ANY of its value lists.
-  - Supported threshold types: 'posts' (attendance count), 'unique_aos' (distinct EventInstance.ao_org_id)
+    - Supported threshold types: 'posts' (attendance count),
+                                                             'unique_aos' (distinct EventInstanceExpanded.ao_org_id),
+                                                             'qs' (number of times user Q'd),
+                                                             'posts_at_ao' (attendance at a specific AO or any AO)
   - Additional threshold types can be added by extending _build_metric_clause.
 
 If filter keys are unrecognised, they are ignored (logged at DEBUG level).
@@ -29,24 +32,30 @@ If filter keys are unrecognised, they are ignored (logged at DEBUG level).
 
 from __future__ import annotations
 
+import os
+import ssl
+import sys
+
+import pytz
+
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+
 import argparse
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any, Dict, Iterable, List, Sequence, Tuple
 
-from f3_data_models.models import (
-    Achievement,
-    Achievement_x_User,
-    Attendance,
-    EventInstance,
-    EventTag_x_EventInstance,
-    EventType_x_EventInstance,
-    User,
-)
+from f3_data_models.models import Achievement, Achievement_x_User, Org_x_SlackSpace, SlackSpace, SlackUser, User
 from f3_data_models.utils import get_session
-from sqlalchemy import Integer, and_, distinct, func, select, tuple_
+from slack_sdk.web import WebClient
+from sqlalchemy import Integer, and_, distinct, func, literal, select, tuple_
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
+
+from utilities import constants
+from utilities.database.orm import SlackSettings
+from utilities.database.orm.views import EventAttendance, EventInstanceExpanded
 
 # ---------------------------------------------------------------------------
 # Period calculations
@@ -115,7 +124,7 @@ def iter_periods(cadence: str, year: int, today: date) -> Iterable[Tuple[int, Tu
 # ---------------------------------------------------------------------------
 
 
-SUPPORTED_THRESHOLD_TYPES = {"posts", "unique_aos"}
+SUPPORTED_THRESHOLD_TYPES = {"posts", "unique_aos", "qs", "posts_at_ao"}
 
 
 def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[list, bool, bool, list, list]:
@@ -138,6 +147,19 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         tag_ids = inc.get("event_tag_id") or []
         include_type_ids.update([tid for tid in type_ids if isinstance(tid, int)])
         include_tag_ids.update([tg for tg in tag_ids if isinstance(tg, int)])
+        first_f_ind = inc.get("first_f_ind")
+        if first_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.first_f_ind == first_f_ind)
+            print(f"Applying include first_f_ind filter: {first_f_ind}")
+        second_f_ind = inc.get("second_f_ind")
+        if second_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.second_f_ind == second_f_ind)
+        third_f_ind = inc.get("third_f_ind")
+        if third_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.third_f_ind == third_f_ind)
+        ao_org_id = inc.get("ao_org_id")
+        if ao_org_id is not None:
+            base_filters.append(EventInstanceExpanded.ao_org_id == ao_org_id)
 
     # Collect exclude constraints
     for exc in excludes:
@@ -147,27 +169,40 @@ def _apply_filters(base_filters: list, auto_filters: Dict[str, Any]) -> tuple[li
         tag_ids = exc.get("event_tag_id") or []
         exclude_type_ids.update([tid for tid in type_ids if isinstance(tid, int)])
         exclude_tag_ids.update([tg for tg in tag_ids if isinstance(tg, int)])
+        first_f_ind = exc.get("first_f_ind")
+        if first_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.first_f_ind != first_f_ind)
+        second_f_ind = exc.get("second_f_ind")
+        if second_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.second_f_ind != second_f_ind)
+        third_f_ind = exc.get("third_f_ind")
+        if third_f_ind is not None:
+            base_filters.append(EventInstanceExpanded.third_f_ind != third_f_ind)
+        ao_org_id = exc.get("ao_org_id")
+        if ao_org_id is not None:
+            base_filters.append(EventInstanceExpanded.ao_org_id != ao_org_id)
 
-    need_type_join = bool(include_type_ids or exclude_type_ids)
-    need_tag_join = bool(include_tag_ids or exclude_tag_ids)
+    # When using the flattened views, we no longer need separate joins
+    # for type / tag link tables, so the booleans are always False.
+    # For now, event_type_id / event_tag_id-based filters are not
+    # supported directly against the view and are ignored (but the
+    # first/second/third_f_ind filters above are applied normally).
 
-    if include_type_ids:
-        base_filters.append(EventType_x_EventInstance.event_type_id.in_(include_type_ids))
-    if include_tag_ids:
-        base_filters.append(EventTag_x_EventInstance.event_tag_id.in_(include_tag_ids))
-    if exclude_type_ids:
-        base_filters.append(~EventType_x_EventInstance.event_type_id.in_(exclude_type_ids))
-    if exclude_tag_ids:
-        base_filters.append(~EventTag_x_EventInstance.event_tag_id.in_(exclude_tag_ids))
-
-    return base_filters, need_type_join, need_tag_join, list(exclude_type_ids), list(exclude_tag_ids)
+    return base_filters, False, False, list(exclude_type_ids), list(exclude_tag_ids)
 
 
 def _build_metric_columns(threshold_type: str):
     if threshold_type == "posts":
-        return func.count(Attendance.id)
+        return func.count(EventAttendance.id)
     if threshold_type == "unique_aos":
-        return func.count(distinct(EventInstance.ao_org_id))
+        return func.count(distinct(EventInstanceExpanded.ao_org_id))
+    if threshold_type == "qs":
+        # Number of times the user Q'd (q_ind is 1 for Q, 0/NULL otherwise)
+        return func.coalesce(func.sum(EventAttendance.q_ind), 0)
+    if threshold_type == "posts_at_ao":
+        # Posts scoped by AO via auto_filters (ao_org_id); when no ao_org_id
+        # filter is supplied, this becomes equivalent to total posts.
+        return func.count(EventAttendance.id)
     raise ValueError(f"Unsupported auto_threshold_type: {threshold_type}")
 
 
@@ -178,78 +213,57 @@ def _compute_all_period_metrics(
 
     Single query per achievement to cover all elapsed periods in current year (or lifetime).
     """
+    print(f"Computing metrics for achievement={achievement.id} ({threshold_type})...")
     metric_col = _build_metric_columns(threshold_type)
-    cadence = str(achievement.auto_cadence).lower()
+    cadence = str(achievement.auto_cadence.name).lower()
 
     # Lifetime: group to a fixed (-1, -1)
     if cadence == "lifetime":
         filters: list = []
         filters, need_type_join, need_tag_join, *_ = _apply_filters([], achievement.auto_filters or {})
         if achievement.specific_org_id:
-            filters.append(User.home_region_id == achievement.specific_org_id)
-        query = (
-            select(
-                Attendance.user_id.label("user_id"),
-                func.cast(func.literal(-1), Integer).label("award_year"),
-                func.cast(func.literal(-1), Integer).label("award_period"),
-                metric_col.label("metric"),
-            )
-            .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
-            .join(User, User.id == Attendance.user_id)
+            filters.append(EventAttendance.home_region_id == achievement.specific_org_id)
+        query = select(
+            EventAttendance.user_id.label("user_id"),
+            func.cast(literal(-1), Integer).label("award_year"),
+            func.cast(literal(-1), Integer).label("award_period"),
+            metric_col.label("metric"),
+        ).join(
+            EventInstanceExpanded,
+            EventInstanceExpanded.id == EventAttendance.event_instance_id,
         )
-        if need_type_join:
-            query = query.join(
-                EventType_x_EventInstance,
-                EventType_x_EventInstance.event_instance_id == EventInstance.id,
-                isouter=False,
-            )
-        if need_tag_join:
-            query = query.join(
-                EventTag_x_EventInstance,
-                EventTag_x_EventInstance.event_instance_id == EventInstance.id,
-                isouter=False,
-            )
         query = query.filter(*filters).group_by("user_id")
         return [(r[0], r[1], r[2], int(r[3])) for r in session.execute(query).all()]
 
     # Non-lifetime: restrict to year start..today
     year = today.year
     start_year = date(year, 1, 1)
-    filters: list = [and_(EventInstance.start_date >= start_year, EventInstance.start_date <= today)]
+    filters: list = [and_(EventInstanceExpanded.start_date >= start_year, EventInstanceExpanded.start_date <= today)]
     filters, need_type_join, need_tag_join, *_ = _apply_filters(filters, achievement.auto_filters or {})
     if achievement.specific_org_id:
-        filters.append(User.home_region_id == achievement.specific_org_id)
+        filters.append(EventAttendance.home_region_id == achievement.specific_org_id)
 
     # Period expression
     if cadence == "weekly":
-        period_expr = func.extract("isoweek", EventInstance.start_date)
+        period_expr = func.extract("week", EventInstanceExpanded.start_date)
     elif cadence == "monthly":
-        period_expr = func.extract("month", EventInstance.start_date)
+        period_expr = func.extract("month", EventInstanceExpanded.start_date)
     elif cadence == "quarterly":
-        period_expr = (func.extract("month", EventInstance.start_date) - 1) / 3 + 1
+        period_expr = (func.extract("month", EventInstanceExpanded.start_date) - 1) / 3 + 1
     elif cadence == "yearly":
-        period_expr = func.cast(func.literal(1), Integer)
+        period_expr = 1
     else:
         raise ValueError(f"Unsupported cadence: {cadence}")
 
-    query = (
-        select(
-            Attendance.user_id.label("user_id"),
-            func.cast(func.literal(year), Integer).label("award_year"),
-            func.cast(period_expr, Integer).label("award_period"),
-            metric_col.label("metric"),
-        )
-        .join(EventInstance, EventInstance.id == Attendance.event_instance_id)
-        .join(User, User.id == Attendance.user_id)
+    query = select(
+        EventAttendance.user_id.label("user_id"),
+        func.cast(year, Integer).label("award_year"),
+        func.cast(period_expr, Integer).label("award_period"),
+        metric_col.label("metric"),
+    ).join(
+        EventInstanceExpanded,
+        EventInstanceExpanded.id == EventAttendance.event_instance_id,
     )
-    if need_type_join:
-        query = query.join(
-            EventType_x_EventInstance, EventType_x_EventInstance.event_instance_id == EventInstance.id, isouter=False
-        )
-    if need_tag_join:
-        query = query.join(
-            EventTag_x_EventInstance, EventTag_x_EventInstance.event_instance_id == EventInstance.id, isouter=False
-        )
     query = query.filter(*filters).group_by("user_id", "award_period")
     rows = session.execute(query).all()
     # Filter out future periods (e.g., if partial query produced future periods due to date overlap) - defensive
@@ -397,27 +411,390 @@ def award_candidates(session: Session, candidates: Sequence[CandidateAward], dry
         print("Some awards already existed and were skipped.")
 
 
+# ---------------------------------------------------------------------------
+# Achievement posting logic
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AwardedUserInfo:
+    """Container for user info needed to post achievements."""
+
+    user_id: int
+    slack_user_id: str
+    user_name: str
+
+
+@dataclass
+class RegionAchievementGroup:
+    """Groups achievement candidates by region for posting."""
+
+    team_id: str
+    slack_settings: SlackSettings
+    bot_token: str
+    # Map of achievement_id -> list of (AwardedUserInfo, CandidateAward)
+    achievements: Dict[int, List[Tuple[AwardedUserInfo, CandidateAward]]]
+
+
+def _get_ssl_context():
+    """Create SSL context for Slack client."""
+    ssl_context = ssl.create_default_context()
+    ssl_context.check_hostname = False
+    ssl_context.verify_mode = ssl.CERT_NONE
+    return ssl_context
+
+
+def _build_achievement_message(achievement: Achievement, user_tag: str) -> str:
+    """Build a message for a single achievement award."""
+    msg = f"🏆 *{achievement.name}*"
+    if achievement.description:
+        msg += f"\n_{achievement.description}_"
+    msg += f"\n\nEarned by {user_tag}!"
+    if achievement.image_url:
+        msg += f"\n{achievement.image_url}"
+    return msg
+
+
+def _build_achievement_blocks(achievement: Achievement, user_tag: str) -> List[Dict]:
+    """Build Slack blocks for a single achievement award."""
+    blocks = [
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": f"🏆 *{achievement.name}*\nEarned by {user_tag}!"},
+        }
+    ]
+    if achievement.description:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"_{achievement.description}_"}]})
+    if achievement.image_url:
+        blocks.append({"type": "image", "image_url": achievement.image_url, "alt_text": achievement.name})
+    return blocks
+
+
+def _build_summary_message(achievement: Achievement, user_awards: List[Tuple[AwardedUserInfo, CandidateAward]]) -> str:
+    """Build a summary line for an achievement with multiple earners."""
+    user_mentions = []
+    user_counts: Dict[str, int] = defaultdict(int)
+
+    for user_info, _candidate in user_awards:
+        user_counts[user_info.slack_user_id] += 1
+
+    for slack_user_id, count in user_counts.items():
+        mention = f"<@{slack_user_id}>"
+        if count > 1:
+            mention += f" (x{count})"
+        user_mentions.append(mention)
+
+    earners = ", ".join(user_mentions)
+    desc = f": {achievement.description}" if achievement.description else ""
+    return f"🏆 *{achievement.name}*{desc}\nEarned by {earners}"
+
+
+def _build_dm_message(achievement: Achievement) -> str:
+    """Build a DM message for an individual achievement notification."""
+    msg = f"🎉 Congratulations! You've earned an achievement!\n\n🏆 *{achievement.name}*"
+    if achievement.description:
+        msg += f"\n_{achievement.description}_"
+    if achievement.image_url:
+        msg += f"\n{achievement.image_url}"
+    return msg
+
+
+def _build_dm_blocks(achievement: Achievement) -> List[Dict]:
+    """Build Slack blocks for an achievement DM."""
+    blocks = [
+        {
+            "type": "section",
+            "text": {
+                "type": "mrkdwn",
+                "text": f"🎉 Congratulations! You've earned an achievement!\n\n🏆 *{achievement.name}*",
+            },
+        }
+    ]
+    if achievement.description:
+        blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": f"_{achievement.description}_"}]})
+    if achievement.image_url:
+        blocks.append({"type": "image", "image_url": achievement.image_url, "alt_text": achievement.name})
+    return blocks
+
+
+def post_achievements(session: Session, candidates: Sequence[CandidateAward], dry_run: bool) -> None:
+    """Post achievement notifications based on each region's settings.
+
+    Groups candidates by their home region's Slack space and posts according
+    to the region's achievement_send_option setting:
+    - post_individually: Post each achievement separately in achievement_channel
+    - post_summary: Post a daily summary grouped by achievement in achievement_channel
+    - send_in_dms_only: Send DM to each user for their achievements
+    """
+    if not candidates:
+        return
+
+    # Gather all unique user_ids and achievement_ids
+    user_ids = list({c.user_id for c in candidates})
+    achievement_ids = list({c.achievement_id for c in candidates})
+
+    # Load users with their home regions
+    users_query = select(User).filter(User.id.in_(user_ids))
+    users_by_id: Dict[int, User] = {u.id: u for u in session.scalars(users_query).all()}
+
+    # Load achievements
+    achievements_query = select(Achievement).filter(Achievement.id.in_(achievement_ids))
+    achievements_by_id: Dict[int, Achievement] = {a.id: a for a in session.scalars(achievements_query).all()}
+
+    # Find unique home_region_ids (filter out None)
+    home_region_ids = list({u.home_region_id for u in users_by_id.values() if u.home_region_id})
+    if not home_region_ids:
+        print("No users with home regions found. Skipping achievement posting.")
+        return
+
+    # Load SlackSpaces for home regions via Org_x_SlackSpace
+    slack_space_query = (
+        select(Org_x_SlackSpace.org_id, SlackSpace)
+        .join(SlackSpace, SlackSpace.id == Org_x_SlackSpace.slack_space_id)
+        .filter(Org_x_SlackSpace.org_id.in_(home_region_ids))
+    )
+    region_slack_spaces: Dict[int, SlackSpace] = {}
+    for org_id, slack_space in session.execute(slack_space_query).all():
+        region_slack_spaces[org_id] = slack_space
+
+    if not region_slack_spaces:
+        print("No Slack spaces found for user home regions. Skipping achievement posting.")
+        return
+
+    # Get all team_ids we need slack users for
+    team_ids = list({ss.team_id for ss in region_slack_spaces.values()})
+
+    # Load SlackUsers for all our users across all relevant teams
+    slack_users_query = select(SlackUser).filter(SlackUser.user_id.in_(user_ids), SlackUser.slack_team_id.in_(team_ids))
+    # Map: (user_id, team_id) -> SlackUser
+    slack_users_map: Dict[Tuple[int, str], SlackUser] = {}
+    for su in session.scalars(slack_users_query).all():
+        slack_users_map[(su.user_id, su.slack_team_id)] = su
+
+    # Group candidates by region (team_id)
+    region_groups: Dict[str, RegionAchievementGroup] = {}
+
+    for candidate in candidates:
+        user = users_by_id.get(candidate.user_id)
+        if not user or not user.home_region_id:
+            continue
+
+        slack_space = region_slack_spaces.get(user.home_region_id)
+        if not slack_space:
+            continue
+
+        team_id = slack_space.team_id
+        slack_user = slack_users_map.get((user.id, team_id))
+        if not slack_user:
+            continue
+
+        # Initialize group if needed
+        if team_id not in region_groups:
+            settings = SlackSettings(**slack_space.settings) if slack_space.settings else SlackSettings(team_id=team_id)
+            region_groups[team_id] = RegionAchievementGroup(
+                team_id=team_id,
+                slack_settings=settings,
+                bot_token=slack_space.bot_token,
+                achievements={},
+            )
+
+        group = region_groups[team_id]
+        user_info = AwardedUserInfo(
+            user_id=user.id,
+            slack_user_id=slack_user.slack_id,
+            user_name=slack_user.user_name or user.f3_name or "Unknown",
+        )
+
+        if candidate.achievement_id not in group.achievements:
+            group.achievements[candidate.achievement_id] = []
+        group.achievements[candidate.achievement_id].append((user_info, candidate))
+
+    # Post for each region based on settings
+    for team_id, group in region_groups.items():
+        settings = group.slack_settings
+
+        # Check if achievements are enabled
+        if not settings.send_achievements:
+            print(f"[{team_id}] Achievement posting disabled. Skipping.")
+            continue
+
+        send_option = settings.achievement_send_option or "post_summary"
+        achievement_channel = settings.achievement_channel
+
+        if not group.bot_token:
+            print(f"[{team_id}] No bot token available. Skipping.")
+            continue
+
+        if dry_run:
+            print(f"[DRY-RUN] [{team_id}] Would post achievements with option: {send_option}")
+            for ach_id, user_awards in group.achievements.items():
+                ach = achievements_by_id.get(ach_id)
+                ach_name = ach.name if ach else f"Achievement #{ach_id}"
+                users = [ui.user_name for ui, _ in user_awards]
+                print(f"  - {ach_name}: {', '.join(users)}")
+            continue
+
+        ssl_context = _get_ssl_context()
+        client = WebClient(group.bot_token, ssl=ssl_context)
+
+        if send_option == "post_individually":
+            _post_individually(client, achievement_channel, group, achievements_by_id, team_id)
+        elif send_option == "post_summary":
+            _post_summary(client, achievement_channel, group, achievements_by_id, team_id)
+        elif send_option == "send_in_dms_only":
+            _send_dms(client, group, achievements_by_id, team_id)
+        else:
+            print(f"[{team_id}] Unknown send_option: {send_option}. Defaulting to summary.")
+            _post_summary(client, achievement_channel, group, achievements_by_id, team_id)
+
+
+def _post_individually(
+    client: WebClient,
+    channel: str,
+    group: RegionAchievementGroup,
+    achievements_by_id: Dict[int, Achievement],
+    team_id: str,
+) -> None:
+    """Post each achievement as an individual message."""
+    if not channel:
+        print(f"[{team_id}] No achievement channel configured. Skipping individual posts.")
+        return
+
+    for ach_id, user_awards in group.achievements.items():
+        achievement = achievements_by_id.get(ach_id)
+        if not achievement:
+            continue
+
+        for user_info, _candidate in user_awards:
+            user_tag = f"<@{user_info.slack_user_id}>"
+            msg = _build_achievement_message(achievement, user_tag)
+            blocks = _build_achievement_blocks(achievement, user_tag)
+
+            try:
+                client.chat_postMessage(channel=channel, text=msg, blocks=blocks)
+                print(f"[{team_id}] Posted achievement '{achievement.name}' for {user_info.user_name}")
+            except Exception as e:
+                print(f"[{team_id}] Error posting achievement: {e}")
+
+
+def _post_summary(
+    client: WebClient,
+    channel: str,
+    group: RegionAchievementGroup,
+    achievements_by_id: Dict[int, Achievement],
+    team_id: str,
+) -> None:
+    """Post a single summary of all achievements earned."""
+    if not channel:
+        print(f"[{team_id}] No achievement channel configured. Skipping summary post.")
+        return
+
+    # Build sections with their corresponding achievements for image support
+    section_data: List[Tuple[Achievement, str]] = []
+    for ach_id, user_awards in group.achievements.items():
+        achievement = achievements_by_id.get(ach_id)
+        if not achievement:
+            continue
+
+        section_text = _build_summary_message(achievement, user_awards)
+        section_data.append((achievement, section_text))
+
+    if not section_data:
+        return
+
+    today_str = datetime.now(UTC).strftime("%B %d, %Y")
+    header = f"📊 *Achievement Summary for {today_str}*"
+    full_msg = header + "\n\n" + "\n\n".join([text for _, text in section_data])
+
+    blocks = [
+        {"type": "header", "text": {"type": "plain_text", "text": f"📊 Achievement Summary for {today_str}"}},
+        {"type": "divider"},
+    ]
+    for achievement, section_text in section_data:
+        blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": section_text}})
+        if achievement.image_url:
+            blocks.append({"type": "image", "image_url": achievement.image_url, "alt_text": achievement.name})
+
+    try:
+        client.chat_postMessage(channel=channel, text=full_msg, blocks=blocks)
+        print(f"[{team_id}] Posted achievement summary with {len(section_data)} achievement types")
+    except Exception as e:
+        print(f"[{team_id}] Error posting achievement summary: {e}")
+
+
+def _send_dms(
+    client: WebClient,
+    group: RegionAchievementGroup,
+    achievements_by_id: Dict[int, Achievement],
+    team_id: str,
+) -> None:
+    """Send DMs to each user for their achievements."""
+    # Group by user to batch their achievements
+    user_achievements: Dict[str, List[Tuple[Achievement, CandidateAward]]] = defaultdict(list)
+
+    for ach_id, user_awards in group.achievements.items():
+        achievement = achievements_by_id.get(ach_id)
+        if not achievement:
+            continue
+
+        for user_info, _candidate in user_awards:
+            user_achievements[user_info.slack_user_id].append((achievement, _candidate))
+
+    for slack_user_id, achievements in user_achievements.items():
+        for achievement, _candidate in achievements:
+            msg = _build_dm_message(achievement)
+            blocks = _build_dm_blocks(achievement)
+
+            try:
+                client.chat_postMessage(channel=slack_user_id, text=msg, blocks=blocks)
+                print(f"[{team_id}] Sent DM for achievement '{achievement.name}' to {slack_user_id}")
+            except Exception as e:
+                print(f"[{team_id}] Error sending DM to {slack_user_id}: {e}")
+
+
 def main():  # pragma: no cover - CLI
     parser = argparse.ArgumentParser(description="Auto-award achievements")
     parser.add_argument("--achievement-id", type=int, help="Process only a single achievement id", default=None)
     parser.add_argument("--dry-run", action="store_true", help="Do not persist, only log actions")
+    parser.add_argument("--skip-post", action="store_true", help="Skip posting achievements to Slack")
     parser.add_argument(
         "--today", type=str, help="Override today's date (YYYY-MM-DD, UTC) for backfilling / testing", default=None
     )
     args = parser.parse_args()
+    print(f"Auto-award achievements started at {datetime.now(UTC).isoformat()}")
+    print(f"Arguments: achievement_id={args.achievement_id}, dry_run={args.dry_run}, today={args.today}")
 
     today = datetime.strptime(args.today, "%Y-%m-%d").date() if args.today else datetime.now(UTC).date()
+    current_hour = datetime.now(pytz.timezone("US/Central")).hour
+
+    if current_hour != constants.ACHIEVEMENT_AWARD_HOUR_CST:
+        return
 
     with get_session() as session:
         ach_query = select(Achievement).filter(Achievement.auto_award.is_(True), Achievement.is_active.is_(True))
         if args.achievement_id:
             ach_query = ach_query.filter(Achievement.id == args.achievement_id)
         achievements = session.scalars(ach_query).all()
+        print(f"Processing {len(achievements)} achievements...")
         total_candidates = 0
+        all_candidates = []
         for ach in achievements:
             cands = process_achievement(session, ach, today)
             award_candidates(session, cands, args.dry_run)
             total_candidates += len(cands)
+            all_candidates.extend(cands)
+
+        # Post achievement notifications
+        if all_candidates and not args.skip_post:
+            print(f"\nPosting {len(all_candidates)} achievement notifications...")
+            post_achievements(session, all_candidates, args.dry_run)
+
+        # save a csv of candidates for record-keeping
+        if all_candidates and args.dry_run:
+            with open(f"achievement_candidates_{today}.csv", "w") as f:
+                f.write("achievement_id,user_id,award_year,award_period,metric\n")
+                for c in all_candidates:
+                    f.write(f"{c.achievement_id},{c.user_id},{c.award_year},{c.award_period},{c.metric}\n")
         print(f"Done. Candidates processed: {total_candidates}")
 
 

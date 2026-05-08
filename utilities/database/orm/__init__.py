@@ -32,6 +32,7 @@ class SlackSettings:
     send_achievements: Optional[int] = None
     send_aoq_reports: Optional[int] = None
     achievement_channel: Optional[str] = None
+    achievement_send_option: Optional[str] = None  # Options: "post_individually", "post_summary", "send_in_dms_only"
     default_siteq: Optional[str] = None
     NO_POST_THRESHOLD: Optional[int] = None
     REMINDER_WEEKS: Optional[int] = None

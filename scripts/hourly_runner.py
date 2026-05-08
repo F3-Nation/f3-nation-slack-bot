@@ -10,6 +10,7 @@ import requests
 # from features import canvas
 from scripts import (
     auto_preblast_send,
+    award_achievements,
     backblast_reminders,
     calendar_images,
     home_region_nudge,
@@ -49,12 +50,6 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
     except Exception as e:
         print(f"Error sending automated preblasts: {e}")
 
-    # print("Running canvas updates")
-    # try:
-    #     canvas.update_all_canvases()
-    # except Exception as e:
-    #     print(f"Error updating canvases: {e}")
-
     print("Running Q lineups")
     try:
         q_lineups.send_lineups(force=force)
@@ -85,6 +80,12 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
             monthly_reporting.cycle_all_orgs(run_org_id=reporting_org_id)
         except Exception as e:
             print(f"Error running monthly reporting: {e}")
+
+    print("Running achievements update")
+    try:
+        award_achievements.main()
+    except Exception as e:
+        print(f"Error awarding achievements: {e}")
 
     print("Notifying completion endpoint to update settings cache")
     try:

@@ -2,6 +2,25 @@
 
 <!-- version list -->
 
+## v1.10.3 (2026-05-05)
+
+### Bug Fixes
+
+- Fixed users and channels not being tagged in backblast text
+  ([`d631b8e`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/d631b8e7c1ae0c74a2203f6b415302cf3e659868))
+
+
+## v1.10.2 (2026-05-02)
+
+
+## v1.10.1 (2026-05-02)
+
+### Bug Fixes
+
+- Hotfix for backblast moleskin parsing preventing database save
+  ([`504f76f`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/504f76fbbf14fcb4fce13bd25067c7249b7ee07b))
+
+
 ## v1.10.0 (2026-05-02)
 
 ### Features
