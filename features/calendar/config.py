@@ -5,7 +5,7 @@ from f3_data_models.models import SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
 
-from features.calendar import event_instance, event_tag
+from features.calendar import event_instance, event_tag, event_type
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
@@ -243,7 +243,7 @@ CALENDAR_CONFIG_FORM = orm.BlockView(
         ),
         orm.SectionBlock(
             label=":runner: Manage Event Types",
-            action=actions.CALENDAR_MANAGE_EVENT_TYPES,
+            action=event_type.CALENDAR_MANAGE_EVENT_TYPES,
             element=orm.OverflowElement(
                 options=orm.as_selector_options(
                     names=["Add Event Type", "Edit or Deactivate Event Types"],

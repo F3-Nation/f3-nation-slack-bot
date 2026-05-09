@@ -329,6 +329,14 @@ In `features/.../<domain>.py`:
 Ensure all action/view IDs are registered in `utilities/routing.py`.  Constants for feature-local
 IDs live in the feature file; shared IDs live in `utilities/slack/actions.py`.
 
+**Check all three places in `routing.py`** where an action ID constant may appear:
+1. `ACTION_MAPPER` — the main action dispatch table.
+2. `VIEW_MAPPER` — for view submission callback IDs.
+3. `ACTION_PREFIXES` — a list of prefix strings used for pattern-matched action IDs (e.g.
+   `event-type-edit-delete_<id>`).  Any per-row action ID that uses a `_<id>` suffix must
+   also be updated here when its constant moves from `utilities/slack/actions.py` to the
+   feature module.
+
 ### Step 7 — Write tests
 Create test files mirroring the structure above:
 - `tests/infrastructure/api_client/test_<domain>_repository.py`
@@ -363,3 +371,5 @@ python -m pytest tests -q
 | Forgetting to filter global tags in `get_by_org` | The API returns global + org-specific; filter to `specificOrgId == org_id` |
 | camelCase vs snake_case API fields | Use `raw.get("camelKey", raw.get("snake_key"))` in `_parse_*` helpers |
 | Singleton not reset between tests | Patch the module-level `_repo`/`_client` variable with `None` in singleton tests |
+| Moving a constant from `actions.py` only updated `ACTION_MAPPER` | Also update `ACTION_PREFIXES` in `routing.py` — any per-row suffix action (e.g. `edit-delete_<id>`) appears there too |
+| `set_options()` fails with `TypeError: 'NoneType' object is not subscriptable` | `SdkBlockView.set_options()` expects `option.label` which is `None` for SDK `Option` objects built via `as_selector_options()`. For **static** option lists (e.g. fixed categories), embed the options directly in the `EVENT_TYPE_FORM` template rather than calling `set_options()` at render time. |
