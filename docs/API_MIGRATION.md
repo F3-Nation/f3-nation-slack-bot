@@ -362,6 +362,44 @@ python -m pytest tests -q
 
 ---
 
+## Domain-Specific API Notes
+
+Always consult `docs/API_REFERENCE.md` before implementing any repository.  **Do not guess
+endpoint paths by analogy with other domains** — the API is not uniform.  Key differences
+discovered during migration:
+
+### location
+
+| Aspect | Detail |
+|--------|--------|
+| List by org | `GET /v1/location?regionIds={id}` — no `/org/{id}` path exists |
+| Delete | `DELETE /v1/location/delete/{id}` — not `/id/{id}` |
+| Response field | `locationName` in GET responses |
+| Request field | `name` in POST bodies (not `locationName`) |
+| Required fields on update | Crupdate POST always requires `name`, `orgId`, and `isActive` — even for updates |
+| Active-only filtering | The list endpoint returns both active and inactive records; filter `is_active=True` in the service layer |
+
+### event-tag
+
+| Aspect | Detail |
+|--------|--------|
+| List by org | `GET /v1/event-tag/org/{orgId}` |
+| Delete | `DELETE /v1/event-tag/id/{id}` |
+| Filtering | API returns global + org-specific tags; filter to `specificOrgId == org_id` client-side |
+
+### General patterns
+
+- **Crupdate POST**: Most domains use a single `POST` endpoint for both create and update.  Omit
+  `id` to create; include `id` to update.  Always send all required fields — the API validates
+  them even on updates.
+- **Request vs. response field names**: Some domains use different field names in requests vs.
+  responses (e.g. location's `name` → `locationName`).  Verify both directions in the API
+  reference before writing `_parse_*` and payload-building code.
+- **Active/inactive records**: Not all list endpoints filter to active records automatically.
+  Check the API reference for `statuses` filter params; if absent, filter in the service layer.
+
+---
+
 ## Common Pitfalls
 
 | Pitfall | Fix |
@@ -373,3 +411,7 @@ python -m pytest tests -q
 | Singleton not reset between tests | Patch the module-level `_repo`/`_client` variable with `None` in singleton tests |
 | Moving a constant from `actions.py` only updated `ACTION_MAPPER` | Also update `ACTION_PREFIXES` in `routing.py` — any per-row suffix action (e.g. `edit-delete_<id>`) appears there too |
 | `set_options()` fails with `TypeError: 'NoneType' object is not subscriptable` | `SdkBlockView.set_options()` expects `option.label` which is `None` for SDK `Option` objects built via `as_selector_options()`. For **static** option lists (e.g. fixed categories), embed the options directly in the `EVENT_TYPE_FORM` template rather than calling `set_options()` at render time. |
+| Guessing endpoint paths by analogy | Always read `docs/API_REFERENCE.md` first — `/org/{id}`, `/delete/{id}`, and list query params vary per domain |
+| Crupdate update missing required fields | When updating via crupdate POST, include all required fields (`orgId`, `isActive`, etc.) not just the ones being changed — the API validates all required fields on every POST |
+| Request and response use different field names | Verify both request payload keys and response field names in the API reference separately (e.g. location sends `name` but receives `locationName`) |
+| List endpoint returns inactive records | After fetching a list, check `is_active` and filter in the service if the endpoint does not support a `statuses=active` param |
