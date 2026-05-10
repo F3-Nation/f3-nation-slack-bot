@@ -325,6 +325,17 @@ In `features/.../<domain>.py`:
 2. Refactor handler functions to call the service instead of `DbManager`.
 3. Extract view-building into a `<Domain>Views` class (pure functions, no I/O).
 
+**Dynamic selector options**: For form blocks whose options are loaded at render time (e.g. a
+location dropdown populated from the DB/API), set options **directly** on the element after
+calling the modal builder, rather than using `set_options()`:
+```python
+form = AoViews.build_add_ao_modal(locations)
+location_block = form.get_block(actions.CALENDAR_ADD_AO_LOCATION)
+location_block.element.options = [Option(text=..., value=str(loc.id)) for loc in locations]
+```
+This avoids the `option.label is None` bug in `set_options()` and keeps the modal builder testable
+without requiring a live list of options.
+
 ### Step 6 — Register in routing
 Ensure all action/view IDs are registered in `utilities/routing.py`.  Constants for feature-local
 IDs live in the feature file; shared IDs live in `utilities/slack/actions.py`.
@@ -387,6 +398,20 @@ discovered during migration:
 | Delete | `DELETE /v1/event-tag/id/{id}` |
 | Filtering | API returns global + org-specific tags; filter to `specificOrgId == org_id` client-side |
 
+### org (AO)
+
+| Aspect | Detail |
+|--------|--------|
+| List by parent org | `GET /v1/org?orgTypes=ao&parentOrgIds={id}&statuses=active` — use query params, no sub-path |
+| Get single | `GET /v1/org/id/{ao_id}` |
+| Create / Update | `POST /v1/org` (crupdate — omit `id` to create, include `id` to update) |
+| Delete | `DELETE /v1/org/delete/{id}` — cascades automatically to child Events and EventInstances; do **not** delete them manually |
+| Response envelope | `"orgs"` (list), `"org"` (single); also accept `"results"` / `"result"` as fallbacks |
+| Response fields | camelCase: `parentId`, `orgType`, `isActive`, `defaultLocationId`, `logoUrl`, `meta` |
+| Required crupdate fields | `name`, `orgType`, `parentId`, `isActive`, `website`, `twitter`, `facebook`, `instagram` — must be sent on every POST even when only updating one field; pass empty string `""` for unused social fields |
+| `meta` field | Contains `slack_channel_id` (snake_case key inside the `meta` dict) |
+| Logo update | No dedicated endpoint — upload file to storage, then call crupdate POST again with all required fields plus `logoUrl`; keep all form values in scope before the upload |
+
 ### General patterns
 
 - **Crupdate POST**: Most domains use a single `POST` endpoint for both create and update.  Omit
@@ -410,8 +435,14 @@ discovered during migration:
 | camelCase vs snake_case API fields | Use `raw.get("camelKey", raw.get("snake_key"))` in `_parse_*` helpers |
 | Singleton not reset between tests | Patch the module-level `_repo`/`_client` variable with `None` in singleton tests |
 | Moving a constant from `actions.py` only updated `ACTION_MAPPER` | Also update `ACTION_PREFIXES` in `routing.py` — any per-row suffix action (e.g. `edit-delete_<id>`) appears there too |
-| `set_options()` fails with `TypeError: 'NoneType' object is not subscriptable` | `SdkBlockView.set_options()` expects `option.label` which is `None` for SDK `Option` objects built via `as_selector_options()`. For **static** option lists (e.g. fixed categories), embed the options directly in the `EVENT_TYPE_FORM` template rather than calling `set_options()` at render time. |
+| `set_options()` fails with `TypeError: 'NoneType' object is not subscriptable` | `SdkBlockView.set_options()` truncates `option.label` but the SDK `Option` object has `label=None` by default. **Fix 1 (applied)**: guard in `sdk_orm.py` with `if option.label is not None`. **Fix 2 (preferred for dynamic lists)**: bypass `set_options()` entirely and set options directly: `form.get_block(block_id).element.options = options_list` after `build_add_*_modal()` returns. |
+| Orphaned option-setting code from dead UI blocks | During migration, audit every `set_options()` call and confirm its block still exists in the form. Legacy modules often accumulated option-setting code for blocks that were later removed (e.g. `CALENDAR_ADD_AO_TYPE` options in old `ao.py`). Remove them. |
+| Logo / file uploads require a second API call | There is no PATCH endpoint for partial updates — logo update is a full crupdate POST. Ensure all required fields are still in scope after the file upload completes before making the second call. |
+| `replace_string_in_file` leaves old code below the replaced block | The tool replaces only the matched text; content below it remains. When rewriting an entire file, write the complete new content to a temp file and `mv` it into place (or use `head -N` to truncate). |
+| Cascade delete misunderstood | `DELETE /v1/org/delete/{id}` cascades to Events and EventInstances automatically — no need to iterate and delete children manually as the old DbManager code did. Always check the API reference for cascade behaviour before writing delete logic. |
+| Handler mocks use `mock.return_value.*` when handler calls static methods | If the feature module calls `Views.build_modal()` as a static/class method (not `Views().build_modal()`), patch assertions use `mock_views.build_modal` not `mock_views.return_value.build_modal`. Check how the feature code actually calls the Views class. |
+| Empty list modal crashes with `SlackObjectFormationError: views must contain between 1 and 100 blocks` | Slack rejects a modal view with zero blocks. Any `build_list_modal()` that iterates over a potentially-empty list must add a notice `SectionBlock` when the list is empty: `if not items: return SdkBlockView(blocks=[SectionBlock(text="No items found.", block_id="<domain>-notice")])` |
 | Guessing endpoint paths by analogy | Always read `docs/API_REFERENCE.md` first — `/org/{id}`, `/delete/{id}`, and list query params vary per domain |
-| Crupdate update missing required fields | When updating via crupdate POST, include all required fields (`orgId`, `isActive`, etc.) not just the ones being changed — the API validates all required fields on every POST |
+| Crupdate update missing required fields | When updating via crupdate POST, include all required fields (`orgId`, `isActive`, social fields like `website`/`twitter`/`facebook`/`instagram` for org, etc.) not just the ones being changed — the API validates all required fields on every POST. Use `""` (empty string) for unused string fields rather than `null`/omitting them. |
 | Request and response use different field names | Verify both request payload keys and response field names in the API reference separately (e.g. location sends `name` but receives `locationName`) |
 | List endpoint returns inactive records | After fetching a list, check `is_active` and filter in the service if the endpoint does not support a `statuses=active` param |

@@ -157,7 +157,10 @@ class LocationViewsTest(unittest.TestCase):
 
     def test_build_list_modal_empty(self):
         form = LocationViews.build_list_modal([])
-        self.assertEqual(form.blocks, [])
+        self.assertEqual(len(form.blocks), 1)
+        self.assertEqual(
+            form.blocks[0].text.text, "No locations found. Please add a location to create AOs with a meetup spot."
+        )
 
     def test_build_list_modal_with_notice_prepends_section(self):
         locations = [_make_location(id=1, name="Park A")]

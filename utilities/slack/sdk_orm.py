@@ -124,7 +124,8 @@ class SdkBlockView:
                 if hasattr(block.element, "options"):
                     option_list = options[block.block_id]
                     for option in option_list:
-                        option.label = option.label[:75]
+                        if option.label is not None:
+                            option.label = option.label[:75]
                         if option.description:
                             option.description = option.description[:75]
                     block.element.options = option_list
