@@ -412,6 +412,25 @@ discovered during migration:
 | `meta` field | Contains `slack_channel_id` (snake_case key inside the `meta` dict) |
 | Logo update | No dedicated endpoint — upload file to storage, then call crupdate POST again with all required fields plus `logoUrl`; keep all form values in scope before the upload |
 
+### event-instance
+
+| Aspect | Detail |
+|--------|--------|
+| List by region | `GET /v1/event-instance?regionOrgId={id}&startDate={YYYY-MM-DD}` |
+| AO filter | Add `aoOrgId={id}` query param to scope list to a specific AO |
+| Create / Update | `POST /v1/event-instance` (crupdate — omit `id` to create, include `id` to update) |
+| Get single | `GET /v1/event-instance/id/{id}` |
+| Delete | `DELETE /v1/event-instance/id/{id}` — **hard delete** (unlike most other domains which soft-delete) |
+| Close | `POST /v1/event-instance` with `{id, seriesException: "closed", meta: {...}}` — minimal payload; no full crupdate needed |
+| Reopen | `POST /v1/event-instance` with `{id, seriesException: null}` — minimal payload |
+| Response envelope | `eventInstances` (list); `eventInstance` (single); fall back to `results` / `result` |
+| Response fields | camelCase: `orgId`, `locationId`, `startDate`, `startTime`, `endTime`, `isActive`, `isPrivate`, `seriesException`, `eventTypes`, `eventTags`, `preblastRich` |
+| `startDate` | Returned as `"YYYY-MM-DD"` string — parse to `datetime.date` in `_parse_instance` |
+| `eventTypes` / `eventTags` | Returned as nested objects `[{"id": N, ...}]` or bare int lists; handle both in `_parse_instance` |
+| `seriesException` values | `"closed"` \| `"different-time"` \| `"miscellaneous"` \| `null` — compare as plain strings (no enum) |
+| Attendance creation | Still uses `DbManager.create_record(Attendance(...))` — attendance migration is a separate step; do not migrate it alongside event-instance |
+| Existing services for form options | Reuse `AoService`, `LocationService`, `EventTypeService`, `EventTagService` instead of fetching via `DbManager` for dropdown population |
+
 ### General patterns
 
 - **Crupdate POST**: Most domains use a single `POST` endpoint for both create and update.  Omit
@@ -446,3 +465,10 @@ discovered during migration:
 | Crupdate update missing required fields | When updating via crupdate POST, include all required fields (`orgId`, `isActive`, social fields like `website`/`twitter`/`facebook`/`instagram` for org, etc.) not just the ones being changed — the API validates all required fields on every POST. Use `""` (empty string) for unused string fields rather than `null`/omitting them. |
 | Request and response use different field names | Verify both request payload keys and response field names in the API reference separately (e.g. location sends `name` but receives `locationName`) |
 | List endpoint returns inactive records | After fetching a list, check `is_active` and filter in the service if the endpoint does not support a `statuses=active` param |
+| Hard delete vs soft delete | Most legacy features used `DbManager.update_record(..., {"is_active": False})` for soft deletion.  Check the API reference — some endpoints (e.g. `event-instance`) are hard deletes via `DELETE`.  Using the wrong verb leads to permanently lost data or orphaned records. |
+| Close / Reopen uses partial crupdate POST | For state-change operations (close/reopen) that only update one or two fields, you do not need to re-send the entire record.  A minimal POST body (`{id, seriesException: "closed", meta: {...}}`) is sufficient.  The service `close_instance()` must first fetch the current `meta` via `get_by_id()` to merge any new `series_exception_reason` into it. |
+| Junction table cleanup handled by API | Old code manually deleted junction records (e.g. `EventTag_x_EventInstance`) before updating a relation.  The API handles this automatically when you send the full new list (`eventTagIds: []` clears all tags).  Do not replicate the manual deletion in the migrated code. |
+| ORM relation attributes replaced by ID lists | Legacy SQLAlchemy models expose relation objects (e.g. `event_tags`, `event_types`) as joined lists; API data models return ID lists (`event_tag_ids`, `event_type_ids`).  Update all attribute accesses — e.g. `instance.event_types[0].id` → `instance.event_type_ids[0]`, `instance.event_tags` → `instance.event_tag_ids`. |
+| `orm.BlockView.get_selected_values()` needs `view.blocks` in test body | The legacy `BlockView.get_selected_values(body)` reads `body["view"]["blocks"]` to map block IDs to action IDs.  Slack always sends this in real events, but unit tests that mock the body must include a minimal `blocks` list to avoid `KeyError: 'blocks'`. |
+| Features that consume multiple domain services | When a feature module calls five domain services at render time (AOs, locations, event types, event tags, instances), add a `_build_<domain>_service()` composition root helper for each.  Patch each helper separately in handler tests to keep test setup tractable. |
+| `series_exception` string vs enum | The legacy codebase compared against a Python enum (`Series_Exception.closed`).  The API returns a plain string (`"closed"`).  Replace all enum comparisons with string literals after migration. |
