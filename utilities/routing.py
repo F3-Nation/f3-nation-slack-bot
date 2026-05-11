@@ -171,7 +171,6 @@ ACTION_MAPPER = {
     actions.SECRET_MENU_PREBLAST_REMINDERS: (db_admin.handle_preblast_reminders, False),
     actions.SECRET_MENU_BACKBLAST_REMINDERS: (db_admin.handle_backblast_reminders, False),
     actions.LINEUP_SIGNUP_BUTTON: (handle_lineup_signup, False),
-    actions.SECRET_MENU_GENERATE_EVENT_INSTANCES: (db_admin.handle_generate_instances, False),
     actions.SECRET_MENU_TRIGGER_MAP_REVALIDATION: (db_admin.handle_trigger_map_revalidation, False),
     actions.CONFIG_USER_SETTINGS: (user.build_user_form, True),
     event_instance.CALENDAR_MANAGE_EVENT_INSTANCE: (event_instance.manage_event_instances, False),

@@ -431,6 +431,40 @@ discovered during migration:
 | Attendance creation | Still uses `DbManager.create_record(Attendance(...))` — attendance migration is a separate step; do not migrate it alongside event-instance |
 | Existing services for form options | Reuse `AoService`, `LocationService`, `EventTypeService`, `EventTagService` instead of fetching via `DbManager` for dropdown population |
 
+### series (event)
+
+The "series" domain maps to the F3 Nation API's `event` resource (a recurring event template).
+
+| Aspect | Detail |
+|--------|--------|
+| List by region | `GET /v1/event?regionIds=[id]&statuses=["active"]` |
+| AO filter | Replace `regionIds` with `aoIds=[ao_id]` to scope the list to one AO |
+| Create / Update | `POST /v1/event` (crupdate — omit `id` to create, include `id` to update) |
+| Get single | `GET /v1/event/id/{id}` |
+| Delete | `DELETE /v1/event/delete/{id}` — soft-deletes series and all future instances |
+| Response envelope | `"events"` (list), `"event"` (single / crupdate); also accept `"results"` / `"result"` fallbacks |
+| Response `org_id` differences | Crupdate response uses top-level `orgId`; `GET /v1/event/id/{id}` nests AO as `aos[0].aoId`; list response nests AO as `parents[0].parentId`. The `_parse_series()` helper handles all three cases. |
+| `day_of_week` format | Returned and sent as lowercase string: `"monday"`, `"tuesday"`, etc. (not an enum). Replace all `.name.capitalize()` accesses with `.capitalize()` on the string. |
+| `start_date` / `end_date` | Returned and sent as `"YYYY-MM-DD"` strings (no datetime conversion needed). |
+| `start_time` / `end_time` | Returned and sent as `"HHMM"` strings (e.g. `"0530"`). Slack timepickers return `"HH:MM"` — convert with `.replace(":", "")` before sending. |
+| Event tags NOT returned | **Neither the list endpoint nor the single-by-ID endpoint returns event tags for events.** `SeriesData.event_tag_ids` will always be `[]` when fetched from the API. The edit form cannot pre-fill the event tag selection; this is accepted UX behaviour. |
+| Event types in responses | Returned as nested objects `[{"eventTypeId": N, "eventTypeName": "..."}]` — parse via `t.get("eventTypeId")`. |
+| `start_date` required for update | The crupdate POST requires `startDate` even for updates, but the edit form hides the start-date field. Solution: fetch the existing series first via `service.get_by_id()` and pass its `start_date` to the update call. |
+| `day_of_week` immutable on edit | The edit form does not expose recurrence fields (DOW, frequency, interval, index, start/end date). Do **not** send `dayOfWeek` (or recurrence fields) in the update payload — they are immutable and including them may cause API errors. |
+| Cascade behaviour — create | `POST /v1/event` (create) automatically generates all future `EventInstance` records. The old `create_events()` function is **entirely removed** — do not replicate it. |
+| Cascade behaviour — update | `POST /v1/event` (update) automatically updates all future `EventInstance` fields. The old `update_events()` function is **entirely removed** — do not replicate it. |
+| Cascade behaviour — delete | `DELETE /v1/event/delete/{id}` automatically soft-deletes all future `EventInstance` records. The old `DbManager.update_records(EventInstance, ...)` call is **entirely removed**. |
+| Multiple DOW on create | Creating with multiple days of week (e.g. Mon+Wed) requires calling the API once per day. Loop over `day_of_weeks` and call `service.create_series()` for each; collect returned `SeriesData` objects for map revalidation. |
+
+**Removed code (handled by API cascade):**
+
+The following three functions were deleted from `features/calendar/series.py` during migration:
+- `create_events(records)` — generated EventInstances from a list of Event records
+- `update_events(series)` — updated future EventInstances to match series fields
+- `_is_last_occurrence_of_dow_in_month(date, dow_name)` — helper used only by `create_events`
+
+All cascade logic is now entirely handled server-side by the F3 Nation API.
+
 ### General patterns
 
 - **Crupdate POST**: Most domains use a single `POST` endpoint for both create and update.  Omit
@@ -472,3 +506,5 @@ discovered during migration:
 | `orm.BlockView.get_selected_values()` needs `view.blocks` in test body | The legacy `BlockView.get_selected_values(body)` reads `body["view"]["blocks"]` to map block IDs to action IDs.  Slack always sends this in real events, but unit tests that mock the body must include a minimal `blocks` list to avoid `KeyError: 'blocks'`. |
 | Features that consume multiple domain services | When a feature module calls five domain services at render time (AOs, locations, event types, event tags, instances), add a `_build_<domain>_service()` composition root helper for each.  Patch each helper separately in handler tests to keep test setup tractable. |
 | `series_exception` string vs enum | The legacy codebase compared against a Python enum (`Series_Exception.closed`).  The API returns a plain string (`"closed"`).  Replace all enum comparisons with string literals after migration. |
+| Crupdate requires fields the edit form omits | Some edit forms intentionally hide certain fields (e.g. the series edit form hides `start_date`, `end_date`, `day_of_week`, and recurrence fields).  The crupdate POST still requires those fields.  Fetch the existing record first, then forward the preserved values in the update call.  Never send stale defaults (e.g. `None`) for required API fields just because they are not in the form. |
+| API does not return event tags for series | `GET /v1/event` and `GET /v1/event/id/{id}` do not include event tag data — the edit form cannot pre-fill the tag selection.  Accept this UX limitation; do not work around it by calling an additional API to infer tag associations. |

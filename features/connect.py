@@ -1,9 +1,8 @@
 import os
 import ssl
-from datetime import datetime
 from logging import Logger
 
-from f3_data_models.models import Event, Org, Org_x_SlackSpace, Role, Role_x_User_x_Org, SlackSpace
+from f3_data_models.models import Org, Org_x_SlackSpace, Role, Role_x_User_x_Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.models.blocks import (
     ActionsBlock,
@@ -22,15 +21,12 @@ from slack_sdk.models.blocks.block_elements import (
 )
 from slack_sdk.models.views import View, ViewState
 from slack_sdk.web import WebClient
-from sqlalchemy import or_
 
-from features.calendar.series import create_events
+# from features.calendar.series import create_events
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
-    current_date_cst,
     get_region_record,
     get_user,
-    safe_convert,
     safe_get,
     update_local_region_records,
 )
@@ -315,19 +311,19 @@ def handle_approve_connection(
     except Exception:
         logger.info("Requestor is already an admin of this org, skipping creation of admin role.")
     # Create events from the migration date forward
-    event_records = DbManager.find_records(
-        Event,
-        filters=[
-            Event.is_active,
-            or_(Event.org_id == region_record.org_id, Event.org.has(Org.parent_id == region_record.org_id)),
-            or_(Event.end_date >= current_date_cst(), Event.end_date.is_(None)),
-        ],
-        joinedloads="all",
-    )
-    start_date = (
-        safe_convert(metadata.get("migration_date"), datetime.strptime, args=["%Y-%m-%d"]) or datetime.now()
-    ).date()
-    create_events(event_records, clear_first=True, start_date=start_date)
+    # event_records = DbManager.find_records(
+    #     Event,
+    #     filters=[
+    #         Event.is_active,
+    #         or_(Event.org_id == region_record.org_id, Event.org.has(Org.parent_id == region_record.org_id)),
+    #         or_(Event.end_date >= current_date_cst(), Event.end_date.is_(None)),
+    #     ],
+    #     joinedloads="all",
+    # )
+    # start_date = (
+    #     safe_convert(metadata.get("migration_date"), datetime.strptime, args=["%Y-%m-%d"]) or datetime.now()
+    # ).date()
+    # create_events(event_records, clear_first=True, start_date=start_date)
 
     blocks = [
         HeaderBlock(text="Region Connection Request Approved"),

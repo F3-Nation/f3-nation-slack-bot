@@ -201,7 +201,7 @@ class ApiEventInstanceRepositoryTest(unittest.TestCase):
             "isActive": True,
             "isPrivate": False,
             "highlight": False,
-            "eventTypes": [{"id": 5}],
+            "eventTypes": [{"eventTypeId": 5}],
             "eventTags": [],
             "seriesException": series_exception,
         }

@@ -1,17 +1,16 @@
 import copy
 import os
 import ssl
-from datetime import datetime
 from logging import Logger
 
 from alembic import command, config, script
 from alembic.runtime import migration
-from f3_data_models.models import Event, Org, Org_Type, Org_x_SlackSpace, Role, Role_x_User_x_Org, SlackSpace
+from f3_data_models.models import Org, Org_Type, Org_x_SlackSpace, Role, Role_x_User_x_Org, SlackSpace
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
-from sqlalchemy import engine, or_
+from sqlalchemy import engine
 
-from features.calendar.series import create_events
+# from features.calendar.series import create_events
 from scripts.calendar_images import generate_calendar_images
 from scripts.q_lineups import send_lineups
 from scripts.update_slack_users import update_slack_users
@@ -19,7 +18,7 @@ from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import get_admin_users
 from utilities.helper_functions import (
     MapUpdateData,
-    current_date_cst,
+    # current_date_cst,
     get_region_record,
     get_user,
     safe_convert,
@@ -165,26 +164,26 @@ def handle_backblast_reminders(
     send_backblast_reminders(force=True)
 
 
-def handle_generate_instances(
-    body: dict,
-    client: WebClient,
-    logger: Logger,
-    context: dict,
-    region_record: SlackSettings,
-):
-    event_records = DbManager.find_records(
-        Event,
-        filters=[
-            Event.is_active,
-            or_(Event.org_id == region_record.org_id, Event.org.has(Org.parent_id == region_record.org_id)),
-            or_(Event.end_date >= current_date_cst(), Event.end_date.is_(None)),
-        ],
-        joinedloads="all",
-    )
-    start_date = (
-        safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now()
-    ).date()
-    create_events(event_records, clear_first=True, start_date=start_date)
+# def handle_generate_instances(
+#     body: dict,
+#     client: WebClient,
+#     logger: Logger,
+#     context: dict,
+#     region_record: SlackSettings,
+# ):
+#     event_records = DbManager.find_records(
+#         Event,
+#         filters=[
+#             Event.is_active,
+#             or_(Event.org_id == region_record.org_id, Event.org.has(Org.parent_id == region_record.org_id)),
+#             or_(Event.end_date >= current_date_cst(), Event.end_date.is_(None)),
+#         ],
+#         joinedloads="all",
+#     )
+#     start_date = (
+#         safe_convert(region_record.migration_date, datetime.strptime, args=["%Y-%m-%d"]) or datetime.now()
+#     ).date()
+#     create_events(event_records, clear_first=True, start_date=start_date)
 
 
 def handle_trigger_map_revalidation(
