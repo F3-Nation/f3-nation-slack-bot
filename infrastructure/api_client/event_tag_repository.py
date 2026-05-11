@@ -36,7 +36,12 @@ class ApiEventTagRepository:
         result = self._client.get(f"/v1/event-tag/org/{org_id}")
         tags_raw: list[dict] = result.get("eventTags") or result.get("results") or []
         # Mirror legacy behaviour: only return tags that belong to this org.
-        return [_parse_event_tag(t) for t in tags_raw if t.get("specificOrgId", t.get("specific_org_id")) == org_id]
+        return [
+            _parse_event_tag(t)
+            for t in tags_raw
+            if t.get("specificOrgId", t.get("specific_org_id")) == org_id
+            and t.get("isActive", t.get("is_active", True))
+        ]
 
     def get_by_id(self, tag_id: int) -> EventTagData | None:
         try:

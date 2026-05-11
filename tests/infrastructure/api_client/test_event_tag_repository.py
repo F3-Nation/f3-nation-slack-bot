@@ -30,6 +30,20 @@ class ApiEventTagRepositoryTest(unittest.TestCase):
         self.assertEqual(result[0].id, 1)
         self.assertEqual(result[0].specific_org_id, 10)
 
+    def test_get_by_org_excludes_inactive_tags(self):
+        self.client.get.return_value = {
+            "eventTags": [
+                {"id": 1, "name": "Active", "color": "Red", "specificOrgId": 10, "isActive": True},
+                {"id": 2, "name": "Deleted", "color": "Blue", "specificOrgId": 10, "isActive": False},
+            ]
+        }
+
+        result = self.repo.get_by_org(10)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].id, 1)
+        self.assertEqual(result[0].name, "Active")
+
     def test_get_by_org_supports_results_fallback_and_snake_case(self):
         self.client.get.return_value = {
             "results": [
@@ -38,7 +52,7 @@ class ApiEventTagRepositoryTest(unittest.TestCase):
                     "name": "Fallback",
                     "color": None,
                     "specific_org_id": 77,
-                    "is_active": False,
+                    "is_active": True,
                     "description": "fallback payload",
                 }
             ]
@@ -49,7 +63,7 @@ class ApiEventTagRepositoryTest(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].id, 99)
         self.assertEqual(result[0].specific_org_id, 77)
-        self.assertFalse(result[0].is_active)
+        self.assertTrue(result[0].is_active)
 
     def test_get_by_org_returns_empty_list_when_payload_has_no_expected_keys(self):
         self.client.get.return_value = {"unexpected": []}
