@@ -325,9 +325,28 @@ In `features/.../<domain>.py`:
 2. Refactor handler functions to call the service instead of `DbManager`.
 3. Extract view-building into a `<Domain>Views` class (pure functions, no I/O).
 
+**Dynamic selector options**: For form blocks whose options are loaded at render time (e.g. a
+location dropdown populated from the DB/API), set options **directly** on the element after
+calling the modal builder, rather than using `set_options()`:
+```python
+form = AoViews.build_add_ao_modal(locations)
+location_block = form.get_block(actions.CALENDAR_ADD_AO_LOCATION)
+location_block.element.options = [Option(text=..., value=str(loc.id)) for loc in locations]
+```
+This avoids the `option.label is None` bug in `set_options()` and keeps the modal builder testable
+without requiring a live list of options.
+
 ### Step 6 — Register in routing
 Ensure all action/view IDs are registered in `utilities/routing.py`.  Constants for feature-local
 IDs live in the feature file; shared IDs live in `utilities/slack/actions.py`.
+
+**Check all three places in `routing.py`** where an action ID constant may appear:
+1. `ACTION_MAPPER` — the main action dispatch table.
+2. `VIEW_MAPPER` — for view submission callback IDs.
+3. `ACTION_PREFIXES` — a list of prefix strings used for pattern-matched action IDs (e.g.
+   `event-type-edit-delete_<id>`).  Any per-row action ID that uses a `_<id>` suffix must
+   also be updated here when its constant moves from `utilities/slack/actions.py` to the
+   feature module.
 
 ### Step 7 — Write tests
 Create test files mirroring the structure above:
@@ -354,6 +373,111 @@ python -m pytest tests -q
 
 ---
 
+## Domain-Specific API Notes
+
+Always consult `docs/API_REFERENCE.md` before implementing any repository.  **Do not guess
+endpoint paths by analogy with other domains** — the API is not uniform.  Key differences
+discovered during migration:
+
+### location
+
+| Aspect | Detail |
+|--------|--------|
+| List by org | `GET /v1/location?regionIds={id}` — no `/org/{id}` path exists |
+| Delete | `DELETE /v1/location/delete/{id}` — not `/id/{id}` |
+| Response field | `locationName` in GET responses |
+| Request field | `name` in POST bodies (not `locationName`) |
+| Required fields on update | Crupdate POST always requires `name`, `orgId`, and `isActive` — even for updates |
+| Active-only filtering | The list endpoint returns both active and inactive records; filter `is_active=True` in the service layer |
+
+### event-tag
+
+| Aspect | Detail |
+|--------|--------|
+| List by org | `GET /v1/event-tag/org/{orgId}` |
+| Delete | `DELETE /v1/event-tag/id/{id}` |
+| Filtering | API returns global + org-specific tags; filter to `specificOrgId == org_id` client-side |
+
+### org (AO)
+
+| Aspect | Detail |
+|--------|--------|
+| List by parent org | `GET /v1/org?orgTypes=ao&parentOrgIds={id}&statuses=active` — use query params, no sub-path |
+| Get single | `GET /v1/org/id/{ao_id}` |
+| Create / Update | `POST /v1/org` (crupdate — omit `id` to create, include `id` to update) |
+| Delete | `DELETE /v1/org/delete/{id}` — cascades automatically to child Events and EventInstances; do **not** delete them manually |
+| Response envelope | `"orgs"` (list), `"org"` (single); also accept `"results"` / `"result"` as fallbacks |
+| Response fields | camelCase: `parentId`, `orgType`, `isActive`, `defaultLocationId`, `logoUrl`, `meta` |
+| Required crupdate fields | `name`, `orgType`, `parentId`, `isActive`, `website`, `twitter`, `facebook`, `instagram` — must be sent on every POST even when only updating one field; pass empty string `""` for unused social fields |
+| `meta` field | Contains `slack_channel_id` (snake_case key inside the `meta` dict) |
+| Logo update | No dedicated endpoint — upload file to storage, then call crupdate POST again with all required fields plus `logoUrl`; keep all form values in scope before the upload |
+
+### event-instance
+
+| Aspect | Detail |
+|--------|--------|
+| List by region | `GET /v1/event-instance?regionOrgId={id}&startDate={YYYY-MM-DD}` |
+| AO filter | Add `aoOrgId={id}` query param to scope list to a specific AO |
+| Create / Update | `POST /v1/event-instance` (crupdate — omit `id` to create, include `id` to update) |
+| Get single | `GET /v1/event-instance/id/{id}` |
+| Delete | `DELETE /v1/event-instance/id/{id}` — **hard delete** (unlike most other domains which soft-delete) |
+| Close | `POST /v1/event-instance` with `{id, seriesException: "closed", meta: {...}}` — minimal payload; no full crupdate needed |
+| Reopen | `POST /v1/event-instance` with `{id, seriesException: null}` — minimal payload |
+| Response envelope | `eventInstances` (list); `eventInstance` (single); fall back to `results` / `result` |
+| Response fields | camelCase: `orgId`, `locationId`, `startDate`, `startTime`, `endTime`, `isActive`, `isPrivate`, `seriesException`, `eventTypes`, `eventTags`, `preblastRich` |
+| `startDate` | Returned as `"YYYY-MM-DD"` string — parse to `datetime.date` in `_parse_instance` |
+| `eventTypes` / `eventTags` | Returned as nested objects `[{"id": N, ...}]` or bare int lists; handle both in `_parse_instance` |
+| `seriesException` values | `"closed"` \| `"different-time"` \| `"miscellaneous"` \| `null` — compare as plain strings (no enum) |
+| Attendance creation | Still uses `DbManager.create_record(Attendance(...))` — attendance migration is a separate step; do not migrate it alongside event-instance |
+| Existing services for form options | Reuse `AoService`, `LocationService`, `EventTypeService`, `EventTagService` instead of fetching via `DbManager` for dropdown population |
+
+### series (event)
+
+The "series" domain maps to the F3 Nation API's `event` resource (a recurring event template).
+
+| Aspect | Detail |
+|--------|--------|
+| List by region | `GET /v1/event?regionIds=[id]&statuses=["active"]` |
+| AO filter | Replace `regionIds` with `aoIds=[ao_id]` to scope the list to one AO |
+| Create / Update | `POST /v1/event` (crupdate — omit `id` to create, include `id` to update) |
+| Get single | `GET /v1/event/id/{id}` |
+| Delete | `DELETE /v1/event/delete/{id}` — soft-deletes series and all future instances |
+| Response envelope | `"events"` (list), `"event"` (single / crupdate); also accept `"results"` / `"result"` fallbacks |
+| Response `org_id` differences | Crupdate response uses top-level `orgId`; `GET /v1/event/id/{id}` nests AO as `aos[0].aoId`; list response nests AO as `parents[0].parentId`. The `_parse_series()` helper handles all three cases. |
+| `day_of_week` format | Returned and sent as lowercase string: `"monday"`, `"tuesday"`, etc. (not an enum). Replace all `.name.capitalize()` accesses with `.capitalize()` on the string. |
+| `start_date` / `end_date` | Returned and sent as `"YYYY-MM-DD"` strings (no datetime conversion needed). |
+| `start_time` / `end_time` | Returned and sent as `"HHMM"` strings (e.g. `"0530"`). Slack timepickers return `"HH:MM"` — convert with `.replace(":", "")` before sending. |
+| Event tags NOT returned | **Neither the list endpoint nor the single-by-ID endpoint returns event tags for events.** `SeriesData.event_tag_ids` will always be `[]` when fetched from the API. The edit form cannot pre-fill the event tag selection; this is accepted UX behaviour. |
+| Event types in responses | Returned as nested objects `[{"eventTypeId": N, "eventTypeName": "..."}]` — parse via `t.get("eventTypeId")`. |
+| `start_date` required for update | The crupdate POST requires `startDate` even for updates, but the edit form hides the start-date field. Solution: fetch the existing series first via `service.get_by_id()` and pass its `start_date` to the update call. |
+| `day_of_week` immutable on edit | The edit form does not expose recurrence fields (DOW, frequency, interval, index, start/end date). Do **not** send `dayOfWeek` (or recurrence fields) in the update payload — they are immutable and including them may cause API errors. |
+| Cascade behaviour — create | `POST /v1/event` (create) automatically generates all future `EventInstance` records. The old `create_events()` function is **entirely removed** — do not replicate it. |
+| Cascade behaviour — update | `POST /v1/event` (update) automatically updates all future `EventInstance` fields. The old `update_events()` function is **entirely removed** — do not replicate it. |
+| Cascade behaviour — delete | `DELETE /v1/event/delete/{id}` automatically soft-deletes all future `EventInstance` records. The old `DbManager.update_records(EventInstance, ...)` call is **entirely removed**. |
+| Multiple DOW on create | Creating with multiple days of week (e.g. Mon+Wed) requires calling the API once per day. Loop over `day_of_weeks` and call `service.create_series()` for each; collect returned `SeriesData` objects for map revalidation. |
+
+**Removed code (handled by API cascade):**
+
+The following three functions were deleted from `features/calendar/series.py` during migration:
+- `create_events(records)` — generated EventInstances from a list of Event records
+- `update_events(series)` — updated future EventInstances to match series fields
+- `_is_last_occurrence_of_dow_in_month(date, dow_name)` — helper used only by `create_events`
+
+All cascade logic is now entirely handled server-side by the F3 Nation API.
+
+### General patterns
+
+- **Crupdate POST**: Most domains use a single `POST` endpoint for both create and update.  Omit
+  `id` to create; include `id` to update.  Always send all required fields — the API validates
+  them even on updates.
+- **Request vs. response field names**: Some domains use different field names in requests vs.
+  responses (e.g. location's `name` → `locationName`).  Verify both directions in the API
+  reference before writing `_parse_*` and payload-building code.
+- **Active/inactive records**: Not all list endpoints filter to active records automatically.
+  Check the API reference for `statuses` filter params; if absent, filter in the service layer.
+
+---
+
 ## Common Pitfalls
 
 | Pitfall | Fix |
@@ -363,3 +487,24 @@ python -m pytest tests -q
 | Forgetting to filter global tags in `get_by_org` | The API returns global + org-specific; filter to `specificOrgId == org_id` |
 | camelCase vs snake_case API fields | Use `raw.get("camelKey", raw.get("snake_key"))` in `_parse_*` helpers |
 | Singleton not reset between tests | Patch the module-level `_repo`/`_client` variable with `None` in singleton tests |
+| Moving a constant from `actions.py` only updated `ACTION_MAPPER` | Also update `ACTION_PREFIXES` in `routing.py` — any per-row suffix action (e.g. `edit-delete_<id>`) appears there too |
+| `set_options()` fails with `TypeError: 'NoneType' object is not subscriptable` | `SdkBlockView.set_options()` truncates `option.label` but the SDK `Option` object has `label=None` by default. **Fix 1 (applied)**: guard in `sdk_orm.py` with `if option.label is not None`. **Fix 2 (preferred for dynamic lists)**: bypass `set_options()` entirely and set options directly: `form.get_block(block_id).element.options = options_list` after `build_add_*_modal()` returns. |
+| Orphaned option-setting code from dead UI blocks | During migration, audit every `set_options()` call and confirm its block still exists in the form. Legacy modules often accumulated option-setting code for blocks that were later removed (e.g. `CALENDAR_ADD_AO_TYPE` options in old `ao.py`). Remove them. |
+| Logo / file uploads require a second API call | There is no PATCH endpoint for partial updates — logo update is a full crupdate POST. Ensure all required fields are still in scope after the file upload completes before making the second call. |
+| `replace_string_in_file` leaves old code below the replaced block | The tool replaces only the matched text; content below it remains. When rewriting an entire file, write the complete new content to a temp file and `mv` it into place (or use `head -N` to truncate). |
+| Cascade delete misunderstood | `DELETE /v1/org/delete/{id}` cascades to Events and EventInstances automatically — no need to iterate and delete children manually as the old DbManager code did. Always check the API reference for cascade behaviour before writing delete logic. |
+| Handler mocks use `mock.return_value.*` when handler calls static methods | If the feature module calls `Views.build_modal()` as a static/class method (not `Views().build_modal()`), patch assertions use `mock_views.build_modal` not `mock_views.return_value.build_modal`. Check how the feature code actually calls the Views class. |
+| Empty list modal crashes with `SlackObjectFormationError: views must contain between 1 and 100 blocks` | Slack rejects a modal view with zero blocks. Any `build_list_modal()` that iterates over a potentially-empty list must add a notice `SectionBlock` when the list is empty: `if not items: return SdkBlockView(blocks=[SectionBlock(text="No items found.", block_id="<domain>-notice")])` |
+| Guessing endpoint paths by analogy | Always read `docs/API_REFERENCE.md` first — `/org/{id}`, `/delete/{id}`, and list query params vary per domain |
+| Crupdate update missing required fields | When updating via crupdate POST, include all required fields (`orgId`, `isActive`, social fields like `website`/`twitter`/`facebook`/`instagram` for org, etc.) not just the ones being changed — the API validates all required fields on every POST. Use `""` (empty string) for unused string fields rather than `null`/omitting them. |
+| Request and response use different field names | Verify both request payload keys and response field names in the API reference separately (e.g. location sends `name` but receives `locationName`) |
+| List endpoint returns inactive records | After fetching a list, check `is_active` and filter in the service if the endpoint does not support a `statuses=active` param |
+| Hard delete vs soft delete | Most legacy features used `DbManager.update_record(..., {"is_active": False})` for soft deletion.  Check the API reference — some endpoints (e.g. `event-instance`) are hard deletes via `DELETE`.  Using the wrong verb leads to permanently lost data or orphaned records. |
+| Close / Reopen uses partial crupdate POST | For state-change operations (close/reopen) that only update one or two fields, you do not need to re-send the entire record.  A minimal POST body (`{id, seriesException: "closed", meta: {...}}`) is sufficient.  The service `close_instance()` must first fetch the current `meta` via `get_by_id()` to merge any new `series_exception_reason` into it. |
+| Junction table cleanup handled by API | Old code manually deleted junction records (e.g. `EventTag_x_EventInstance`) before updating a relation.  The API handles this automatically when you send the full new list (`eventTagIds: []` clears all tags).  Do not replicate the manual deletion in the migrated code. |
+| ORM relation attributes replaced by ID lists | Legacy SQLAlchemy models expose relation objects (e.g. `event_tags`, `event_types`) as joined lists; API data models return ID lists (`event_tag_ids`, `event_type_ids`).  Update all attribute accesses — e.g. `instance.event_types[0].id` → `instance.event_type_ids[0]`, `instance.event_tags` → `instance.event_tag_ids`. |
+| `orm.BlockView.get_selected_values()` needs `view.blocks` in test body | The legacy `BlockView.get_selected_values(body)` reads `body["view"]["blocks"]` to map block IDs to action IDs.  Slack always sends this in real events, but unit tests that mock the body must include a minimal `blocks` list to avoid `KeyError: 'blocks'`. |
+| Features that consume multiple domain services | When a feature module calls five domain services at render time (AOs, locations, event types, event tags, instances), add a `_build_<domain>_service()` composition root helper for each.  Patch each helper separately in handler tests to keep test setup tractable. |
+| `series_exception` string vs enum | The legacy codebase compared against a Python enum (`Series_Exception.closed`).  The API returns a plain string (`"closed"`).  Replace all enum comparisons with string literals after migration. |
+| Crupdate requires fields the edit form omits | Some edit forms intentionally hide certain fields (e.g. the series edit form hides `start_date`, `end_date`, `day_of_week`, and recurrence fields).  The crupdate POST still requires those fields.  Fetch the existing record first, then forward the preserved values in the update call.  Never send stale defaults (e.g. `None`) for required API fields just because they are not in the form. |
+| API does not return event tags for series | `GET /v1/event` and `GET /v1/event/id/{id}` do not include event tag data — the edit form cannot pre-fill the tag selection.  Accept this UX limitation; do not work around it by calling an additional API to infer tag associations. |

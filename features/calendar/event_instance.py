@@ -1,25 +1,25 @@
 import copy
 from datetime import datetime, timedelta
 from logging import Logger
-from typing import List
 
-from f3_data_models.models import (
-    Attendance,
-    Attendance_x_AttendanceType,
-    EventInstance,
-    EventTag_x_EventInstance,
-    EventType,
-    EventType_x_EventInstance,
-    Location,
-    Org,
-    Org_Type,
-    Series_Exception,
-)
+from f3_data_models.models import Attendance, Attendance_x_AttendanceType
 from f3_data_models.utils import DbManager
 from slack_sdk.web import WebClient
-from sqlalchemy import or_
 
+from application.ao.service import AoService
+from application.event_instance import EventInstanceData
+from application.event_instance.service import EventInstanceService
+from application.event_tag.service import EventTagService
+from application.event_type.service import EventTypeService
+from application.location.service import LocationService
 from features.calendar import event_preblast
+from infrastructure.api_client import (
+    get_api_ao_repository,
+    get_api_event_instance_repository,
+    get_api_event_tag_repository,
+    get_api_event_type_repository,
+    get_api_location_repository,
+)
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -34,7 +34,9 @@ from utilities.helper_functions import (
 )
 from utilities.slack import actions, orm
 
-# Constants for action IDs
+# ---------------------------------------------------------------------------
+# Action / callback ID constants (feature-local)
+# ---------------------------------------------------------------------------
 CALENDAR_ADD_EVENT_INSTANCE_PREBLAST = "calendar_add_event_instance_preblast"
 CALENDAR_ADD_EVENT_INSTANCE_AO = "calendar_add_event_instance_ao"
 CALENDAR_ADD_EVENT_INSTANCE_LOCATION = "calendar_add_event_instance_location"
@@ -59,9 +61,39 @@ CALENDAR_MANAGE_EVENT_INSTANCE_DATE = "calendar_manage_event_instance_date"
 EVENT_CLOSE_REASON = "event_close_reason"
 EVENT_CLOSE_CALLBACK_ID = "event_close_callback_id"
 
-
 META_DO_NOT_SEND_AUTO_PREBLASTS = "do_not_send_auto_preblasts"
 META_EXCLUDE_FROM_PAX_VAULT = "exclude_from_pax_vault"
+
+
+# ---------------------------------------------------------------------------
+# Composition root
+# ---------------------------------------------------------------------------
+
+
+def _build_event_instance_service() -> EventInstanceService:
+    """Build the event-instance service using the production API-backed repository."""
+    return EventInstanceService(repository=get_api_event_instance_repository())
+
+
+def _build_ao_service() -> AoService:
+    return AoService(repository=get_api_ao_repository())
+
+
+def _build_location_service() -> LocationService:
+    return LocationService(repository=get_api_location_repository())
+
+
+def _build_event_type_service() -> EventTypeService:
+    return EventTypeService(repository=get_api_event_type_repository())
+
+
+def _build_event_tag_service() -> EventTagService:
+    return EventTagService(repository=get_api_event_tag_repository())
+
+
+# ---------------------------------------------------------------------------
+# Handlers
+# ---------------------------------------------------------------------------
 
 
 def manage_event_instances(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
@@ -79,7 +111,7 @@ def build_event_instance_add_form(
     logger: Logger,
     context: dict,
     region_record: SlackSettings,
-    edit_event_instance: EventInstance | None = None,
+    edit_event_instance: EventInstanceData | None = None,
     new_preblast: bool = False,
     loading_form: bool = False,
 ):
@@ -96,7 +128,7 @@ def build_event_instance_add_form(
     title_text = "Add an Event"
     form = copy.deepcopy(INSTANCE_FORM)
     if new_preblast or (safe_get(view_metadata, "is_preblast") == "True"):
-        # Add a moleskin block if this is a new event
+        # Add a preblast block if this is a new event
         form.blocks.insert(
             -1,
             orm.InputBlock(
@@ -108,19 +140,15 @@ def build_event_instance_add_form(
         )
         parent_metadata.update({"is_preblast": "True"})
 
-    aos: List[Org] = DbManager.find_records(
-        Org, [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao]
-    )
-    region_org_record: Org = DbManager.get(
-        Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types, Org.event_tags]
-    )
-    locations = [location for location in region_org_record.locations if location.is_active]
-    location_records2 = DbManager.find_join_records2(
-        Location,
-        Org,
-        [Location.org_id == Org.id, Org.parent_id == region_record.org_id],
-    )
-    locations.extend(record[0] for record in location_records2)
+    ao_service = _build_ao_service()
+    location_service = _build_location_service()
+    event_type_service = _build_event_type_service()
+    event_tag_service = _build_event_tag_service()
+
+    aos = ao_service.get_region_aos(region_record.org_id)
+    locations = location_service.get_org_locations(region_record.org_id)
+    event_types = event_type_service.get_all_event_types_for_org(region_record.org_id)
+    event_tags = event_tag_service.get_org_event_tags(region_record.org_id)
 
     form.set_options(
         {
@@ -129,16 +157,16 @@ def build_event_instance_add_form(
                 values=[str(ao.id) for ao in aos],
             ),
             CALENDAR_ADD_EVENT_INSTANCE_LOCATION: orm.as_selector_options(
-                names=[get_location_display_name(location) for location in locations],
-                values=[str(location.id) for location in locations],
+                names=[get_location_display_name(loc) for loc in locations],
+                values=[str(loc.id) for loc in locations],
             ),
             CALENDAR_ADD_EVENT_INSTANCE_TYPE: orm.as_selector_options(
-                names=[event_type.name for event_type in region_org_record.event_types],
-                values=[str(event_type.id) for event_type in region_org_record.event_types],
+                names=[et.name for et in event_types],
+                values=[str(et.id) for et in event_types],
             ),
             CALENDAR_ADD_EVENT_INSTANCE_TAG: orm.as_selector_options(
-                names=[tag.name for tag in region_org_record.event_tags],
-                values=[str(tag.id) for tag in region_org_record.event_tags],
+                names=[tag.name for tag in event_tags],
+                values=[str(tag.id) for tag in event_tags],
             ),
         }
     )
@@ -151,14 +179,11 @@ def build_event_instance_add_form(
             CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION: edit_event_instance.description,
             CALENDAR_ADD_EVENT_INSTANCE_AO: str(edit_event_instance.org_id),
             CALENDAR_ADD_EVENT_INSTANCE_LOCATION: safe_convert(edit_event_instance.location_id, str),
-            CALENDAR_ADD_EVENT_INSTANCE_TYPE: str(
-                edit_event_instance.event_types[0].id
-            ),  # TODO: handle multiple event types
+            CALENDAR_ADD_EVENT_INSTANCE_TYPE: str(edit_event_instance.event_type_ids[0])
+            if edit_event_instance.event_type_ids
+            else None,  # TODO: handle multiple event types
             CALENDAR_ADD_EVENT_INSTANCE_START_DATE: safe_convert(
                 edit_event_instance.start_date, datetime.strftime, ["%Y-%m-%d"]
-            ),
-            CALENDAR_ADD_EVENT_INSTANCE_END_DATE: safe_convert(
-                edit_event_instance.end_date, datetime.strftime, ["%Y-%m-%d"]
             ),
             CALENDAR_ADD_EVENT_INSTANCE_START_TIME: safe_convert(
                 edit_event_instance.start_time, lambda t: t[:2] + ":" + t[2:]
@@ -169,31 +194,29 @@ def build_event_instance_add_form(
         }
 
         options = []
-        if safe_get(edit_event_instance, "is_private"):
+        if edit_event_instance.is_private:
             options.append("private")
-        if safe_get(edit_event_instance, "meta") and safe_get(edit_event_instance.meta, META_EXCLUDE_FROM_PAX_VAULT):
+        if safe_get(edit_event_instance.meta, META_EXCLUDE_FROM_PAX_VAULT):
             options.append("exclude_from_pax_vault")
-        if safe_get(edit_event_instance, "meta") and safe_get(
-            edit_event_instance.meta, META_DO_NOT_SEND_AUTO_PREBLASTS
-        ):
+        if safe_get(edit_event_instance.meta, META_DO_NOT_SEND_AUTO_PREBLASTS):
             options.append("no_auto_preblasts")
-        if safe_get(edit_event_instance, "highlight"):
+        if edit_event_instance.highlight:
             options.append("highlight")
         if options:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_OPTIONS] = options
-        if edit_event_instance.event_tags:
+        if edit_event_instance.event_tag_ids:
             initial_values[CALENDAR_ADD_EVENT_INSTANCE_TAG] = [
-                str(edit_event_instance.event_tags[0].id)
+                str(edit_event_instance.event_tag_ids[0])
             ]  # TODO: handle multiple event tags
 
-    # This is triggered when the AO is selected, defaults are loaded for the location
-    # TODO: is there a better way to update the modal without having to rebuild everything?
+    # This is triggered when the AO is selected — defaults are loaded for the location
     action_id = safe_get(body, "actions", 0, "action_id")
     if action_id == CALENDAR_ADD_EVENT_INSTANCE_AO:
         form_data = INSTANCE_FORM.get_selected_values(body)
-        ao: Org = DbManager.get(Org, safe_convert(safe_get(form_data, action_id), int))
-        if ao:
-            if ao.default_location_id:
+        ao_id = safe_convert(safe_get(form_data, action_id), int)
+        if ao_id:
+            ao = ao_service.get_ao_by_id(ao_id)
+            if ao and ao.default_location_id:
                 initial_values[CALENDAR_ADD_EVENT_INSTANCE_LOCATION] = str(ao.default_location_id)
 
         form.set_initial_values(initial_values)
@@ -248,9 +271,11 @@ def handle_event_instance_add(
     do_not_send_auto_preblasts = "no_auto_preblasts" in selected_options
     highlight = "highlight" in selected_options
 
+    # Build / merge meta dict
+    service = _build_event_instance_service()
     if safe_get(metadata, "event_instance_id"):
-        existing_event_instance: EventInstance = DbManager.get(EventInstance, metadata["event_instance_id"])
-        merged_meta = dict(safe_get(existing_event_instance, "meta") or {})
+        existing = service.get_by_id(int(metadata["event_instance_id"]))
+        merged_meta = dict(safe_get(existing, "meta") or {}) if existing else {}
     else:
         merged_meta = {}
 
@@ -263,6 +288,7 @@ def handle_event_instance_add(
     else:
         merged_meta.pop(META_DO_NOT_SEND_AUTO_PREBLASTS, None)
 
+    # Resolve end time
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME):
         end_time: str = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_END_TIME).replace(":", "")
     else:
@@ -270,7 +296,7 @@ def handle_event_instance_add(
             datetime.strptime(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_START_TIME), "%H:%M") + timedelta(hours=1)
         ).strftime("%H%M")
 
-    # Slack won't return the selection for location and event type after being defaulted, so we need to get the initial value # noqa
+    # Slack won't return the selection for location and event type after being defaulted
     view_blocks = safe_get(body, "view", "blocks")
     location_block = [block for block in view_blocks if block["block_id"] == CALENDAR_ADD_EVENT_INSTANCE_LOCATION][0]
     location_initial_value = safe_get(location_block, "element", "initial_option", "value")
@@ -278,6 +304,7 @@ def handle_event_instance_add(
     event_type_block = [block for block in view_blocks if block["block_id"] == CALENDAR_ADD_EVENT_INSTANCE_TYPE][0]
     event_type_initial_value = safe_get(event_type_block, "element", "initial_option", "value")
     event_type_id = form_data.get(CALENDAR_ADD_EVENT_INSTANCE_TYPE) or event_type_initial_value
+    print(f"Resolved location_id: {location_id}, event_type_id: {event_type_id}")
 
     # Apply int conversion to all values if not null
     location_id = safe_convert(location_id, int)
@@ -290,74 +317,84 @@ def handle_event_instance_add(
         or region_record.org_id
     )
     event_tag_id = safe_convert(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_TAG, 0), int)
-    if not event_tag_id and metadata.get("event_instance_id"):
-        DbManager.delete_records(
-            EventTag_x_EventInstance, [EventTag_x_EventInstance.event_instance_id == metadata.get("event_instance_id")]
-        )  # noqa
+    event_tag_ids = [event_tag_id] if event_tag_id else []
 
+    # Default event name to AO + event type if not provided
     if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_NAME):
         event_instance_name = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_NAME)
     else:
-        org: Org = DbManager.get(Org, org_id)
-        event_type: EventType = DbManager.get(EventType, event_type_id)
-        event_instance_name = f"{org.name} {event_type.name if event_type else ''}"
+        ao_service = _build_ao_service()
+        event_type_service = _build_event_type_service()
+        ao = ao_service.get_ao_by_id(org_id)
+        et = event_type_service.get_event_type_by_id(event_type_id) if event_type_id else None
+        event_instance_name = f"{ao.name if ao else ''} {et.name if et else ''}".strip()
 
-    # if safe_get(metadata, "event_instance_id"):
-    #     edit_event_instance_record: Event = DbManager.get(Event, metadata["event_instance_id"])
-    event_instance_record = EventInstance(
-        name=event_instance_name,
-        description=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION),
-        org_id=org_id,
-        location_id=location_id,
-        event_instances_x_event_types=[EventType_x_EventInstance(event_type_id=event_type_id)],
-        event_instances_x_event_tags=[EventTag_x_EventInstance(event_tag_id=event_tag_id)] if event_tag_id else [],
-        start_date=datetime.strptime(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_START_DATE), "%Y-%m-%d"),
-        start_time=datetime.strptime(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_START_TIME), "%H:%M").strftime(
-            "%H%M"
-        ),
-        end_time=end_time,
-        is_active=True,
-        is_private=is_private,
-        meta=merged_meta,
-        highlight=highlight,
-        preblast_rich=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST),
-    )
-    if safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST):
-        event_instance_record.preblast = replace_user_channel_ids(
-            parse_rich_block(form_data[CALENDAR_ADD_EVENT_INSTANCE_PREBLAST]),
+    # Build preblast plain text from rich text block if provided
+    preblast_text: str | None = None
+    preblast_rich = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_PREBLAST)
+    if preblast_rich:
+        preblast_text = replace_user_channel_ids(
+            parse_rich_block(preblast_rich),
             region_record,
             client,
             logger,
         )
+
+    start_date = datetime.strptime(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_START_DATE), "%Y-%m-%d").date()
+    start_time = datetime.strptime(safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_START_TIME), "%H:%M").strftime(
+        "%H%M"
+    )
+
     if safe_get(metadata, "event_instance_id"):
-        # event_instance_id is passed in the metadata if this is an edit
-        update_fields = event_instance_record.to_update_dict()
-        # drop the fields that are None, as we don't want to update them
-        update_fields = {k: v for k, v in update_fields.items() if v is not None and v != []}
-        DbManager.update_record(EventInstance, metadata["event_instance_id"], fields=update_fields)
-        record = DbManager.get(
-            EventInstance,
-            metadata["event_instance_id"],
-            joinedloads=[EventInstance.event_types, EventInstance.event_tags],
+        record = service.update_instance(
+            instance_id=int(metadata["event_instance_id"]),
+            name=event_instance_name,
+            org_id=org_id,
+            start_date=start_date,
+            start_time=start_time,
+            end_time=end_time,
+            description=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION),
+            location_id=location_id,
+            event_type_ids=[event_type_id] if event_type_id else [],
+            event_tag_ids=event_tag_ids,
+            is_active=True,
+            is_private=is_private,
+            meta=merged_meta,
+            highlight=highlight,
+            preblast_rich=preblast_rich,
+            preblast=preblast_text,
+        )
+    else:
+        record = service.create_instance(
+            name=event_instance_name,
+            org_id=org_id,
+            start_date=start_date,
+            start_time=start_time,
+            end_time=end_time,
+            description=safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_DESCRIPTION),
+            location_id=location_id,
+            event_type_ids=[event_type_id] if event_type_id else [],
+            event_tag_ids=event_tag_ids,
+            is_active=True,
+            is_private=is_private,
+            meta=merged_meta,
+            highlight=highlight,
+            preblast_rich=preblast_rich,
+            preblast=preblast_text,
         )
 
-    else:
-        record = DbManager.create_record(event_instance_record)
-    # trigger_map_revalidation()
-
     if safe_get(metadata, "is_preblast") == "True":
-        # If this is for a new unscheduled event, we need to set attendance and post the preblast
-        event_instance: EventInstance = record
+        # If this is for a new unscheduled event, set attendance and post the preblast
         slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
         DbManager.create_record(
             Attendance(
-                event_instance_id=event_instance.id,
+                event_instance_id=record.id,
                 user_id=get_user(slack_user_id, region_record, client, logger).user_id,
                 is_planned=True,
                 attendance_x_attendance_types=[Attendance_x_AttendanceType(attendance_type_id=2)],  # 2 = Q
             )
         )
-        event_preblast.send_preblast(body, client, logger, context, region_record, event_instance.id)
+        event_preblast.send_preblast(body, client, logger, context, region_record, record.id)
 
 
 def build_event_instance_list_form(
@@ -370,14 +407,15 @@ def build_event_instance_list_form(
     loading_form: bool = False,
 ):
     title_text = "Edit/Close/Delete Event"
-    confirm_text = "Are you sure you want to edit / close / delete this event?"
 
     if loading_form:
         update_view_id = add_loading_form(body, client, new_or_add="add")
 
     start_date = current_date_cst()
-    filter_org = region_record.org_id
+    filter_ao_id = None
     filter_values = {}
+    region_org_id = region_record.org_id
+
     if safe_get(body, "actions", 0, "action_id") in [
         CALENDAR_MANAGE_EVENT_INSTANCE_AO,
         CALENDAR_MANAGE_EVENT_INSTANCE_DATE,
@@ -385,29 +423,21 @@ def build_event_instance_list_form(
         filter_values = orm.BlockView(blocks=copy.deepcopy(EVENT_LIST_FILTERS)).get_selected_values(body)
         update_view_id = safe_get(body, "view", "id")
         if safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_AO):
-            filter_org = safe_convert(safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_AO), int)
+            filter_ao_id = safe_convert(safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_AO), int)
         if safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_DATE):
             date_str = safe_get(filter_values, CALENDAR_MANAGE_EVENT_INSTANCE_DATE)
             start_date = datetime.strptime(date_str, "%Y-%m-%d").date()
 
-    records = DbManager.find_join_records2(
-        EventInstance,
-        Org,
-        [
-            or_(EventInstance.org_id == filter_org, Org.parent_id == filter_org),
-            EventInstance.is_active,
-            EventInstance.start_date >= start_date,
-        ],
+    service = _build_event_instance_service()
+    records = service.get_region_instances(
+        region_org_id=region_org_id,
+        start_date=start_date,
+        ao_org_id=filter_ao_id,
     )
-    records: list[EventInstance] = [x[0] for x in records]
-    records.sort(key=lambda x: (x.start_date, (x.start_time or ""), (x.name or "")))
-    records = records[:40]
 
-    # TODO: separate into weekly / non-weekly event_instance?
-    ao_orgs = DbManager.find_records(
-        Org,
-        [Org.parent_id == region_record.org_id, Org.is_active, Org.org_type == Org_Type.ao],
-    )
+    ao_service = _build_ao_service()
+    ao_orgs = ao_service.get_region_aos(region_record.org_id)
+
     form = orm.BlockView(blocks=copy.deepcopy(EVENT_LIST_FILTERS))
     form.set_options(
         {
@@ -425,8 +455,8 @@ def build_event_instance_list_form(
     )
 
     for s in records:
-        label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50]
-        if s.series_exception == Series_Exception.closed:
+        label = f"{s.name} ({s.start_date.strftime('%m/%d/%Y')})"[:50] if s.start_date else (s.name or "")[:50]
+        if s.series_exception == "closed":
             label += " [CLOSED]"
             placeholder = "Reopen, Edit, or Delete"
             options = ["Reopen", "Edit", "Delete"]
@@ -452,6 +482,15 @@ def build_event_instance_list_form(
                 ),
             )
         )
+
+    if not records:
+        form.blocks.append(
+            orm.SectionBlock(
+                label="No upcoming events found.",
+                action="event-instance-empty-notice",
+            )
+        )
+
     if update_view_id:
         form.update_modal(
             client=client,
@@ -477,17 +516,16 @@ def handle_event_instance_edit_delete(
     event_instance_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
+    service = _build_event_instance_service()
+
     if action == "Edit":
-        event_instance: EventInstance = DbManager.get(
-            EventInstance, event_instance_id, joinedloads=[EventInstance.event_types, EventInstance.event_tags]
-        )  # noqa
+        print(f"Editing event instance ID: {event_instance_id}")
+        event_instance = service.get_by_id(event_instance_id)
+        print(f"Editing event instance: {event_instance}")
         build_event_instance_add_form(
             body, client, logger, context, region_record, edit_event_instance=event_instance, loading_form=True
-        )  # noqa
+        )
     elif action == "Close":
-        # DbManager.update_record(
-        #     EventInstance, event_instance_id, fields={EventInstance.series_exception: Series_Exception.closed}
-        # )
         form = copy.deepcopy(EVENT_CLOSE_FORM)
         form.update_modal(
             client=client,
@@ -499,12 +537,12 @@ def handle_event_instance_edit_delete(
             close_button_text="Cancel",
         )
     elif action == "Reopen":
-        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.series_exception: None})
+        service.reopen_instance(event_instance_id)
         build_event_instance_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
     elif action == "Delete":
-        DbManager.update_record(EventInstance, event_instance_id, fields={EventInstance.is_active: False})
+        service.delete_instance(event_instance_id)
         build_event_instance_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
@@ -516,27 +554,14 @@ def handle_event_instance_close(
     metadata = _parse_view_private_metadata(body)
     event_instance_id = safe_get(metadata, "event_instance_id")
     close_reason = EVENT_CLOSE_FORM.get_selected_values(body).get(EVENT_CLOSE_REASON)
-    event_instance_meta = safe_get(DbManager.get(EventInstance, event_instance_id), "meta") or {}
-    event_instance_meta["series_exception_reason"] = close_reason
 
-    DbManager.update_record(
-        EventInstance,
-        event_instance_id,
-        fields={
-            EventInstance.series_exception: Series_Exception.closed,
-            EventInstance.meta: event_instance_meta,
-        },
-    )
-    # build_event_instance_list_form(
-    #     body,
-    #     client,
-    #     logger,
-    #     context,
-    #     region_record,
-    #     update_view_id=safe_get(body, "view", "previous_view_id"),
-    #     loading_form=True,
-    # )
+    service = _build_event_instance_service()
+    service.close_instance(instance_id=event_instance_id, close_reason=close_reason)
 
+
+# ---------------------------------------------------------------------------
+# Forms
+# ---------------------------------------------------------------------------
 
 EVENT_CLOSE_FORM = orm.BlockView(
     blocks=[
@@ -568,7 +593,6 @@ INSTANCE_FORM = orm.BlockView(
         orm.InputBlock(
             label="Event Type",
             action=CALENDAR_ADD_EVENT_INSTANCE_TYPE,
-            # element=orm.MultiStaticSelectElement(placeholder="Select the event types"),
             element=orm.StaticSelectElement(placeholder="Select the event type"),
             optional=False,
         ),

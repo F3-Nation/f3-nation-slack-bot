@@ -1,14 +1,23 @@
 import copy
-import datetime
 import json
 from logging import Logger
-from typing import List
 
 import requests
-from f3_data_models.models import Event, EventInstance, EventType, Location, Org, Org_Type
-from f3_data_models.utils import DbManager
+from slack_sdk.models.blocks import ImageBlock, InputBlock, SectionBlock
+from slack_sdk.models.blocks.basic_components import ConfirmObject, PlainTextObject
+from slack_sdk.models.blocks.block_elements import (
+    ChannelSelectElement,
+    FileInputElement,
+    PlainTextInputElement,
+    StaticSelectElement,
+)
 from slack_sdk.web import WebClient
 
+from application.ao import AoData
+from application.ao.service import AoService
+from application.location import LocationData
+from application.location.service import LocationService
+from infrastructure.api_client import get_api_ao_repository, get_api_location_repository
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -20,16 +29,188 @@ from utilities.helper_functions import (
     trigger_map_revalidation,
     upload_files_to_storage,
 )
-from utilities.slack import actions, orm
+from utilities.slack import actions
+from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
+
+# ---------------------------------------------------------------------------
+# Composition root
+# ---------------------------------------------------------------------------
+
+
+def _build_ao_service() -> AoService:
+    """Build the AO service using the production API-backed repository."""
+    return AoService(repository=get_api_ao_repository())
+
+
+def _build_location_service() -> LocationService:
+    """Build the location service using the production API-backed repository."""
+    return LocationService(repository=get_api_location_repository())
+
+
+# ---------------------------------------------------------------------------
+# Views
+# ---------------------------------------------------------------------------
+
+
+class AoViews:
+    """Pure Slack UI construction for AOs — no I/O."""
+
+    @staticmethod
+    def build_add_ao_modal(locations: list[LocationData]) -> SdkBlockView:
+        """Return the add-AO form with dynamic location options populated."""
+        form = copy.deepcopy(AO_FORM)
+        location_options = as_selector_options(
+            names=[get_location_display_name(loc) for loc in locations],
+            values=[str(loc.id) for loc in locations],
+        )
+        if location_block := form.get_block(actions.CALENDAR_ADD_AO_LOCATION):
+            location_block.element.options = location_options
+        return form
+
+    @staticmethod
+    def build_edit_ao_modal(ao: AoData, locations: list[LocationData]) -> SdkBlockView:
+        """Return the add-AO form pre-filled with *ao*'s existing data."""
+        form = AoViews.build_add_ao_modal(locations)
+
+        slack_id = safe_get(ao.meta, "slack_channel_id") if ao.meta else None
+        initial_values: dict = {actions.CALENDAR_ADD_AO_NAME: ao.name}
+        if ao.description:
+            initial_values[actions.CALENDAR_ADD_AO_DESCRIPTION] = ao.description
+        if slack_id:
+            initial_values[actions.CALENDAR_ADD_AO_CHANNEL] = slack_id
+        form.set_initial_values(initial_values)
+
+        if ao.default_location_id:
+            form.set_initial_values({actions.CALENDAR_ADD_AO_LOCATION: str(ao.default_location_id)})
+
+        return form
+
+    @staticmethod
+    def build_ao_list_modal(aos: list[AoData]) -> SdkBlockView:
+        """Return the list modal showing all AOs with edit/delete controls."""
+        if not aos:
+            return SdkBlockView(
+                blocks=[SectionBlock(text="No AOs found. Please add an AO first.", block_id="ao-notice")]
+            )
+        blocks = [
+            SectionBlock(
+                text=a.name,
+                block_id=f"{actions.AO_EDIT_DELETE}_{a.id}",
+                accessory=StaticSelectElement(
+                    placeholder="Edit or Delete",
+                    options=as_selector_options(names=["Edit", "Delete"]),
+                    confirm=ConfirmObject(
+                        title="Are you sure?",
+                        text=(
+                            "Are you sure you want to edit / delete this AO? "
+                            "This cannot be undone. Deleting an AO will also "
+                            "delete all associated series and events."
+                        ),
+                        confirm="Yes, I'm sure",
+                        deny="Whups, never mind",
+                    ),
+                    action_id=f"{actions.AO_EDIT_DELETE}_{a.id}",
+                ),
+            )
+            for a in aos
+        ]
+        return SdkBlockView(blocks=blocks)
+
+
+# ---------------------------------------------------------------------------
+# Handler functions
+# ---------------------------------------------------------------------------
 
 
 def manage_aos(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
     if action == "add":
-        build_ao_add_form(body, client, logger, context, region_record, loading_form=True)
+        update_view_id = add_loading_form(body, client, new_or_add="add")
+        locations = _build_location_service().get_org_locations(region_record.org_id)
+        locations.sort(key=sort_by_name(lambda x: x.name))
+        form = AoViews.build_add_ao_modal(locations)
+        form.update_modal(
+            client=client,
+            view_id=update_view_id,
+            title_text="Add an AO",
+            callback_id=actions.ADD_AO_CALLBACK_ID,
+        )
     elif action == "edit":
-        build_ao_list_form(body, client, logger, context, region_record)
+        ao_service = _build_ao_service()
+        aos = ao_service.get_region_aos(region_record.org_id)
+        aos.sort(key=sort_by_name(lambda x: x.name))
+        form = AoViews.build_ao_list_modal(aos)
+        form.post_modal(
+            client=client,
+            trigger_id=safe_get(body, "trigger_id"),
+            title_text="Edit or Delete an AO",
+            callback_id=actions.EDIT_DELETE_AO_CALLBACK_ID,
+            submit_button_text="None",
+            new_or_add="add",
+        )
+
+
+def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
+    form_data = AO_FORM.get_selected_values(body)
+    metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
+
+    name = safe_get(form_data, actions.CALENDAR_ADD_AO_NAME)
+    description = safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION)
+    slack_channel_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
+    default_location_id = safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION)
+    parent_id = region_record.org_id
+
+    ao_service = _build_ao_service()
+
+    if safe_get(metadata, "ao_id"):
+        ao_id = metadata["ao_id"]
+        ao_service.update_ao(
+            ao_id=ao_id,
+            parent_id=parent_id,
+            name=name,
+            description=description,
+            slack_channel_id=slack_channel_id,
+            default_location_id=default_location_id,
+        )
+        map_action = "map.updated"
+        org_id = ao_id
+    else:
+        ao_data = ao_service.create_ao(
+            parent_id=parent_id,
+            name=name,
+            description=description,
+            slack_channel_id=slack_channel_id,
+            default_location_id=default_location_id,
+        )
+        map_action = "map.created"
+        org_id = ao_data.id
+
+    file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
+    if file:
+        file_list, _, _, _ = upload_files_to_storage(
+            files=[file],
+            logger=logger,
+            client=client,
+            enforce_square=True,
+            max_height=512,
+            bucket_name="org-logos",
+            file_name=str(org_id),
+            enforce_png=True,
+        )
+        logo_url = safe_get(file_list, 0)
+        if logo_url:
+            ao_service.update_ao(
+                ao_id=org_id,
+                parent_id=parent_id,
+                name=name,
+                description=description,
+                slack_channel_id=slack_channel_id,
+                default_location_id=default_location_id,
+                logo_url=logo_url,
+            )
+
+    trigger_map_revalidation(action=map_action, map_update_data=MapUpdateData(orgId=org_id))
 
 
 def build_ao_add_form(
@@ -38,61 +219,36 @@ def build_ao_add_form(
     logger: Logger,
     context: dict,
     region_record: SlackSettings,
-    edit_ao: Org = None,
+    edit_ao: AoData = None,
     update_view_id: str = None,
-    update_metadata: dict = None,
     loading_form: bool = False,
 ):
+    """Build and open/update the add-AO modal.
+
+    Called by ``handle_ao_edit_delete`` when editing an existing AO.
+    The ``loading_form`` path pushes a loading placeholder first, then
+    replaces it with the real form.
+    """
     if loading_form:
         update_view_id = add_loading_form(body, client, new_or_add="add")
 
-    form = copy.deepcopy(AO_FORM)
-
-    # Pull locations and event types for the region
-    region_org_record: Org = DbManager.get(Org, region_record.org_id, joinedloads=[Org.locations, Org.event_types])
-    locations: List[Location] = sorted(region_org_record.locations, key=lambda x: x.name)
-    locations = [loc for loc in locations if loc.is_active]
-    event_types: List[EventType] = sorted(region_org_record.event_types, key=lambda x: x.name)
-    event_types = [et for et in event_types if et.is_active]
-
-    form.set_options(
-        {
-            actions.CALENDAR_ADD_AO_LOCATION: orm.as_selector_options(
-                names=[get_location_display_name(location) for location in locations],
-                values=[str(location.id) for location in locations],
-                # descriptions=[location.description for location in locations],
-            ),
-            actions.CALENDAR_ADD_AO_TYPE: orm.as_selector_options(
-                names=[event_type.name for event_type in event_types],
-                values=[str(event_type.id) for event_type in event_types],
-                # descriptions=[event_type.description for event_type in event_types],
-            ),
-        }
-    )
+    locations = _build_location_service().get_org_locations(region_record.org_id)
+    locations.sort(key=sort_by_name(lambda x: x.name))
 
     if edit_ao:
-        slack_id = safe_get(edit_ao.meta, "slack_channel_id")
-        form.set_initial_values(
-            {
-                actions.CALENDAR_ADD_AO_NAME: edit_ao.name,
-                actions.CALENDAR_ADD_AO_DESCRIPTION: edit_ao.description,
-                actions.CALENDAR_ADD_AO_CHANNEL: slack_id,
-            }
-        )
-        if edit_ao.default_location_id:
-            form.set_initial_values({actions.CALENDAR_ADD_AO_LOCATION: str(edit_ao.default_location_id)})
-        title_text = "Edit AO"
+        form = AoViews.build_edit_ao_modal(edit_ao, locations)
         if edit_ao.logo_url:
             try:
                 if requests.head(edit_ao.logo_url).status_code == 200:
-                    form.blocks.insert(5, orm.ImageBlock(image_url=edit_ao.logo_url, alt_text="AO Logo"))
+                    form.blocks.insert(5, ImageBlock(image_url=edit_ao.logo_url, alt_text="AO Logo"))
             except requests.RequestException as e:
                 logger.error(f"Error fetching AO logo: {e}")
+        title_text = "Edit AO"
+        parent_metadata = {"ao_id": edit_ao.id}
     else:
+        form = AoViews.build_add_ao_modal(locations)
         title_text = "Add an AO"
-
-    if update_metadata:
-        form.set_initial_values(update_metadata)
+        parent_metadata = {}
 
     if update_view_id:
         form.update_modal(
@@ -100,7 +256,7 @@ def build_ao_add_form(
             view_id=update_view_id,
             title_text=title_text,
             callback_id=actions.ADD_AO_CALLBACK_ID,
-            parent_metadata={"ao_id": edit_ao.id} if edit_ao else {},
+            parent_metadata=parent_metadata,
         )
     else:
         form.post_modal(
@@ -109,159 +265,78 @@ def build_ao_add_form(
             title_text=title_text,
             callback_id=actions.ADD_AO_CALLBACK_ID,
             new_or_add="add",
-            parent_metadata={"ao_id": edit_ao.id} if edit_ao else {},
+            parent_metadata=parent_metadata,
         )
-
-
-def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    form_data = AO_FORM.get_selected_values(body)
-    region_org_id = region_record.org_id
-    metatdata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
-
-    slack_id = safe_get(form_data, actions.CALENDAR_ADD_AO_CHANNEL)
-    ao: Org = Org(
-        parent_id=region_org_id,
-        org_type=Org_Type.ao,
-        is_active=True,
-        name=safe_get(form_data, actions.CALENDAR_ADD_AO_NAME),
-        description=safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION),
-        meta={"slack_channel_id": slack_id},
-        default_location_id=safe_get(form_data, actions.CALENDAR_ADD_AO_LOCATION),
-        # logo_url=logo_url,
-    )
-
-    if safe_get(metatdata, "ao_id"):
-        update_dict = ao.__dict__
-        update_dict.pop("_sa_instance_state")
-        # if not logo_url:
-        #     update_dict.pop("logo_url", None)
-        DbManager.update_record(Org, metatdata["ao_id"], fields=update_dict)
-        action = "map.updated"
-        orgId = metatdata["ao_id"]
-    else:
-        ao: Org = DbManager.create_record(ao)
-        action = "map.created"
-        orgId = ao.id
-
-    file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
-    if file:
-        file_list, file_send_list, file_ids, low_rez_file_ids = upload_files_to_storage(
-            files=[file],
-            logger=logger,
-            client=client,
-            enforce_square=True,
-            max_height=512,
-            bucket_name="org-logos",
-            file_name=str(orgId),
-            enforce_png=True,
-        )
-        logo_url = safe_get(file_list, 0)
-        DbManager.update_record(Org, orgId, fields={"logo_url": logo_url})
-
-    trigger_map_revalidation(action=action, map_update_data=MapUpdateData(orgId=orgId))
-
-
-def build_ao_list_form(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    ao_records: List[Org] = DbManager.find_records(
-        Org,
-        [Org.parent_id == region_record.org_id, Org.org_type == Org_Type.ao, Org.is_active.is_(True)],
-    )
-
-    ao_records.sort(key=sort_by_name(lambda x: x.name))
-
-    blocks = [
-        orm.SectionBlock(
-            label=s.name,
-            action=f"{actions.AO_EDIT_DELETE}_{s.id}",
-            element=orm.StaticSelectElement(
-                placeholder="Edit or Delete",
-                options=orm.as_selector_options(names=["Edit", "Delete"]),
-                confirm=orm.ConfirmObject(
-                    title="Are you sure?",
-                    text="Are you sure you want to edit / delete this AO? This cannot be undone. Deleting an AO will also delete all associated series and events.",  # noqa
-                    confirm="Yes, I'm sure",
-                    deny="Whups, never mind",
-                ),
-            ),
-        )
-        for s in ao_records
-    ]
-
-    form = orm.BlockView(blocks=blocks)
-    form.post_modal(
-        client=client,
-        trigger_id=safe_get(body, "trigger_id"),
-        title_text="Edit or Delete an AO",
-        callback_id=actions.EDIT_DELETE_AO_CALLBACK_ID,
-        submit_button_text="None",
-        new_or_add="add",
-    )
 
 
 def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
-    ao_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
+    action_id: str = safe_get(body, "actions", 0, "action_id") or ""
+    ao_id = safe_convert(action_id.split("_")[1] if "_" in action_id else None, int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
 
-    if action == "Edit":
-        ao: Org = DbManager.get(Org, ao_id)
-        build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao, loading_form=True)
-    elif action == "Delete":
-        DbManager.update_record(Org, ao_id, fields={"is_active": False})
-        DbManager.update_records(Event, [Event.org_id == ao_id], fields={"is_active": False})
-        DbManager.update_records(
-            EventInstance,
-            [EventInstance.org_id == ao_id, EventInstance.start_date >= datetime.datetime.now()],
-            fields={"is_active": False},
-        )
+    ao_service = _build_ao_service()
+
+    if action == "Edit" and ao_id is not None:
+        ao = ao_service.get_ao_by_id(ao_id)
+        if ao:
+            build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao, loading_form=True)
+    elif action == "Delete" and ao_id is not None:
+        ao_service.delete_ao(ao_id)
         trigger_map_revalidation(action="map.deleted", map_update_data=MapUpdateData(orgId=ao_id))
 
 
-AO_FORM = orm.BlockView(
+# ---------------------------------------------------------------------------
+# Form template (module-level, deepcopied before use)
+# ---------------------------------------------------------------------------
+
+AO_FORM = SdkBlockView(
     blocks=[
-        orm.InputBlock(
-            label="AO Title",
-            action=actions.CALENDAR_ADD_AO_NAME,
-            element=orm.PlainTextInputElement(placeholder="Enter the AO name"),
-            optional=False,
-        ),
-        orm.InputBlock(
-            label="Description",
-            action=actions.CALENDAR_ADD_AO_DESCRIPTION,
-            element=orm.PlainTextInputElement(placeholder="Enter a description for the AO", multiline=True),
-        ),
-        orm.InputBlock(
-            label="Channel associated with this AO:",
-            action=actions.CALENDAR_ADD_AO_CHANNEL,
-            element=orm.ChannelsSelectElement(placeholder="Select a channel"),
-            optional=False,
-        ),
-        orm.InputBlock(
-            label="Default Location",
-            action=actions.CALENDAR_ADD_AO_LOCATION,
-            element=orm.StaticSelectElement(placeholder="Select a location"),
-        ),
-        # orm.ActionsBlock(
-        #     elements=[
-        #         orm.ButtonElement(
-        #             label="Add Location",
-        #             action=actions.CALENDAR_ADD_AO_NEW_LOCATION,
-        #             value="add",
-        #         )
-        #     ],
-        # ),
-        orm.InputBlock(
-            label="AO Logo",
-            action=actions.CALENDAR_ADD_AO_LOGO,
-            optional=True,
-            element=orm.FileInputElement(
-                max_files=1,
-                filetypes=[
-                    "png",
-                    "jpg",
-                    "heic",
-                    "bmp",
-                ],
+        InputBlock(
+            label=PlainTextObject(text="AO Title"),
+            block_id=actions.CALENDAR_ADD_AO_NAME,
+            element=PlainTextInputElement(
+                action_id=actions.CALENDAR_ADD_AO_NAME,
+                placeholder=PlainTextObject(text="Enter the AO name"),
             ),
+            optional=False,
+        ),
+        InputBlock(
+            label=PlainTextObject(text="Description"),
+            block_id=actions.CALENDAR_ADD_AO_DESCRIPTION,
+            element=PlainTextInputElement(
+                action_id=actions.CALENDAR_ADD_AO_DESCRIPTION,
+                placeholder=PlainTextObject(text="Enter a description for the AO"),
+                multiline=True,
+            ),
+            optional=True,
+        ),
+        InputBlock(
+            label=PlainTextObject(text="Channel associated with this AO:"),
+            block_id=actions.CALENDAR_ADD_AO_CHANNEL,
+            element=ChannelSelectElement(
+                action_id=actions.CALENDAR_ADD_AO_CHANNEL,
+                placeholder=PlainTextObject(text="Select a channel"),
+            ),
+            optional=False,
+        ),
+        InputBlock(
+            label=PlainTextObject(text="Default Location"),
+            block_id=actions.CALENDAR_ADD_AO_LOCATION,
+            element=StaticSelectElement(
+                action_id=actions.CALENDAR_ADD_AO_LOCATION,
+                placeholder=PlainTextObject(text="Select a location"),
+            ),
+            optional=True,
+        ),
+        InputBlock(
+            label=PlainTextObject(text="AO Logo"),
+            block_id=actions.CALENDAR_ADD_AO_LOGO,
+            element=FileInputElement(
+                action_id=actions.CALENDAR_ADD_AO_LOGO,
+                max_files=1,
+                filetypes=["png", "jpg", "heic", "bmp"],
+            ),
+            optional=True,
         ),
     ]
 )
