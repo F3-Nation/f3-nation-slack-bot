@@ -8,7 +8,6 @@ import random
 import shutil
 from datetime import datetime, timedelta
 
-import boto3
 import pytz
 from f3_data_models.models import (
     Attendance,
@@ -441,18 +440,10 @@ def generate_calendar_images(force: bool = False):
                             slack_app_settings = region_org_record[2].settings
                             existing_file = slack_app_settings.get(f"calendar_image_{week}")
 
-                            if LOCAL_DEVELOPMENT:  # TODO: upload to GCP
-                                s3_client = boto3.client("s3")
-                                with open(filename, "rb") as f:
-                                    s3_client.upload_fileobj(
-                                        f, "slackblast-images", filename, ExtraArgs={"ContentType": "image/png"}
-                                    )
-                                try:
-                                    if existing_file:
-                                        s3_client.delete_object(Bucket="slackblast-images", Key=existing_file)
-                                    os.remove(filename)
-                                except Exception as e:
-                                    print(f"Error deleting old file {existing_file} from S3: {e}")
+                            if LOCAL_DEVELOPMENT:
+                                print(
+                                    f"Local development - skipping upload to S3 and deletion of old file for {filename}"
+                                )
                             else:
                                 if existing_file:
                                     try:
