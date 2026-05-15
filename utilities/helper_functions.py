@@ -8,7 +8,6 @@ from datetime import date, datetime
 from logging import Logger
 from typing import Any, Dict, List, Tuple
 
-import boto3
 import pytz
 import requests
 from f3_data_models.models import (
@@ -856,75 +855,6 @@ def highest_resolution_thumb(file: Dict[str, Any]) -> str:
         return None
     thumb_size = max(available_thumbs)
     return file[f"thumb_{thumb_size}"]
-
-
-def upload_files_to_s3(
-    files: List[Dict[str, str]], user_id: str, client: WebClient, logger: Logger
-) -> Tuple[List[str], List[Dict[str, Any]], List[str]]:
-    file_list = []
-    file_send_list = []
-    file_ids = [file["id"] for file in files]
-    from PIL import Image
-
-    for file in files or []:
-        try:
-            r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
-            r.raise_for_status()
-
-            file_name = f"{file['id']}.{file['filetype']}"
-            file_path = f"/tmp/{file_name}"
-            file_mimetype = file["mimetype"]
-
-            with open(file_path, "wb") as f:
-                f.write(r.content)
-
-            if file["filetype"] == "heic":
-                heic_img = Image.open(file_path)
-                x, y = heic_img.size
-                coeff = min(constants.MAX_HEIC_SIZE / max(x, y), 1)
-                heic_img = heic_img.resize((int(x * coeff), int(y * coeff)))
-                heic_img.save(file_path.replace(".heic", ".png"), quality=95, optimize=True, format="PNG")
-                os.remove(file_path)
-
-                file_path = file_path.replace(".heic", ".png")
-                file_name = file_name.replace(".heic", ".png")
-                file_mimetype = "image/png"
-
-            # read first line of file to determine if it's an image
-            with open(file_path, "rb") as f:
-                try:
-                    f.readline().decode("utf-8")
-                except Exception as e:
-                    logger.info(f"Error reading photo as text: {e}")
-            if (
-                constants.LOCAL_DEVELOPMENT
-                and os.environ.get(constants.AWS_ACCESS_KEY_ID)
-                and os.environ.get(constants.AWS_SECRET_ACCESS_KEY)
-            ):
-                s3_client = boto3.client(
-                    "s3",
-                    aws_access_key_id=os.environ[constants.AWS_ACCESS_KEY_ID],
-                    aws_secret_access_key=os.environ[constants.AWS_SECRET_ACCESS_KEY],
-                )
-            else:
-                s3_client = boto3.client("s3")
-            with open(file_path, "rb") as f:
-                s3_client.upload_fileobj(f, "slackblast-images", file_name, ExtraArgs={"ContentType": file_mimetype})
-            file_list.append(f"https://slackblast-images.s3.amazonaws.com/{file_name}")
-            file_send_list.append(
-                {
-                    "filepath": file_path,
-                    "meta": {
-                        "filename": file_name,
-                        "maintype": file_mimetype.split("/")[0],
-                        "subtype": file_mimetype.split("/")[1],
-                    },
-                }
-            )
-        except Exception as e:
-            logger.error(f"Error uploading file: {e}")
-
-    return file_list, file_send_list, file_ids
 
 
 # Helper function to sort by name, ignoring any prefixes we might want to ignore
