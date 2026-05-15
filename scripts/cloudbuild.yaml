@@ -13,6 +13,8 @@ steps:
         # Copy shared code needed by scripts (add/remove as needed)
         [ -d features ] && cp -a features scripts_build_ctx/ || true
         [ -d utilities ] && cp -a utilities scripts_build_ctx/ || true
+        [ -d application ] && cp -a application scripts_build_ctx/ || true
+        [ -d infrastructure ] && cp -a infrastructure scripts_build_ctx/ || true
         [ -d common ] && cp -a common scripts_build_ctx/ || true
         # Clean Python caches
         find scripts_build_ctx -type d -name __pycache__ -prune -exec rm -rf {} +
