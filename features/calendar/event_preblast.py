@@ -38,6 +38,7 @@ from utilities.helper_functions import (
     get_user_names,
     parse_rich_block,
     replace_user_channel_ids,
+    reupload_file_as_bot,
     safe_convert,
     safe_get,
 )
@@ -455,7 +456,8 @@ def handle_event_preblast_edit(
     if form_data[actions.EVENT_PREBLAST_IMAGE]:
         event_instance_record: EventInstance = DbManager.get(EventInstance, event_instance_id)
         event_instance_meta = event_instance_record.meta or {}
-        file_id = safe_get(form_data[actions.EVENT_PREBLAST_IMAGE], 0, "id")
+        file_obj = safe_get(form_data[actions.EVENT_PREBLAST_IMAGE], 0)
+        file_id = reupload_file_as_bot(file_obj, client, logger) or safe_get(file_obj, "id")
         event_instance_meta["preblast_image_slack_file_id"] = file_id
         update_fields[EventInstance.meta] = event_instance_meta
 

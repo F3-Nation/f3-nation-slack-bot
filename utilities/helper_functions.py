@@ -857,6 +857,34 @@ def highest_resolution_thumb(file: Dict[str, Any]) -> str:
     return file[f"thumb_{thumb_size}"]
 
 
+def reupload_file_as_bot(
+    file: Dict[str, Any],
+    client: WebClient,
+    logger: Logger,
+    filename: str = None,
+) -> str | None:
+    """Download a user-uploaded Slack file and re-upload it as the bot without sharing to any channel.
+
+    Uploading without a channel makes the file private to the bot, which means the bot owns the
+    file ID and can reference it reliably in image blocks instead of relying on the original
+    uploader's file which may not be visible to other workspace members.
+
+    Returns the bot-owned file ID, or None on failure.
+    """
+    try:
+        r = requests.get(file["url_private_download"], headers={"Authorization": f"Bearer {client.token}"})
+        r.raise_for_status()
+        fname = filename or f"{file['id']}.{file.get('filetype', 'bin')}"
+        response = client.files_upload_v2(
+            filename=fname,
+            file=r.content,
+        )
+        return safe_get(response, "files", 0, "id")
+    except Exception as e:
+        logger.error(f"Error re-uploading file {safe_get(file, 'id')} as bot: {e}")
+        return None
+
+
 # Helper function to sort by name, ignoring any prefixes we might want to ignore
 # Example: The Name, should just be sorted as Name
 def sort_by_name(extractor):
