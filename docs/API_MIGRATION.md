@@ -421,8 +421,8 @@ discovered during migration:
 | Create / Update | `POST /v1/event-instance` (crupdate — omit `id` to create, include `id` to update) |
 | Get single | `GET /v1/event-instance/id/{id}` |
 | Delete | `DELETE /v1/event-instance/id/{id}` — **hard delete** (unlike most other domains which soft-delete) |
-| Close | `POST /v1/event-instance` with `{id, seriesException: "closed", meta: {...}}` — minimal payload; no full crupdate needed |
-| Reopen | `POST /v1/event-instance` with `{id, seriesException: null}` — minimal payload |
+| Close | `POST /v1/event-instance` with the existing event-instance payload plus `seriesException: "closed"` and updated `meta` |
+| Reopen | `POST /v1/event-instance` with the existing event-instance payload plus `seriesException: null` |
 | Response envelope | `eventInstances` (list); `eventInstance` (single); fall back to `results` / `result` |
 | Response fields | camelCase: `orgId`, `locationId`, `startDate`, `startTime`, `endTime`, `isActive`, `isPrivate`, `seriesException`, `eventTypes`, `eventTags`, `preblastRich` |
 | `startDate` | Returned as `"YYYY-MM-DD"` string — parse to `datetime.date` in `_parse_instance` |
@@ -500,7 +500,7 @@ All cascade logic is now entirely handled server-side by the F3 Nation API.
 | Request and response use different field names | Verify both request payload keys and response field names in the API reference separately (e.g. location sends `name` but receives `locationName`) |
 | List endpoint returns inactive records | After fetching a list, check `is_active` and filter in the service if the endpoint does not support a `statuses=active` param |
 | Hard delete vs soft delete | Most legacy features used `DbManager.update_record(..., {"is_active": False})` for soft deletion.  Check the API reference — some endpoints (e.g. `event-instance`) are hard deletes via `DELETE`.  Using the wrong verb leads to permanently lost data or orphaned records. |
-| Close / Reopen uses partial crupdate POST | For state-change operations (close/reopen) that only update one or two fields, you do not need to re-send the entire record.  A minimal POST body (`{id, seriesException: "closed", meta: {...}}`) is sufficient.  The service `close_instance()` must first fetch the current `meta` via `get_by_id()` to merge any new `series_exception_reason` into it. |
+| Close / Reopen requires preserved fields | The event-instance close/reopen POST is validated like any other crupdate. Fetch the current instance with `get_by_id()`, preserve its required fields (`name`, `orgId`, `startDate`, `startTime`, `endTime`, `eventTypeId`, flags, etc.), then send the state change (`seriesException`) alongside the merged `meta`. |
 | Junction table cleanup handled by API | Old code manually deleted junction records (e.g. `EventTag_x_EventInstance`) before updating a relation.  The API handles this automatically when you send the full new list (`eventTagIds: []` clears all tags).  Do not replicate the manual deletion in the migrated code. |
 | ORM relation attributes replaced by ID lists | Legacy SQLAlchemy models expose relation objects (e.g. `event_tags`, `event_types`) as joined lists; API data models return ID lists (`event_tag_ids`, `event_type_ids`).  Update all attribute accesses — e.g. `instance.event_types[0].id` → `instance.event_type_ids[0]`, `instance.event_tags` → `instance.event_tag_ids`. |
 | `orm.BlockView.get_selected_values()` needs `view.blocks` in test body | The legacy `BlockView.get_selected_values(body)` reads `body["view"]["blocks"]` to map block IDs to action IDs.  Slack always sends this in real events, but unit tests that mock the body must include a minimal `blocks` list to avoid `KeyError: 'blocks'`. |

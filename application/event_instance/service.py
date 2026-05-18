@@ -116,17 +116,25 @@ class EventInstanceService:
             preblast=preblast,
         )
 
+    def _get_existing_instance_for_state_change(self, instance_id: int) -> EventInstanceData:
+        """Return an existing instance for close/reopen operations."""
+        existing = self._repository.get_by_id(instance_id)
+        if existing is None:
+            raise ValueError(f"Event instance {instance_id} was not found")
+        return existing
+
     def close_instance(self, instance_id: int, close_reason: str | None) -> None:
         """Close an event instance with an optional reason stored in meta."""
-        existing = self._repository.get_by_id(instance_id)
-        meta = dict(existing.meta or {}) if existing else {}
+        existing = self._get_existing_instance_for_state_change(instance_id)
+        meta = dict(existing.meta or {})
         if close_reason:
             meta["series_exception_reason"] = close_reason
-        self._repository.close(instance_id=instance_id, meta=meta)
+        self._repository.close(instance=existing, meta=meta)
 
     def reopen_instance(self, instance_id: int) -> None:
         """Remove the closed status from an event instance."""
-        self._repository.reopen(instance_id)
+        existing = self._get_existing_instance_for_state_change(instance_id)
+        self._repository.reopen(instance=existing)
 
     def delete_instance(self, instance_id: int) -> None:
         """Hard-delete an event instance."""

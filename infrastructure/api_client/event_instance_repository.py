@@ -10,7 +10,8 @@ Endpoints used:
   DELETE /v1/event-instance/id/{id}         - hard delete
 
 Note: DELETE on event-instance is a HARD delete (unlike most other domains which soft-delete).
-Close and reopen are implemented via crupdate POST with only {id, seriesException} in the payload.
+Close and reopen are implemented via crupdate POST using the existing instance details plus the
+updated seriesException value.
 """
 
 from __future__ import annotations
@@ -118,6 +119,47 @@ def _build_crupdate_payload(
         payload["preblastRich"] = preblast_rich
     if preblast is not None:
         payload["preblast"] = preblast
+    return payload
+
+
+def _build_state_change_payload(
+    instance: EventInstanceData,
+    *,
+    series_exception: str | None,
+    meta: dict | None = None,
+) -> dict:
+    if not instance.name:
+        raise ValueError(f"Event instance {instance.id} is missing required field 'name'")
+    if not instance.org_id:
+        raise ValueError(f"Event instance {instance.id} is missing required field 'org_id'")
+    if instance.start_date is None:
+        raise ValueError(f"Event instance {instance.id} is missing required field 'start_date'")
+    if not instance.start_time:
+        raise ValueError(f"Event instance {instance.id} is missing required field 'start_time'")
+    if not instance.end_time:
+        raise ValueError(f"Event instance {instance.id} is missing required field 'end_time'")
+    if not instance.event_type_ids:
+        raise ValueError(f"Event instance {instance.id} is missing required field 'event_type_ids'")
+
+    payload = _build_crupdate_payload(
+        name=instance.name,
+        org_id=instance.org_id,
+        start_date=instance.start_date,
+        start_time=instance.start_time,
+        end_time=instance.end_time,
+        description=instance.description,
+        location_id=instance.location_id,
+        event_type_id=instance.event_type_ids[0],
+        event_tag_id=instance.event_tag_ids[0] if instance.event_tag_ids else None,
+        is_active=instance.is_active,
+        is_private=instance.is_private,
+        meta=instance.meta if meta is None else meta,
+        highlight=instance.highlight,
+        preblast_rich=instance.preblast_rich,
+        preblast=instance.preblast,
+    )
+    payload["id"] = instance.id
+    payload["seriesException"] = series_exception
     return payload
 
 
@@ -231,18 +273,18 @@ class ApiEventInstanceRepository:
         raw = result.get("eventInstance") or result.get("result") or result
         return _parse_instance(raw)
 
-    def close(self, instance_id: int, meta: dict) -> None:
-        """Mark an instance as closed via a minimal crupdate POST."""
+    def close(self, instance: EventInstanceData, meta: dict) -> None:
+        """Mark an instance as closed via a full crupdate POST."""
         self._client.post(
             "/v1/event-instance",
-            json={"id": instance_id, "seriesException": "closed", "meta": meta},
+            json=_build_state_change_payload(instance, series_exception="closed", meta=meta),
         )
 
-    def reopen(self, instance_id: int) -> None:
-        """Clear the seriesException via a minimal crupdate POST."""
+    def reopen(self, instance: EventInstanceData) -> None:
+        """Clear the seriesException via a full crupdate POST."""
         self._client.post(
             "/v1/event-instance",
-            json={"id": instance_id, "seriesException": None},
+            json=_build_state_change_payload(instance, series_exception=None),
         )
 
     def delete(self, instance_id: int) -> None:

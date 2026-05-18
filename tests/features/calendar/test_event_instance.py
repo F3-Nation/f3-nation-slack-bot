@@ -148,30 +148,46 @@ class EventInstanceServiceTest(unittest.TestCase):
 
     def test_close_instance_fetches_meta_and_closes(self):
         repo = self._mock_repo()
-        repo.get_by_id.return_value = _make_instance(id=3, meta={"existing_key": "val"})
+        existing = _make_instance(id=3, meta={"existing_key": "val"})
+        repo.get_by_id.return_value = existing
         service = EventInstanceService(repository=repo)
         service.close_instance(instance_id=3, close_reason="Weather")
 
         repo.get_by_id.assert_called_once_with(3)
         _, kwargs = repo.close.call_args
-        self.assertEqual(kwargs["instance_id"], 3)
+        self.assertEqual(kwargs["instance"], existing)
         self.assertEqual(kwargs["meta"]["series_exception_reason"], "Weather")
         self.assertEqual(kwargs["meta"]["existing_key"], "val")  # preserves existing meta
 
     def test_close_instance_no_reason_omits_key(self):
         repo = self._mock_repo()
-        repo.get_by_id.return_value = _make_instance(id=3, meta={})
+        existing = _make_instance(id=3, meta={})
+        repo.get_by_id.return_value = existing
         service = EventInstanceService(repository=repo)
         service.close_instance(instance_id=3, close_reason=None)
 
         _, kwargs = repo.close.call_args
+        self.assertEqual(kwargs["instance"], existing)
         self.assertNotIn("series_exception_reason", kwargs["meta"])
 
     def test_reopen_instance(self):
         repo = self._mock_repo()
+        existing = _make_instance(id=7)
+        repo.get_by_id.return_value = existing
         service = EventInstanceService(repository=repo)
         service.reopen_instance(7)
-        repo.reopen.assert_called_once_with(7)
+        repo.get_by_id.assert_called_once_with(7)
+        repo.reopen.assert_called_once_with(instance=existing)
+
+    def test_close_instance_raises_when_instance_missing(self):
+        repo = self._mock_repo()
+        repo.get_by_id.return_value = None
+        service = EventInstanceService(repository=repo)
+
+        with self.assertRaisesRegex(ValueError, "Event instance 3 was not found"):
+            service.close_instance(instance_id=3, close_reason="Weather")
+
+        repo.close.assert_not_called()
 
     def test_delete_instance(self):
         repo = self._mock_repo()
@@ -350,18 +366,55 @@ class ApiEventInstanceRepositoryTest(unittest.TestCase):
         self.assertNotIn("eventTagId", kwargs["json"])  # empty list → omitted
 
     def test_close_posts_correct_payload(self):
-        self.repo.close(instance_id=3, meta={"series_exception_reason": "Rain"})
+        instance = _make_instance(id=3, meta={"existing_key": "val"})
+        self.repo.close(instance=instance, meta={"series_exception_reason": "Rain", "existing_key": "val"})
         self.client.post.assert_called_once_with(
             "/v1/event-instance",
-            json={"id": 3, "seriesException": "closed", "meta": {"series_exception_reason": "Rain"}},
+            json={
+                "id": 3,
+                "name": "The Grind",
+                "orgId": 10,
+                "startDate": "2026-06-01",
+                "startTime": "0600",
+                "endTime": "0700",
+                "isActive": True,
+                "isPrivate": False,
+                "highlight": False,
+                "eventTypeId": 5,
+                "meta": {"series_exception_reason": "Rain", "existing_key": "val"},
+                "seriesException": "closed",
+            },
         )
 
     def test_reopen_posts_correct_payload(self):
-        self.repo.reopen(instance_id=4)
+        instance = _make_instance(id=4, series_exception="closed", meta={"existing_key": "val"})
+        self.repo.reopen(instance=instance)
         self.client.post.assert_called_once_with(
             "/v1/event-instance",
-            json={"id": 4, "seriesException": None},
+            json={
+                "id": 4,
+                "name": "The Grind",
+                "orgId": 10,
+                "startDate": "2026-06-01",
+                "startTime": "0600",
+                "endTime": "0700",
+                "isActive": True,
+                "isPrivate": False,
+                "highlight": False,
+                "eventTypeId": 5,
+                "meta": {"existing_key": "val"},
+                "seriesException": None,
+            },
         )
+
+    def test_close_raises_when_existing_instance_is_missing_required_fields(self):
+        instance = _make_instance(id=8)
+        instance.org_id = 0
+
+        with self.assertRaisesRegex(ValueError, "missing required field 'org_id'"):
+            self.repo.close(instance=instance, meta={})
+
+        self.client.post.assert_not_called()
 
     def test_delete_calls_correct_endpoint(self):
         self.repo.delete(instance_id=6)

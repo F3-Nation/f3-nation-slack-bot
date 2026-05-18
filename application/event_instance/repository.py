@@ -70,11 +70,11 @@ class EventInstanceRepository(Protocol):
         """Update an existing event instance and return the updated record."""
         ...
 
-    def close(self, instance_id: int, meta: dict) -> None:
+    def close(self, instance: EventInstanceData, meta: dict) -> None:
         """Mark an instance as closed (seriesException="closed") with the given meta."""
         ...
 
-    def reopen(self, instance_id: int) -> None:
+    def reopen(self, instance: EventInstanceData) -> None:
         """Clear the seriesException field on an instance."""
         ...
 
