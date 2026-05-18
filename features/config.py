@@ -130,6 +130,7 @@ def build_config_general_form(
             else "10:00",
             actions.CONFIG_HC_ANNOUNCE_OPTION: region_record.hc_announce_option or "off",
             actions.CONFIG_HC_ANNOUNCE_TARGETS: region_record.hc_announce_targets or "both",
+            actions.CONFIG_BOT_LOG_CHANNEL: region_record.bot_log_channel,
         }
     )
 
@@ -208,6 +209,7 @@ def handle_config_general_post(
     )
     region_record.hc_announce_option = safe_get(config_data, actions.CONFIG_HC_ANNOUNCE_OPTION) or "off"
     region_record.hc_announce_targets = safe_get(config_data, actions.CONFIG_HC_ANNOUNCE_TARGETS) or "both"
+    region_record.bot_log_channel = safe_get(config_data, actions.CONFIG_BOT_LOG_CHANNEL)
 
     DbManager.update_records(
         cls=SlackSpace,

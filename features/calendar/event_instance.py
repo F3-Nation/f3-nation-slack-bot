@@ -20,6 +20,7 @@ from infrastructure.api_client import (
     get_api_event_type_repository,
     get_api_location_repository,
 )
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -363,6 +364,13 @@ def handle_event_instance_add(
             highlight=highlight,
             preblast_rich=preblast_rich,
             preblast=preblast_text,
+        )
+        slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Event edited: {event_instance_name} on {start_date} by <@{slack_user_id}>",
+            logger=logger,
         )
     else:
         record = service.create_instance(
