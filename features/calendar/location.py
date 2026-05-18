@@ -10,6 +10,7 @@ from slack_sdk.web import WebClient
 from application.location import LocationData
 from application.location.service import LocationService
 from infrastructure.api_client import get_api_location_repository
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -313,6 +314,7 @@ def build_location_add_form(
 def handle_location_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form_data = LOCATION_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads)
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     latitude = safe_convert(safe_get(form_data, _LOCATION_LAT), float)
     longitude = safe_convert(safe_get(form_data, _LOCATION_LON), float)
@@ -375,6 +377,13 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
             update_metadata=update_metadata,
         )
 
+    action_text = (
+        f":pencil2: Location edited: {safe_get(form_data, _LOCATION_NAME)} by <@{slack_user_id}>"
+        if location_id
+        else f":heavy_plus_sign: Location created: {safe_get(form_data, _LOCATION_NAME)} by <@{slack_user_id}>"
+    )
+    post_bot_log(client=client, region_record=region_record, text=action_text, logger=logger)
+
 
 def handle_location_edit_delete(
     body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings
@@ -382,6 +391,7 @@ def handle_location_edit_delete(
     action_id = safe_get(body, "actions", 0, "action_id") or ""
     location_id = safe_convert(action_id.split("_")[1] if "_" in action_id else None, int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     if action not in ("Edit", "Delete") or location_id is None:
         return
@@ -416,6 +426,12 @@ def handle_location_edit_delete(
             title_text="Edit/Delete a Location",
             callback_id=EDIT_DELETE_LOCATION_CALLBACK_ID,
             submit_button_text="None",
+        )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":wastebasket: Location deleted: {deleted_name} by <@{slack_user_id}>",
+            logger=logger,
         )
 
 

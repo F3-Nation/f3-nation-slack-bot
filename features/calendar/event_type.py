@@ -10,6 +10,7 @@ from slack_sdk.web import WebClient
 from application.event_type import EventTypeData
 from application.event_type.service import EventTypeService
 from infrastructure.api_client import get_api_event_type_repository
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import safe_convert, safe_get
@@ -147,6 +148,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
     event_type_acronym = form_data.get(CALENDAR_ADD_EVENT_TYPE_ACRONYM)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     edit_event_type_id = safe_convert(metadata.get("edit_event_type_id"), int)
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     service = _build_event_type_service()
 
@@ -157,12 +159,26 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
             event_type_acronym or "",
             event_category or "",
         )
+        display_acronym = event_type_acronym or (event_type_name[:2] if event_type_name else "")
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Event type edited: {event_type_name} ({display_acronym}) by <@{slack_user_id}>",
+            logger=logger,
+        )
     elif event_type_name and event_category:
+        display_acronym = event_type_acronym or event_type_name[:2]
         service.create_org_specific_type(
             event_type_name,
-            event_type_acronym or event_type_name[:2],
+            display_acronym,
             event_category,
             region_record.org_id,
+        )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":heavy_plus_sign: Event type created: {event_type_name} ({display_acronym}) by <@{slack_user_id}>",
+            logger=logger,
         )
 
 
@@ -172,6 +188,7 @@ def handle_event_type_edit_delete(
     action_id = safe_get(body, "actions", 0, "action_id") or ""
     event_type_id = safe_convert(action_id.split("_")[-1] if "_" in action_id else None, int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     if action in ("Edit", "Delete") and event_type_id is None:
         return
@@ -194,7 +211,16 @@ def handle_event_type_edit_delete(
             parent_metadata={"edit_event_type_id": event_type_id},
         )
     elif action == "Delete":
+        event_type = next(
+            (t for t in service.get_all_event_types_for_org(region_record.org_id) if t.id == event_type_id), None
+        )
         service.delete_org_specific_type(event_type_id)
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":wastebasket: Event type deleted: {event_type.name if event_type else event_type_id} by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
 
 
 # ---------------------------------------------------------------------------

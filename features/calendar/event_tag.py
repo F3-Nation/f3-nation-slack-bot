@@ -14,6 +14,7 @@ from slack_sdk.web import WebClient
 from application.event_tag import EventTagData
 from application.event_tag.service import EventTagService
 from infrastructure.api_client import get_api_event_tag_repository
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.constants import EVENT_TAG_COLORS
 from utilities.database.orm import SlackSettings
@@ -154,14 +155,27 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
     event_color = form_data.get(CALENDAR_ADD_EVENT_TAG_COLOR)
     metadata = json.loads(safe_get(body, "view", "private_metadata") or "{}")
     edit_event_tag_id = safe_convert(metadata.get("edit_event_tag_id"), int)
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     service = _build_event_tag_service()
 
     if event_tag_name and event_color:
         if edit_event_tag_id:
             service.update_org_specific_tag(edit_event_tag_id, event_tag_name, event_color)
+            post_bot_log(
+                client=client,
+                region_record=region_record,
+                text=f":pencil2: Event tag edited: {event_tag_name} ({event_color}) by <@{slack_user_id}>",
+                logger=logger,
+            )
         else:
             service.create_org_specific_tag(event_tag_name, event_color, region_record.org_id)
+            post_bot_log(
+                client=client,
+                region_record=region_record,
+                text=f":heavy_plus_sign: Event tag created: {event_tag_name} ({event_color}) by <@{slack_user_id}>",
+                logger=logger,
+            )
 
 
 def handle_event_tag_edit_delete(
@@ -170,6 +184,7 @@ def handle_event_tag_edit_delete(
     action_id = safe_get(body, "actions", 0, "action_id") or ""
     event_tag_id = safe_convert(action_id.split("_")[1] if "_" in action_id else None, int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     if action in ("Edit", "Delete") and event_tag_id is None:
         return
@@ -216,6 +231,12 @@ def handle_event_tag_edit_delete(
             title_text="Edit/Delete Event Tags",
             callback_id=EDIT_DELETE_AO_CALLBACK_ID,
             submit_button_text="None",
+        )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":wastebasket: Event tag deleted: {deleted_tag_name} by <@{slack_user_id}>",
+            logger=logger,
         )
 
 
