@@ -20,6 +20,7 @@ from infrastructure.api_client import (
     get_api_event_type_repository,
     get_api_location_repository,
 )
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -264,6 +265,7 @@ def handle_event_instance_add(
             ),
         )
     form_data = form.get_selected_values(body)
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     selected_options = safe_get(form_data, CALENDAR_ADD_EVENT_INSTANCE_OPTIONS) or []
     is_private = "private" in selected_options
@@ -304,7 +306,6 @@ def handle_event_instance_add(
     event_type_block = [block for block in view_blocks if block["block_id"] == CALENDAR_ADD_EVENT_INSTANCE_TYPE][0]
     event_type_initial_value = safe_get(event_type_block, "element", "initial_option", "value")
     event_type_id = form_data.get(CALENDAR_ADD_EVENT_INSTANCE_TYPE) or event_type_initial_value
-    print(f"Resolved location_id: {location_id}, event_type_id: {event_type_id}")
 
     # Apply int conversion to all values if not null
     location_id = safe_convert(location_id, int)
@@ -364,6 +365,12 @@ def handle_event_instance_add(
             preblast_rich=preblast_rich,
             preblast=preblast_text,
         )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Event edited: {event_instance_name} on {start_date} by <@{slack_user_id}>",
+            logger=logger,
+        )
     else:
         record = service.create_instance(
             name=event_instance_name,
@@ -381,6 +388,12 @@ def handle_event_instance_add(
             highlight=highlight,
             preblast_rich=preblast_rich,
             preblast=preblast_text,
+        )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":heavy_plus_sign: Event created: {event_instance_name} on {start_date} by <@{slack_user_id}>",
+            logger=logger,
         )
 
     if safe_get(metadata, "is_preblast") == "True":
@@ -515,6 +528,11 @@ def handle_event_instance_edit_delete(
 ):
     event_instance_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
+
+    section_block_id = safe_get(body, "actions", 0, "block_id")
+    section_block = next((b for b in safe_get(body, "view", "blocks") if b["block_id"] == section_block_id), None)
+    event_title = safe_get(section_block, "text", "text") or "an event"
 
     service = _build_event_instance_service()
 
@@ -525,6 +543,7 @@ def handle_event_instance_edit_delete(
         build_event_instance_add_form(
             body, client, logger, context, region_record, edit_event_instance=event_instance, loading_form=True
         )
+        action_text = None
     elif action == "Close":
         form = copy.deepcopy(EVENT_CLOSE_FORM)
         form.update_modal(
@@ -536,15 +555,26 @@ def handle_event_instance_edit_delete(
             parent_metadata={"event_instance_id": event_instance_id},
             close_button_text="Cancel",
         )
+        action_text = f":no_entry_sign: <@{user_id}> closed event: {event_title}"
     elif action == "Reopen":
         service.reopen_instance(event_instance_id)
         build_event_instance_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
+        action_text = f":white_check_mark: <@{user_id}> reopened event: {event_title}"
     elif action == "Delete":
         service.delete_instance(event_instance_id)
         build_event_instance_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
+        )
+        action_text = f":wastebasket: <@{user_id}> deleted event: {event_title}"
+
+    if action_text:
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=action_text,
+            logger=logger,
         )
 
 

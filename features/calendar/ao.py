@@ -18,6 +18,7 @@ from application.ao.service import AoService
 from application.location import LocationData
 from application.location.service import LocationService
 from infrastructure.api_client import get_api_ao_repository, get_api_location_repository
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -154,6 +155,7 @@ def manage_aos(body: dict, client: WebClient, logger: Logger, context: dict, reg
 def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     form_data = AO_FORM.get_selected_values(body)
     metadata = safe_convert(safe_get(body, "view", "private_metadata"), json.loads) or {}
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     name = safe_get(form_data, actions.CALENDAR_ADD_AO_NAME)
     description = safe_get(form_data, actions.CALENDAR_ADD_AO_DESCRIPTION)
@@ -211,6 +213,13 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
             )
 
     trigger_map_revalidation(action=map_action, map_update_data=MapUpdateData(orgId=org_id))
+
+    action_text = (
+        f":pencil2: AO edited: {name} by <@{slack_user_id}>"
+        if safe_get(metadata, "ao_id")
+        else f":heavy_plus_sign: AO created: {name} by <@{slack_user_id}>"
+    )
+    post_bot_log(client=client, region_record=region_record, text=action_text, logger=logger)
 
 
 def build_ao_add_form(
@@ -273,6 +282,7 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
     action_id: str = safe_get(body, "actions", 0, "action_id") or ""
     ao_id = safe_convert(action_id.split("_")[1] if "_" in action_id else None, int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     ao_service = _build_ao_service()
 
@@ -281,8 +291,15 @@ def handle_ao_edit_delete(body: dict, client: WebClient, logger: Logger, context
         if ao:
             build_ao_add_form(body, client, logger, context, region_record, edit_ao=ao, loading_form=True)
     elif action == "Delete" and ao_id is not None:
+        ao = ao_service.get_ao_by_id(ao_id)
         ao_service.delete_ao(ao_id)
         trigger_map_revalidation(action="map.deleted", map_update_data=MapUpdateData(orgId=ao_id))
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":wastebasket: AO deleted: {ao.name if ao else ao_id} by <@{slack_user_id}>",
+            logger=logger,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -77,3 +77,4 @@ class SlackSettings:
     downrange_channel_posting: Optional[str] = None  # "off" or "enabled"
     downrange_channel: Optional[str] = None
     open_event_color: Optional[str] = None
+    bot_log_channel: Optional[str] = None

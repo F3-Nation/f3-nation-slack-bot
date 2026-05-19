@@ -542,6 +542,14 @@ CONFIG_GENERAL_FORM = orm.BlockView(
             ),
             hint="Select which actions trigger an announcement in the preblast thread.",
         ),
+        orm.DividerBlock(),
+        orm.InputBlock(
+            label="Bot Action Log Channel",
+            action=actions.CONFIG_BOT_LOG_CHANNEL,
+            element=orm.ChannelsSelectElement(placeholder="Select a channel..."),
+            optional=True,
+            hint="When set, the bot will post a log message here whenever a key action occurs (e.g. event edited). If left blank and a log is triggered, the bot will auto-create #nation_bot_logs.",  # noqa
+        ),
     ]
 )
 

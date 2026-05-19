@@ -20,6 +20,7 @@ from infrastructure.api_client import (
     get_api_series_repository,
 )
 from utilities import constants
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.helper_functions import (
@@ -222,6 +223,7 @@ def build_series_add_form(
 def handle_series_add(body: dict, client: WebClient, logger: Logger, context: dict, region_record: SlackSettings):
     metadata = _parse_view_private_metadata(body)
     form_data = SERIES_FORM.get_selected_values(body)
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     end_date = safe_get(form_data, actions.CALENDAR_ADD_SERIES_END_DATE)  # "YYYY-MM-DD" string or None
 
@@ -311,6 +313,12 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "previous_view_id")
         )
         trigger_map_revalidation(action="map.updated", map_update_data=MapUpdateData(eventId=metadata["series_id"]))
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Series edited: {series_name} by <@{slack_user_id}>",
+            logger=logger,
+        )
 
     else:
         meta: dict = {}
@@ -346,6 +354,12 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         # The API cascade automatically creates all future EventInstances; no local create needed.
         for record in created_series:
             trigger_map_revalidation(action="map.created", map_update_data=MapUpdateData(eventId=record.id))
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":heavy_plus_sign: Series created: {series_name} by <@{slack_user_id}>",
+            logger=logger,
+        )
 
 
 def build_series_list_form(
@@ -432,17 +446,25 @@ def handle_series_edit_delete(
 ):
     series_id = safe_convert(safe_get(body, "actions", 0, "action_id").split("_")[1], int)
     action = safe_get(body, "actions", 0, "selected_option", "value")
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     if action == "Edit":
         series = _build_series_service().get_by_id(series_id)
         build_series_add_form(body, client, logger, context, region_record, edit_event=series, loading_form=True)
     elif action == "Delete":
+        series = _build_series_service().get_by_id(series_id)
         _build_series_service().delete_series(series_id)
         # The API cascade automatically soft-deletes all future EventInstances; no local update needed.
         trigger_map_revalidation(action="map.deleted", map_update_data=MapUpdateData(eventId=series_id))
         body["view"]["private_metadata"] = json.dumps({"is_series": "True"})
         build_series_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id")
+        )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":wastebasket: Series deleted: {series.name if series else series_id} by <@{slack_user_id}>",
+            logger=logger,
         )
 
 

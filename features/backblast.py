@@ -30,6 +30,7 @@ from sqlmodel import func
 
 from features import connect
 from utilities import constants, sendmail
+from utilities.bot_logger import post_bot_log
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
     MissingBackblastQuery,
@@ -758,6 +759,7 @@ def handle_backblast_post(body: dict, client: WebClient, logger: Logger, context
     event_instance_id = safe_get(metadata, "event_instance_id")
     backblast_form = copy.deepcopy(forms.BACKBLAST_FORM)
     backblast_form = add_custom_field_blocks(backblast_form, region_record)
+    slack_user_id = safe_get(body, "user", "id") or safe_get(body, "user_id")
 
     if event_instance_id:
         event: EventInstance = DbManager.get(
@@ -1062,11 +1064,19 @@ COUNT: {count}
                 blocks=blocks,
                 metadata={"event_type": "backblast", "event_payload": backblast_data},
             )
+            action_text = "posted"
         else:
             res = client.chat_postMessage(
                 channel=user_id,
                 text="Your backblast has been saved to the database but a Slack channel has not been configured for your AO, so it cannot be posted to Slack. The Slack channel can be set by an admin in `/f3-nation-settings` -> Calendar Settings -> Manage AOs.",  # noqa: E501
             )
+            action_text = "saved (no channel)"
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":mega: Backblast {action_text} for *{title}* on *{the_date}* by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
         if (email_send and email_send == "yes") or (email_send is None and region_record.email_enabled == 1):
             moleskin_msg = moleskin_text_w_names
 
@@ -1126,6 +1136,12 @@ COUNT: {count}
                 blocks=blocks,
                 metadata={"event_type": "backblast", "event_payload": backblast_data},
             )
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Backblast edited for *{title}* on *{the_date}* by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
 
     # res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 

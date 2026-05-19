@@ -1,5 +1,6 @@
 import json
 import random
+import time
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -17,12 +18,14 @@ from f3_data_models.models import (
     Org,
 )
 from f3_data_models.utils import DbManager
+from slack_sdk.errors import SlackApiError
 from slack_sdk.web import WebClient
 from sqlalchemy import or_
 
 from features import backblast, connect
 from features.calendar import get_preblast_action_blocks
 from utilities import constants
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
@@ -38,6 +41,7 @@ from utilities.helper_functions import (
     get_user_names,
     parse_rich_block,
     replace_user_channel_ids,
+    reupload_file_as_bot,
     safe_convert,
     safe_get,
 )
@@ -455,7 +459,10 @@ def handle_event_preblast_edit(
     if form_data[actions.EVENT_PREBLAST_IMAGE]:
         event_instance_record: EventInstance = DbManager.get(EventInstance, event_instance_id)
         event_instance_meta = event_instance_record.meta or {}
-        file_id = safe_get(form_data[actions.EVENT_PREBLAST_IMAGE], 0, "id")
+        file_obj = safe_get(form_data[actions.EVENT_PREBLAST_IMAGE], 0)
+        file_id = reupload_file_as_bot(file_obj, client, logger, region_record=region_record) or safe_get(
+            file_obj, "id"
+        )
         event_instance_meta["preblast_image_slack_file_id"] = file_id
         update_fields[EventInstance.meta] = event_instance_meta
 
@@ -532,6 +539,30 @@ def handle_event_preblast_edit(
         pass
 
 
+def _post_blocks(api_call, blocks: list, logger: Logger, max_retries: int = 3, **kwargs):
+    """Call a Slack API method with blocks, retrying on invalid slack file errors.
+
+    Slack occasionally needs a moment to process a freshly uploaded file before it
+    can be referenced in a slack_file image block.  On that specific error, this
+    retries with exponential back-off (1 s, 2 s, 4 s) rather than a fixed sleep.
+    All other errors are re-raised immediately.
+    """
+    for attempt in range(max_retries):
+        try:
+            return api_call(blocks=blocks, **kwargs)
+        except SlackApiError as exc:
+            is_file_not_ready = exc.response.get("error") == "invalid_blocks" and any(
+                "slack file" in (e or "") for e in exc.response.get("errors", [])
+            )
+            if is_file_not_ready and attempt < max_retries - 1:
+                wait = 2**attempt  # 1 s, 2 s, 4 s …
+                logger.warning(f"Slack file not ready (attempt {attempt + 1}/{max_retries}), retrying in {wait}s")
+                time.sleep(wait)
+                continue
+            # TODO: optionally remove the image block as a last resort if the file never becomes ready?
+            raise
+
+
 def send_preblast(
     body: dict = None,
     client: WebClient = None,
@@ -594,9 +625,11 @@ def send_preblast(
                 logger.error(f"Error deleting original preblast message for event_instance_id {event_instance_id}: {e}")
             # Post new message
             try:
-                res = client.chat_postMessage(
+                res = _post_blocks(
+                    client.chat_postMessage,
+                    blocks,
+                    logger,
                     channel=preblast_channel,
-                    blocks=blocks,
                     text="Event Preblast",
                     metadata={"event_type": "preblast", "event_payload": metadata},
                     unfurl_links=False,
@@ -609,10 +642,12 @@ def send_preblast(
         else:
             # Update existing message
             try:
-                client.chat_update(
+                _post_blocks(
+                    client.chat_update,
+                    blocks,
+                    logger,
                     channel=preblast_channel,
                     ts=str(existing_ts),
-                    blocks=blocks,
                     text="Event Preblast",
                     metadata={"event_type": "preblast", "event_payload": metadata},
                     username=username,
@@ -620,6 +655,12 @@ def send_preblast(
                 )
             except Exception as e:
                 logger.error(f"Error updating preblast message for event_instance_id {event_instance_id}: {e}")
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Preblast updated for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
     else:
         if not preblast_channel:
             preblast_channel = client.chat_postMessage(
@@ -629,10 +670,13 @@ def send_preblast(
                 "admins; either at the AO level by going to Settings -> Calendar Settings -> Manage AOs, "
                 "or at the region level by going to Settings -> Preblast and Backblast Settings.",
             )
+            action_text = "saved (no channel)"
         else:
-            res = client.chat_postMessage(
+            res = _post_blocks(
+                client.chat_postMessage,
+                blocks,
+                logger,
                 channel=preblast_channel,
-                blocks=blocks,
                 text="Event Preblast",
                 metadata={"event_type": "preblast", "event_payload": metadata},
                 unfurl_links=False,
@@ -640,6 +684,13 @@ def send_preblast(
                 icon_url=icon_url,
             )
             DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+            action_text = "posted"
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":mega: Preblast {action_text} for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
 
 
 def build_preblast_info(
