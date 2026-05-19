@@ -25,6 +25,7 @@ from sqlalchemy import or_
 from features import backblast, connect
 from features.calendar import get_preblast_action_blocks
 from utilities import constants
+from utilities.bot_logger import post_bot_log
 from utilities.builders import add_loading_form
 from utilities.database.orm import SlackSettings
 from utilities.database.special_queries import (
@@ -654,6 +655,12 @@ def send_preblast(
                 )
             except Exception as e:
                 logger.error(f"Error updating preblast message for event_instance_id {event_instance_id}: {e}")
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":pencil2: Preblast updated for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
     else:
         if not preblast_channel:
             preblast_channel = client.chat_postMessage(
@@ -663,6 +670,7 @@ def send_preblast(
                 "admins; either at the AO level by going to Settings -> Calendar Settings -> Manage AOs, "
                 "or at the region level by going to Settings -> Preblast and Backblast Settings.",
             )
+            action_text = "saved (no channel)"
         else:
             res = _post_blocks(
                 client.chat_postMessage,
@@ -676,6 +684,13 @@ def send_preblast(
                 icon_url=icon_url,
             )
             DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
+            action_text = "posted"
+        post_bot_log(
+            client=client,
+            region_record=region_record,
+            text=f":mega: Preblast {action_text} for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id}>",  # noqa: E501
+            logger=logger,
+        )
 
 
 def build_preblast_info(
