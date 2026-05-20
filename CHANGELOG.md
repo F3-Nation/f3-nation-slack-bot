@@ -2,6 +2,45 @@
 
 <!-- version list -->
 
+## v1.11.0 (2026-05-20)
+
+### Bug Fixes
+
+- Cleaned up bot logging messages a bit
+  ([`5316f87`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/5316f873fe2611ac3bd857b771e4ba25a54bae5d))
+
+- Fixed error on closing events
+  ([`e7ea76a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/e7ea76a1caf4207fad1a87d20b6c722e349d4436))
+
+- Help response now has stats link that points to the correct user_id
+  ([`ccc667d`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/ccc667da179ab4442297b10383ad4c75748e89d4))
+
+### Features
+
+- Added bot logging to Slack ([#211](https://github.com/F3-Nation/f3-nation-slack-bot/pull/211),
+  [`bf36107`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/bf361078b31e3a3fc0941866f6d6559a0724c45e))
+
+### Refactoring
+
+- Added application and infrastructure modules to script container build
+  ([`a9e00b0`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/a9e00b0e6b228f675e34380728021decfa508004))
+
+- Beginning migration to our API (starting with event tags admin) and other refactorings
+  ([`0f30861`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/0f30861ce2edffdf73936ffc2823d582a1d5132c))
+
+- Fixing a production query issue on achievements
+  ([`46a1d0a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/46a1d0a9a0d62308a3ebd13942980ba11d9a3f56))
+
+- Launching achievements in dark release
+  ([`2c3d1be`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/2c3d1be9b6a0ef60195b995496c67cd15d35b401))
+
+- Making manual achievement message more consistent with auto achievement
+  ([`1d90891`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/1d908919f1d55dcaf790dcf9be2f9b2b929ab08f))
+
+- Updated all dependencies and some additional paxminer cleanup
+  ([`cf58eda`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/cf58eda984dde66b40d7bdb5fd115c7a0aec050c))
+
+
 ## v1.10.3 (2026-05-05)
 
 ### Bug Fixes
