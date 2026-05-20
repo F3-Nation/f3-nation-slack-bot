@@ -177,6 +177,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         )
         map_action = "map.updated"
         org_id = ao_id
+        action_text = "edited"
     else:
         ao_data = ao_service.create_ao(
             parent_id=parent_id,
@@ -187,6 +188,7 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
         )
         map_action = "map.created"
         org_id = ao_data.id
+        action_text = "created"
 
     file = safe_get(form_data, actions.CALENDAR_ADD_AO_LOGO, 0)
     if file:
@@ -215,9 +217,9 @@ def handle_ao_add(body: dict, client: WebClient, logger: Logger, context: dict, 
     trigger_map_revalidation(action=map_action, map_update_data=MapUpdateData(orgId=org_id))
 
     action_text = (
-        f":pencil2: AO edited: {name} by <@{slack_user_id}>"
+        f":pencil2: AO edited: {name} by <@{slack_user_id or 'app'}>"
         if safe_get(metadata, "ao_id")
-        else f":heavy_plus_sign: AO created: {name} by <@{slack_user_id}>"
+        else f":heavy_plus_sign: AO {action_text}: {name} by <@{slack_user_id or 'app'}>"
     )
     post_bot_log(client=client, region_record=region_record, text=action_text, logger=logger)
 

@@ -165,7 +165,7 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
             post_bot_log(
                 client=client,
                 region_record=region_record,
-                text=f":pencil2: Event tag edited: {event_tag_name} ({event_color}) by <@{slack_user_id}>",
+                text=f":pencil2: Event tag edited: {event_tag_name} ({event_color}) by <@{slack_user_id or 'app'}>",
                 logger=logger,
             )
         else:
@@ -173,7 +173,7 @@ def handle_event_tag_add(body: dict, client: WebClient, logger: Logger, context:
             post_bot_log(
                 client=client,
                 region_record=region_record,
-                text=f":heavy_plus_sign: Event tag created: {event_tag_name} ({event_color}) by <@{slack_user_id}>",
+                text=f":heavy_plus_sign: Event tag created: {event_tag_name} ({event_color}) by <@{slack_user_id or 'app'}>",  # noqa: E501
                 logger=logger,
             )
 
@@ -235,7 +235,7 @@ def handle_event_tag_edit_delete(
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":wastebasket: Event tag deleted: {deleted_tag_name} by <@{slack_user_id}>",
+            text=f":wastebasket: Event tag deleted: {deleted_tag_name} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
 

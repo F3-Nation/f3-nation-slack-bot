@@ -389,7 +389,7 @@ def build_event_preblast_form(
                     )
                 )
         else:
-            form.blocks[-1].label = f"When would you like to send the preblast to <#{preblast_channel}>?"
+            form.blocks[-1].label = "When would you like to send the preblast?"
         form.blocks.append(orm.ActionsBlock(elements=preblast_info.action_blocks))
     else:
         blocks = [
@@ -655,12 +655,7 @@ def send_preblast(
                 )
             except Exception as e:
                 logger.error(f"Error updating preblast message for event_instance_id {event_instance_id}: {e}")
-        post_bot_log(
-            client=client,
-            region_record=region_record,
-            text=f":pencil2: Preblast updated for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id}>",  # noqa: E501
-            logger=logger,
-        )
+        action_text = "reposted" if repost else "updated"
     else:
         if not preblast_channel:
             preblast_channel = client.chat_postMessage(
@@ -685,12 +680,15 @@ def send_preblast(
             )
             DbManager.update_record(EventInstance, event_instance_id, {EventInstance.preblast_ts: float(res["ts"])})
             action_text = "posted"
-        post_bot_log(
-            client=client,
-            region_record=region_record,
-            text=f":mega: Preblast {action_text} for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id}>",  # noqa: E501
-            logger=logger,
-        )
+    log_msg = f":mega: Preblast {action_text} for *{preblast_info.event_record.name}* on *{preblast_info.event_record.start_date}* by <@{slack_user_id or 'app'}>"  # noqa: E501
+    if preblast_channel and preblast_info.event_record.preblast_ts:
+        log_msg += f" <slack://channel?team={region_record.team_id}&id={preblast_channel}&ts={preblast_info.event_record.preblast_ts}|Link>\n"  # noqa: E501
+    post_bot_log(
+        client=client,
+        region_record=region_record,
+        text=log_msg,
+        logger=logger,
+    )
 
 
 def build_preblast_info(

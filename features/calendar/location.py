@@ -378,9 +378,9 @@ def handle_location_add(body: dict, client: WebClient, logger: Logger, context: 
         )
 
     action_text = (
-        f":pencil2: Location edited: {safe_get(form_data, _LOCATION_NAME)} by <@{slack_user_id}>"
+        f":pencil2: Location edited: {safe_get(form_data, _LOCATION_NAME)} by <@{slack_user_id or 'app'}>"
         if location_id
-        else f":heavy_plus_sign: Location created: {safe_get(form_data, _LOCATION_NAME)} by <@{slack_user_id}>"
+        else f":heavy_plus_sign: Location created: {safe_get(form_data, _LOCATION_NAME)} by <@{slack_user_id or 'app'}>"
     )
     post_bot_log(client=client, region_record=region_record, text=action_text, logger=logger)
 
@@ -430,7 +430,7 @@ def handle_location_edit_delete(
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":wastebasket: Location deleted: {deleted_name} by <@{slack_user_id}>",
+            text=f":wastebasket: Location deleted: {deleted_name} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
 

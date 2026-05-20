@@ -316,7 +316,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":pencil2: Series edited: {series_name} by <@{slack_user_id}>",
+            text=f":pencil2: Series edited: {series_name} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
 
@@ -357,7 +357,7 @@ def handle_series_add(body: dict, client: WebClient, logger: Logger, context: di
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":heavy_plus_sign: Series created: {series_name} by <@{slack_user_id}>",
+            text=f":heavy_plus_sign: Series created: {series_name} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
 
@@ -463,7 +463,7 @@ def handle_series_edit_delete(
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":wastebasket: Series deleted: {series.name if series else series_id} by <@{slack_user_id}>",
+            text=f":wastebasket: Series deleted: {series.name if series else series_id} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
 

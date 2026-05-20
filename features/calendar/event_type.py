@@ -163,7 +163,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":pencil2: Event type edited: {event_type_name} ({display_acronym}) by <@{slack_user_id}>",
+            text=f":pencil2: Event type edited: {event_type_name} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
     elif event_type_name and event_category:
@@ -177,7 +177,7 @@ def handle_event_type_add(body: dict, client: WebClient, logger: Logger, context
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":heavy_plus_sign: Event type created: {event_type_name} ({display_acronym}) by <@{slack_user_id}>",
+            text=f":heavy_plus_sign: Event type created: {event_type_name} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
 
@@ -218,7 +218,7 @@ def handle_event_type_edit_delete(
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":wastebasket: Event type deleted: {event_type.name if event_type else event_type_id} by <@{slack_user_id}>",  # noqa: E501
+            text=f":wastebasket: Event type deleted: {event_type.name if event_type else event_type_id} by <@{slack_user_id or 'app'}>",  # noqa: E501
             logger=logger,
         )
 

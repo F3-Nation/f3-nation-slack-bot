@@ -1071,12 +1071,6 @@ COUNT: {count}
                 text="Your backblast has been saved to the database but a Slack channel has not been configured for your AO, so it cannot be posted to Slack. The Slack channel can be set by an admin in `/f3-nation-settings` -> Calendar Settings -> Manage AOs.",  # noqa: E501
             )
             action_text = "saved (no channel)"
-        post_bot_log(
-            client=client,
-            region_record=region_record,
-            text=f":mega: Backblast {action_text} for *{title}* on *{the_date}* by <@{slack_user_id}>",  # noqa: E501
-            logger=logger,
-        )
         if (email_send and email_send == "yes") or (email_send is None and region_record.email_enabled == 1):
             moleskin_msg = moleskin_text_w_names
 
@@ -1136,12 +1130,16 @@ COUNT: {count}
                 blocks=blocks,
                 metadata={"event_type": "backblast", "event_payload": backblast_data},
             )
-        post_bot_log(
-            client=client,
-            region_record=region_record,
-            text=f":pencil2: Backblast edited for *{title}* on *{the_date}* by <@{slack_user_id}>",  # noqa: E501
-            logger=logger,
-        )
+        action_text = "edited"
+    log_msg = f":page_facing_up: Backblast {action_text} for *{title}* on *{the_date}* by <@{slack_user_id or 'app'}>"
+    if res and res.get("channel") and res.get("ts"):
+        log_msg += f" <slack://channel?team={region_record.team_id}&id={res['channel']}&ts={res['ts']}|Link>\n"
+    post_bot_log(
+        client=client,
+        region_record=region_record,
+        text=log_msg,  # noqa: E501
+        logger=logger,
+    )
 
     # res_link = client.chat_getPermalink(channel=chan or message_channel, message_ts=res["ts"])
 

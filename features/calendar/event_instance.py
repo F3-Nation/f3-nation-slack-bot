@@ -368,7 +368,7 @@ def handle_event_instance_add(
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":pencil2: Event edited: {event_instance_name} on {start_date} by <@{slack_user_id}>",
+            text=f":pencil2: Event edited: {event_instance_name} on {start_date} by <@{slack_user_id or 'app'}>",
             logger=logger,
         )
     else:
@@ -392,7 +392,7 @@ def handle_event_instance_add(
         post_bot_log(
             client=client,
             region_record=region_record,
-            text=f":heavy_plus_sign: Event created: {event_instance_name} on {start_date} by <@{slack_user_id}>",
+            text=f":heavy_plus_sign: Event created: {event_instance_name} on {start_date} by <@{slack_user_id or 'app'}>",  # noqa: E501
             logger=logger,
         )
 
@@ -567,7 +567,7 @@ def handle_event_instance_edit_delete(
         build_event_instance_list_form(
             body, client, logger, context, region_record, update_view_id=safe_get(body, "view", "id"), loading_form=True
         )
-        action_text = f":wastebasket: <@{user_id}> deleted event: {event_title}"
+        action_text = f":wastebasket: <@{user_id or 'app'}> deleted event: {event_title}"
 
     if action_text:
         post_bot_log(
