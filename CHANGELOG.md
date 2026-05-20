@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.11.1 (2026-05-20)
+
+### Bug Fixes
+
+- Hotfix for event instance and series forms only showing custom event types and tags
+  ([`ec675ac`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/ec675ac58f535a625faaa80a7fbc4c16d045db01))
+
+
 ## v1.11.0 (2026-05-20)
 
 ### Bug Fixes
