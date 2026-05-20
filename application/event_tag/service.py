@@ -18,6 +18,10 @@ class EventTagService:
         """Return org-specific event tags for *org_id*."""
         return self._repository.get_by_org(int(org_id))
 
+    def get_all_tags_for_org(self, org_id: int | str) -> list[EventTagData]:
+        """Return org-specific and global (nation-wide) event tags visible to *org_id*."""
+        return self._repository.get_all_for_org(int(org_id))
+
     def get_event_tag_by_id(self, tag_id: int) -> EventTagData | None:
         """Return a single event tag, or *None* if not found."""
         return self._repository.get_by_id(tag_id)

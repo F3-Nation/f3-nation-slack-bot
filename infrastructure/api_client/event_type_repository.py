@@ -36,8 +36,9 @@ class ApiEventTypeRepository:
         self._client = client
 
     def _fetch_raw(self, org_id: int) -> list[dict]:
-        result = self._client.get(f"/v1/event-type/org/{org_id}")
-        return result.get("eventTypes") or result.get("results") or []
+        result = self._client.get("/v1/event-type", params={"orgIds": [org_id], "statuses": ["active"]})
+        raw = result.get("eventTypes") or result.get("results") or []
+        return [t for t in raw if t.get("isActive", t.get("is_active", True))]
 
     def get_by_org(self, org_id: int) -> list[EventTypeData]:
         """Return only org-specific event types for *org_id*."""

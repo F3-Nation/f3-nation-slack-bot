@@ -15,6 +15,10 @@ class EventTagRepository(Protocol):
         """Return only org-specific (custom) event tags for the given org."""
         ...
 
+    def get_all_for_org(self, org_id: int) -> list[EventTagData]:
+        """Return org-specific and global (nation-wide) event tags visible to the given org."""
+        ...
+
     def get_by_id(self, tag_id: int) -> EventTagData | None:
         """Return a single event tag by primary key, or None if not found."""
         ...

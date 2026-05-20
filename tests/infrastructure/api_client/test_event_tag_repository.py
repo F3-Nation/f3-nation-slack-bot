@@ -25,7 +25,7 @@ class ApiEventTagRepositoryTest(unittest.TestCase):
 
         result = self.repo.get_by_org(10)
 
-        self.client.get.assert_called_once_with("/v1/event-tag/org/10")
+        self.client.get.assert_called_once_with("/v1/event-tag", params={"orgIds": [10], "statuses": ["active"]})
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].id, 1)
         self.assertEqual(result[0].specific_org_id, 10)
@@ -38,7 +38,7 @@ class ApiEventTagRepositoryTest(unittest.TestCase):
                     "name": "Fallback",
                     "color": None,
                     "specific_org_id": 77,
-                    "is_active": False,
+                    "is_active": True,
                     "description": "fallback payload",
                 }
             ]
@@ -49,7 +49,7 @@ class ApiEventTagRepositoryTest(unittest.TestCase):
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].id, 99)
         self.assertEqual(result[0].specific_org_id, 77)
-        self.assertFalse(result[0].is_active)
+        self.assertTrue(result[0].is_active)
 
     def test_get_by_org_returns_empty_list_when_payload_has_no_expected_keys(self):
         self.client.get.return_value = {"unexpected": []}

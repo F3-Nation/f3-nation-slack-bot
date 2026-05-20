@@ -112,7 +112,7 @@ def build_series_add_form(
     aos = ao_service.get_region_aos(region_record.org_id)
     locations = location_service.get_org_locations(region_record.org_id)
     event_types = event_type_service.get_all_event_types_for_org(region_record.org_id)
-    event_tags = event_tag_service.get_org_event_tags(region_record.org_id)
+    event_tags = event_tag_service.get_all_tags_for_org(region_record.org_id)
 
     form.set_options(
         {

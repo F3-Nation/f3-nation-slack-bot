@@ -31,12 +31,21 @@ class ApiEventTagRepository:
     def __init__(self, client: F3ApiClient) -> None:
         self._client = client
 
+    def _fetch_raw(self, org_id: int) -> list[dict]:
+        result = self._client.get("/v1/event-tag", params={"orgIds": [org_id], "statuses": ["active"]})
+        raw = result.get("eventTags") or result.get("results") or []
+        return [t for t in raw if t.get("isActive", t.get("is_active", True))]
+
     def get_by_org(self, org_id: int) -> list[EventTagData]:
         """Return org-specific event tags for *org_id*."""
-        result = self._client.get(f"/v1/event-tag/org/{org_id}")
-        tags_raw: list[dict] = result.get("eventTags") or result.get("results") or []
-        # Mirror legacy behaviour: only return tags that belong to this org.
+        tags_raw = self._fetch_raw(org_id)
         return [_parse_event_tag(t) for t in tags_raw if t.get("specificOrgId", t.get("specific_org_id")) == org_id]
+
+    def get_all_for_org(self, org_id: int) -> list[EventTagData]:
+        """Return org-specific and global event tags visible to *org_id*."""
+        tags_raw = self._fetch_raw(org_id)
+        specific_org_id = lambda t: t.get("specificOrgId", t.get("specific_org_id"))  # noqa: E731
+        return [_parse_event_tag(t) for t in tags_raw if specific_org_id(t) == org_id or specific_org_id(t) is None]
 
     def get_by_id(self, tag_id: int) -> EventTagData | None:
         try:

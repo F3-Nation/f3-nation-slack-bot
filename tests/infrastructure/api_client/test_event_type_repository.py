@@ -50,7 +50,7 @@ class ApiEventTypeRepositoryTest(unittest.TestCase):
 
         result = self.repo.get_by_org(10)
 
-        self.client.get.assert_called_once_with("/v1/event-type/org/10")
+        self.client.get.assert_called_once_with("/v1/event-type", params={"orgIds": [10], "statuses": ["active"]})
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].id, 1)
         self.assertEqual(result[0].specific_org_id, 10)
