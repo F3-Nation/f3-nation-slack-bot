@@ -147,7 +147,7 @@ def send_backblast_reminders(force=False):
                 slack_bot_token
                 and backblast.slack_user_id
                 and not safe_get(backblast.event.meta, "backblast_reminder_dismissed")
-                and not backblast.event.series_exception != Series_Exception.closed
+                and backblast.event.series_exception != Series_Exception.closed
             ):
                 if (
                     backblast_reminder_days > 0
