@@ -482,6 +482,14 @@ def handle_event_preblast_edit(
     coq_list = safe_get(form_data, actions.EVENT_PREBLAST_COQS) or []
     user_ids = [get_user(slack_id, region_record, client, logger).user_id for slack_id in coq_list]
     # better way to upsert / on conflict do nothing?
+    DbManager.delete_records(
+        cls=Attendance,
+        filters=[
+            Attendance.event_instance_id == event_instance_id,
+            Attendance.attendance_types.any(AttendanceType.id == 3),
+        ],  # COQ type
+        joinedloads=[Attendance.attendance_x_attendance_types],
+    )
     if user_ids:
         DbManager.delete_records(
             cls=Attendance,
