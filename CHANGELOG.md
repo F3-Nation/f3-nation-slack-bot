@@ -2,6 +2,17 @@
 
 <!-- version list -->
 
+## v1.11.2 (2026-05-21)
+
+### Bug Fixes
+
+- Dropping a COQ from the preblast now actually removes them
+  ([`0cfcd77`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/0cfcd77972ffff605c2be64540bba747475ce71c))
+
+- Fixed backblast reminders only being sent for closed events
+  ([`db813bc`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/db813bcd06c3318f4e079610dbb08ab7df62db4c))
+
+
 ## v1.11.1 (2026-05-20)
 
 ### Bug Fixes
