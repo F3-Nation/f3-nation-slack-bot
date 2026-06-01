@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.12.0 (2026-06-01)
+
+### Features
+
+- Added context to DR posts so DR users (with possible incorrect home region ids) can be identified
+  ([`4126820`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/4126820d3384b7e88febe362aff1576f3cfb8b2c))
+
+
 ## v1.11.2 (2026-05-21)
 
 ### Bug Fixes
