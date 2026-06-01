@@ -3,9 +3,10 @@ import json
 import os
 import ssl
 import time
+from collections import defaultdict
 from datetime import datetime
 from logging import Logger
-from typing import List
+from typing import Dict, List
 
 import pytz
 from cryptography.fernet import Fernet
@@ -1217,6 +1218,10 @@ COUNT: {count}
         foreign_region_ids = {
             u.home_region_id for u in pax_user_records if u.home_region_id and u.home_region_id != region_record.org_id
         }
+        foreign_user_names: Dict[int, List[str]] = defaultdict(list)  # region_id -> list of f3_names
+        for u in pax_user_records:
+            if u.home_region_id and u.home_region_id != region_record.org_id:
+                foreign_user_names[u.home_region_id].append(u.f3_name)
 
         existing_dr_posts = safe_get(event.meta if event else {}, "downrange_posts") or []
         existing_by_team = {p["team_id"]: p for p in existing_dr_posts}
@@ -1261,7 +1266,9 @@ COUNT: {count}
 
             cross_blocks.append(
                 slack_orm.ContextBlock(
-                    element=slack_orm.ContextElement(initial_value=f"Cross-posted from *{event_org.name}*")
+                    element=slack_orm.ContextElement(
+                        initial_value=f"Cross-posted from *{event_org.name}* for PAX: {', '.join(foreign_user_names.get(home_region_id) or [])}"  # noqa: E501
+                    )
                 ).as_form_field()
             )
 
