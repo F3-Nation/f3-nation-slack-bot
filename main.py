@@ -75,7 +75,7 @@ if not LOCAL_DEVELOPMENT:
     @functions_framework.http
     def handler(request: Request):
         if request.path == "/":
-            return Response("Service is running", status=200)
+            return Response("Service is running", status=200, headers={"Access-Control-Allow-Origin": "*"})
         elif request.path == "/gcp_event":
             logging.info("GCP Event")
             return scripts.handle(request)
