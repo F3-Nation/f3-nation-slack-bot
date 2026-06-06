@@ -251,7 +251,7 @@ EVENT_TAG_FORM = SdkBlockView(
             label=PlainTextObject(text="Create a new event tag"),
             element=PlainTextInputElement(placeholder=PlainTextObject(text="New event tag")),
             block_id=CALENDAR_ADD_EVENT_TAG_NEW,
-            optional=True,
+            optional=False,
         ),
         InputBlock(
             label=PlainTextObject(text="Event tag color"),
@@ -260,7 +260,7 @@ EVENT_TAG_FORM = SdkBlockView(
                 options=as_selector_options(names=list(EVENT_TAG_COLORS.keys())),
             ),
             block_id=CALENDAR_ADD_EVENT_TAG_COLOR,
-            optional=True,
+            optional=False,
             hint="This is the color that will be shown on the calendar",
         ),
         SectionBlock(text="Colors already in use:", block_id=CALENDAR_EVENT_TAG_COLORS_IN_USE),
