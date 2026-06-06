@@ -465,6 +465,21 @@ The following three functions were deleted from `features/calendar/series.py` du
 
 All cascade logic is now entirely handled server-side by the F3 Nation API.
 
+### position
+
+| Aspect | Detail |
+|--------|--------|
+| List org-specific positions | `GET /v1/position/org/{orgId}` — excludes global/national positions |
+| List with assignments | `GET /v1/position/assignments/{orgId}?regionOrgId={regionOrgId}` — returns positions with nested `users` array |
+| `regionOrgId` param | Required context for the assignments endpoint; pass the parent region ID to get the correct tier (region vs AO) of positions |
+| Create / Update | `POST /v1/position` (crupdate — omit `id` to create, include `id` to update); only `name` is required |
+| Delete | `DELETE /v1/position/id/{id}` — soft delete |
+| Bulk assignment replace | `PUT /v1/position/assignments` — deprecated but kept for backward compatibility; atomically replaces all assignments for an org: `{orgId, assignments: [{positionId, userIds: []}]}` |
+| Response envelope | `positions` (list), `position` (single) |
+| `orgType` values | Plain strings: `"region"`, `"ao"`, `"area"`, `"sector"`, `"nation"` |
+| Slack ID ↔ F3 user ID mapping | The assignments API returns F3 user IDs, not Slack user IDs. Build a `{f3_user_id: slack_id}` dict from `SLACK_USERS.values()` (filtering by `slack_team_id`) to populate Slack multi-user selects. For saving, use `get_user(slack_id, ...)` → `SlackUser.user_id` to get the F3 integer ID. |
+| `F3ApiClient.put()` method | The base client did not have a `put()` method. It was added to support the bulk-assignment endpoint. Future domains needing HTTP PUT should use this method. |
+
 ### General patterns
 
 - **Crupdate POST**: Most domains use a single `POST` endpoint for both create and update.  Omit
@@ -508,3 +523,6 @@ All cascade logic is now entirely handled server-side by the F3 Nation API.
 | `series_exception` string vs enum | The legacy codebase compared against a Python enum (`Series_Exception.closed`).  The API returns a plain string (`"closed"`).  Replace all enum comparisons with string literals after migration. |
 | Crupdate requires fields the edit form omits | Some edit forms intentionally hide certain fields (e.g. the series edit form hides `start_date`, `end_date`, `day_of_week`, and recurrence fields).  The crupdate POST still requires those fields.  Fetch the existing record first, then forward the preserved values in the update call.  Never send stale defaults (e.g. `None`) for required API fields just because they are not in the form. |
 | API does not return event tags for series | `GET /v1/event` and `GET /v1/event/id/{id}` do not include event tag data — the edit form cannot pre-fill the tag selection.  Accept this UX limitation; do not work around it by calling an additional API to infer tag associations. |
+| Slack user ID ↔ F3 user ID mismatch in assignment forms | Slack multi-user selects use Slack user IDs; the position assignments API returns F3 integer user IDs. Build a reverse map `{su.user_id: su.slack_id for su in SLACK_USERS.values() if su.slack_team_id == team_id}` when populating initial values. When saving, resolve Slack IDs back to F3 IDs via `get_user(slack_id, ...)` → `SlackUser.user_id`. |
+| `F3ApiClient` missing HTTP verbs | The base client was initially limited to `get`, `post`, and `delete`. When a domain needs `PUT` (e.g. the deprecated bulk position-assignment endpoint), add the verb to `F3ApiClient._request`-based helper methods before implementing the repository. |
+| Deprecated bulk-replace endpoint is still correct approach | Some older API endpoints are marked "deprecated" but remain the only atomic way to perform a multi-record operation (e.g. `PUT /v1/position/assignments` for replacing all position assignments). Prefer them over a sequence of individual creates/deletes unless the API provides a supported bulk alternative. |
