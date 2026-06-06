@@ -2,6 +2,24 @@
 
 <!-- version list -->
 
+## v1.13.0 (2026-06-06)
+
+### Bug Fixes
+
+- Making both inputs required on adding event tag
+  ([`27d70da`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/27d70da96967e39a26e57be13fd9ea851a10e51f))
+
+### Features
+
+- Migrated SLT/positions to utilize the API
+  ([`361b82e`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/361b82e9d29c43d48c779ee6ae60ef0ee3531054))
+
+### Refactoring
+
+- Added access control header to root path to better reflect status
+  ([`be75f6a`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/be75f6a3d748c9cea86864a973959d8c05503495))
+
+
 ## v1.12.0 (2026-06-01)
 
 ### Features
