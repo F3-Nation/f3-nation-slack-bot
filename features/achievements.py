@@ -57,6 +57,30 @@ from utilities.helper_functions import (
 )
 from utilities.slack.sdk_orm import SdkBlockView, as_selector_options
 
+
+# =============================================================================
+# Feature availability
+# =============================================================================
+def achievements_enabled_for_region(region_record: SlackSettings) -> bool:
+    """Return whether the achievements feature is available for a region.
+
+    Achievements are available when either:
+
+    * the region's org id is in the ``ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS``
+      allowlist (set via env var by F3 Nation ops, retained as a
+      force-enable override for staged rollouts), or
+    * the region has opted in by enabling achievements in
+      *F3 Nation Settings -> Achievement Settings* (``send_achievements``).
+
+    The Achievement Settings modal itself is always reachable so that an
+    admin can flip the opt-in; only the downstream surfaces (e.g. manual
+    achievement tagging) are gated on this check.
+    """
+    if region_record.org_id in ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS:
+        return True
+    return bool(region_record.send_achievements)
+
+
 # =============================================================================
 # Action IDs
 # =============================================================================
@@ -689,24 +713,15 @@ def build_config_form(body: dict, client: WebClient, logger: Logger, context: di
     """Build and display the achievement configuration modal."""
     trigger_id = safe_get(body, "trigger_id")
 
-    if region_record.org_id not in ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS:
-        form = SdkBlockView(
-            blocks=[
-                SectionBlock(
-                    text=MarkdownTextObject(
-                        text=":construction: This feature is currently in alpha testing, coming soon to all regions! :construction:"  # noqa E501
-                    ),
-                ),
-            ]
-        )
-        submit = "None"
-    else:
-        service = AchievementService()
-        views = AchievementViews()
+    # The Achievement Settings modal is the entry point for the per-region
+    # opt-in (the "Enable achievements" toggle writes ``send_achievements``),
+    # so it must always be reachable by an admin.
+    service = AchievementService()
+    views = AchievementViews()
 
-        achievements = service.get_all_achievements(region_record.org_id)
-        form = views.build_config_modal(region_record, achievements)
-        submit = "Submit"
+    achievements = service.get_all_achievements(region_record.org_id)
+    form = views.build_config_modal(region_record, achievements)
+    submit = "Submit"
 
     form.post_modal(
         client=client,
@@ -929,12 +944,12 @@ def build_tag_achievement_form(
     from utilities.slack import forms as legacy_forms
     from utilities.slack import orm as legacy_orm
 
-    if region_record.org_id not in ACHIEVEMENTS_ALPHA_TESTING_ORG_IDS:
+    if not achievements_enabled_for_region(region_record):
         form = SdkBlockView(
             blocks=[
                 SectionBlock(
                     text=MarkdownTextObject(
-                        text=":construction: This feature is currently in alpha testing, coming soon to all regions! :construction:"  # noqa E501
+                        text="Achievements aren't enabled for your region yet. An admin can turn them on in *F3 Nation Settings → Achievement Settings*."  # noqa E501
                     ),
                 ),
             ]
