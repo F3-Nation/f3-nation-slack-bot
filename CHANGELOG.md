@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.13.1 (2026-06-12)
+
+### Bug Fixes
+
+- Change default location input from optional to required
+  ([`24e8a40`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/24e8a409fabb79c7cb2be5367134c9e3ec898d66))
+
+
 ## v1.13.0 (2026-06-06)
 
 ### Bug Fixes
