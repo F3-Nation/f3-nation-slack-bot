@@ -481,7 +481,7 @@ SERIES_FORM = orm.BlockView(
             label="Default Location",
             action=actions.CALENDAR_ADD_SERIES_LOCATION,
             element=orm.StaticSelectElement(placeholder="Select the default location"),
-            optional=True,
+            optional=False,
         ),
         orm.InputBlock(
             label="Default Event Type",
