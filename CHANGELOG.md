@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.13.2 (2026-06-18)
+
+### Bug Fixes
+
+- Adding support for phone on orgs
+  ([`66c56c8`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/66c56c844f02a54520c22c7872d624a49035f1ef))
+
+
 ## v1.13.1 (2026-06-12)
 
 ### Bug Fixes
