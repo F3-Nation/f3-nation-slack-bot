@@ -2,6 +2,14 @@
 
 <!-- version list -->
 
+## v1.13.3 (2026-06-22)
+
+### Bug Fixes
+
+- Added script requirements back to fix calendar image generation
+  ([`78541e5`](https://github.com/F3-Nation/f3-nation-slack-bot/commit/78541e53e40150c9891ff8dbad39c662378ed05e))
+
+
 ## v1.13.2 (2026-06-18)
 
 ### Bug Fixes
