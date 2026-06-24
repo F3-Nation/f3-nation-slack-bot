@@ -14,6 +14,7 @@ from scripts import (
     backblast_reminders,
     calendar_images,
     home_region_nudge,
+    kotter_reports,
     monthly_reporting,
     preblast_reminders,
     q_lineups,
@@ -86,6 +87,12 @@ def run_all_hourly_scripts(force: bool = False, run_reporting: bool = True, repo
         award_achievements.main()
     except Exception as e:
         print(f"Error awarding achievements: {e}")
+
+    print("Running Kotter reports")
+    try:
+        kotter_reports.send_kotter_reports(force=force)
+    except Exception as e:
+        print(f"Error sending Kotter reports: {e}")
 
     print("Notifying completion endpoint to update settings cache")
     try:
